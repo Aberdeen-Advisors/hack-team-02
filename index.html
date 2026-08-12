@@ -3847,7 +3847,6 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         <RoleTable roles={filtered} incomplete={filteredIncomplete} selectedId={selectedId} onSelect={onSelect} />
       </div>
       <p className="footnote">All figures illustrative. All data synthetic. {NOTE.dataset}</p>
-      <p className="footnote">{NOTE.mapping} {NOTE.ratio}</p>
     </>
   );
 }
@@ -4150,8 +4149,6 @@ function OnePager({ role, onBack, backLabel }) {
             </div>
           )}
           <DeliveryDetail role={role} />
-          <p className="footnote">{NOTE.mapping}</p>
-          <p className="footnote">{NOTE.ratio}</p>
         </div>
       </div>
       <p className="footnote">All figures illustrative. All data synthetic.</p>
@@ -4263,7 +4260,7 @@ function AddRoleView({ onCreate, project }) {
         <h2>Add a role</h2>
         <p className="lede">
           Score a role that was missed, in the room, in front of site leadership. It is scored, tiered,
-          placed on the heat map and given a costed package the moment you submit. Change an input, the plan re-costs itself.
+          placed on the heat map and given a resourced package the moment you submit. Change an input, the plan updates itself.
         </p>
         <p className="lede unit">
           One row is one role at <b>one site scope</b>: role × site, where a site scope is either a
@@ -4406,7 +4403,8 @@ function AddRoleView({ onCreate, project }) {
 }
 
 /* ===========================================================================
-   10. COSTED PLAN / ROI
+   10. ROI MODEL (unused since the Adoption tab dropped its cost section;
+   kept here in case it is reinstated, not referenced by any current view)
    =========================================================================== */
 
 function RoiChart() {
@@ -5099,7 +5097,7 @@ function ProjectPicker({ projects, onSelect, onStartNew }) {
         <img src="assets/brand/logo-blue.svg" alt="Aberdeen Advisors" className="brand-logo" />
         <h1>Change Impact Assessment Tool</h1>
         <p className="lede">
-          Pick a project to open its impact heat map, role one-pagers and costed plan. The three below are
+          Pick a project to open its impact heat map, role one-pagers and resourced plan. The three below are
           worked examples, entirely synthetic, built to show the same scoring engine at a different scale,
           in a different industry, against a different kind of change. Or start a blank project and score
           your own roles live.
