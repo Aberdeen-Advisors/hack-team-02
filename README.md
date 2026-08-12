@@ -2,12 +2,17 @@
 
 **Aberdeen Advisors · AI Hackathon 2026 · Team 2 — Sarah Russell · Eptisam Ahmed · Harleen Arora**
 
-Turning a 5,000-person ERP deployment into a targeted, costed adoption plan.
+Turning any workforce-scale rollout into a targeted, role-by-role adoption plan.
 
-A consumer-products company is rolling out a new operating model and a new ERP to 5,000 employees.
-Leadership knows the technology. It does not know the people impact. This tool scores every
-**Role × Value Stream × Site**, assigns an intervention tier, and generates the training, comms and
-adoption package for each role — then costs the plan.
+Leadership usually knows the technology being deployed. It does not know the people impact: which
+roles actually change, where the capability gaps sit, and what training, comms and support each
+population needs. This tool scores every **Role × Site**, assigns an intervention tier, and generates
+the redesign, training, communications and adoption package for each role.
+
+The landing screen offers **three worked examples at three different scales and industries** — a
+5,000-person consumer-products ERP rollout, an 800-person hospital EHR rollout, and a 150-person
+insurance underwriting change — plus a **"Start new project"** wizard that scores a real engagement
+live, with AI-assisted scoring suggestions from a free-text role description.
 
 > All data in this repository is **synthetic**. All figures are illustrative.
 
@@ -17,23 +22,25 @@ adoption package for each role — then costs the plan.
 
 | Screen | What it gives you |
 |---|---|
-| **Portfolio heat map** | Every role plotted on impact severity × adoption risk, with the 3.5 gridlines and four labelled quadrants. Points sized by headcount, coloured by tier. Filters by value stream and site archetype. A **Weighting — ours, and tunable** panel that re-tiers the whole portfolio live. Summary tiles for roles, people and share of change budget per tier, plus a sortable role table that shows incomplete rows as *incomplete* rather than scoring them. |
-| **Role one-pager** | Before/after task lists, the removed/changed/new counts and FTE delta, both axis scores with their full sub-factor arithmetic shown so the number is auditable, the assigned tier and its package with doses, the delivery detail for that role (training method and duration, job-aid count, the five comms milestones with objectives, the four-layer support escalation, the measurement window) and four generated narrative sections. Copy to clipboard, or print to PDF. |
-| **Add a role** | Score a role live, in the room. Every slider carries a **1–5 anchor** that says what the score means as you move it, with the whole ladder and its provenance one click away. Sub-factors start unset: the panel reads **incomplete** with no score and no tier until all six are set, and only then does submit unlock. On submit the role lands on the heat map and its one-pager opens. |
-| **Costed plan / ROI** | The productivity-through-go-live curves, dip depth and recovery tiles, a productivity-loss-avoided figure computed from the current population, the **delivery standards** the packages are built from (method table, job-aid bands, five comms milestones, four-layer escalation, hypercare floor, cadences, adoption metrics) and the resourced plan (curricula, sandbox seats, deskless formats, message tracks, cascade scripts, super-users, site coaches, hypercare weeks) with the derivation rule printed beside every number. |
-| **Reproduced, not hardcoded** | The deck's own published figures next to what the engine computes, live: slide 9's tier table, slide 10's axis scores for all seven named roles, slide 13's resourced plan and slide 14's $5.3M. **24 comparisons, 18 exact, 6 near misses** — and every verdict on the page is computed by comparing the two cells, so nothing can claim a match it does not have. Each near miss prints the rule that produced it. |
+| **Project picker** | Three worked examples (same engine, three different scales/industries/change types) plus **Start new project**, which opens a two-step wizard: an engagement profile (company, sites, go-live date, sponsor), then role data — imported from a CSV template, added one at a time, or both. Each role gets a free-text description of what changes, and an **AI-suggested** first pass at the six sub-factor scores (or a flagged **placeholder** if no model is reachable) that a human reviews and edits before anything is added to the portfolio. |
+| **Stakeholder Impact** (heat map) | Every role plotted on impact severity × adoption risk, with the 3.5 gridlines and four labelled quadrants. Points sized by headcount, coloured by tier. Filters by site archetype. A **Weighting — ours, and tunable** panel that re-tiers the whole portfolio live. Summary tiles for roles, people and share of change budget per tier, plus a sortable role table that shows incomplete rows as *incomplete* rather than scoring them. |
+| **Redesign** | Before/after task counts (removed, changed, new) and the net FTE delta, scanned across the whole portfolio at once, filterable by tier. |
+| **Training** | Method, duration and job-aid count per role, derived from tier, complexity and deskless status, next to the Aberdeen-derived delivery standards (method table, job-aid bands) those choices are built from. |
+| **Communication** | A timed milestone plan per tier, anchored to the project's go-live date where one is set, plus the per-role go-live channel and whether a manager-cascade script is needed. |
+| **Adoption** | Post-go-live tracking: re-score status by tier against each tier's cadence, simulated training-completion sliders, and simulated adoption metrics (sign-ons, processes completed, job-aid access, comms click-through, HR case volume, qualitative feedback). Everything here is simulated for the demo, not measured, with the rule behind each number stated alongside it. |
+| **Role one-pager** | Reachable by clicking any role from any tab. Before/after task lists, both axis scores with their full sub-factor arithmetic shown so the number is auditable, the assigned tier and its package with doses, the delivery detail for that role, and four generated narrative sections. Copy to clipboard, or print to PDF. |
 
 ---
 
 ## The unit of analysis
 
-**One row = one role in one value stream at one site scope — role × process × site.** A site scope is
-either a single archetype (HQ, Plant, DC, Field/Commercial) or a named combination of them (`Plant + DC`),
-because some roles genuinely work across more than one — the deck does this too, printing `HQ+6` and
-`HQ+2` in slide 10's Sites column. This is *our* choice, and the tool says so on screen. The deck is
-ambiguous about it: slides 5 and 13 describe the unit as role × process × site, while slides 9 and 10 tier
-at role level. We tier at the row level, because that scope is the smallest thing that can own a
-curriculum, a message, a super-user and a named accountable manager.
+**One row = one role at one site scope — role × site.** A site scope is either a single archetype
+(HQ, Plant, DC, Field/Commercial, or a project's own site types) or a named combination of them
+(`Plant + DC`), because some roles genuinely work across more than one — the source deck does this
+too, printing `HQ+6` and `HQ+2` in slide 10's Sites column. This is *our* choice, and the tool says so
+on screen. The deck is ambiguous about it: slides 5 and 13 describe the unit as role × process × site,
+while slides 9 and 10 tier at role level. We tier at the row level, because that scope is the smallest
+thing that can own a curriculum, a message, a super-user and a named accountable manager.
 
 ## How the scoring works
 
@@ -61,10 +68,11 @@ an equal split rather than dividing by zero.
 ### What a score means — the 1–5 anchors
 
 The deck states the 1–5 scale twice and **never defines a single point on it**, for any sub-factor or
-either axis. So the tool supplies the anchors, and the Add-a-role sliders show the matching descriptor
-as you drag — a score reads as a description rather than a bare number. The full ladder for each
-sub-factor, with its provenance, is one click away under each slider, and the anchors also appear on
-the one-pager's sub-factor breakdown and in the copied text.
+either axis. So the tool supplies the anchors, and every slider in the app — the new-project wizard's
+role-review sliders included — shows the matching descriptor as you drag, so a score reads as a
+description rather than a bare number. The full ladder for each sub-factor, with its provenance, is one
+click away under each slider, and the anchors also appear on the one-pager's sub-factor breakdown and
+in the copied text.
 
 **They are not equally well grounded, and each one says which it is.** The badge under each slider is
 the honest label, not decoration:
@@ -82,9 +90,9 @@ If someone asks where a 4 comes from, that table is the answer, and the tool pri
 hiding it. See `docs/source-synthesis.md` §2 for the full derivation of every ladder.
 
 **Completeness gating.** A role scores only when all six sub-factors are set. Anything less renders as
-**incomplete** — no score, no tier, not plotted — in the role table, on the one-pager and, most
-importantly, in the Add-a-role form, where the submit button stays disabled until the sixth slider is
-set. A half-filled row can never look authoritative on stage.
+**incomplete** — no score, no tier, not plotted — in the role table and on the one-pager. The
+new-project wizard's role-review list flags incomplete rows the same way before you finish the wizard,
+so a half-filled row can never look authoritative on the heat map.
 
 Each axis is rounded to one decimal. **The threshold sits at 3.5 on both axes, and the rule is
 inclusive — a score of exactly 3.5 counts as above the line.** 3.5 is the “good” floor used in the
@@ -152,26 +160,7 @@ material, resolved per role:
   reference, but influence is not the same axis as adoption risk, and the tool does not equate them.
 
 The same three notes are printed in the UI: under the heat map, on the role one-pager beneath the
-prescribed package, and on the Costed plan tab under **Delivery standards behind every package**.
-
----
-
-## The money figure
-
-The productivity-loss-avoided figure is **computed, not hardcoded**, and moves the moment a role is
-added. Every input is printed on screen next to it:
-
-1. Integrate the gap to baseline for each curve across weeks 0–16 (trapezoidal) →
-   214 pp·wks untargeted, 61 pp·wks targeted.
-2. The difference / 100 = **1.53 productive weeks recovered per head**.
-3. × loaded cost per head per week (`$100,000 / 52`) = **$2,942 per head**.
-4. × headcount in **Rebuild + Enable** — the roles whose daily work materially changes.
-
-On the shipped 38-role, 5,000-person population (1,800 people in Rebuild + Enable) this lands on
-**$5.3M**, matching slide 14. Recovery is computed the same way: the first week each curve is back
-within 6% of baseline gives **14 weeks → 6 weeks**, matching the deck.
-
-The curves themselves are the deck's illustrative workbook values and are labelled as such.
+prescribed package, and on the Training and Communication tabs under their delivery-standards cards.
 
 ---
 
@@ -179,45 +168,77 @@ The curves themselves are the deck's illustrative workbook values and are labell
 
 No build step. No bundler. No `npm install`.
 
+### Windows
+
+Download the standalone `.exe` from this repo's **GitHub Releases** and run it directly — no Node
+install required. Double-clicking `start.bat` from a checkout works the same way if you already have
+Node on your machine: it launches `node server.js` and opens `http://localhost:3000` automatically.
+
+### Mac (and Linux)
+
+Clone the repo and run the server directly with Node:
+
 ```bash
-# any static server, from the repo root
+node server.js
+# then open http://localhost:3000
+```
+
+`server.js` is a small, dependency-free Node `http` server (no Express, no `npm install`). It serves
+`index.html`, `styles.css`, `data/` and `vendor/`, and it runs `api/generate.js` and
+`api/suggest-scores.js` **unchanged** for `POST /api/generate` and `POST /api/suggest-scores`, so the
+prompts, schema and fallback logic are never forked between this local path and a Vercel deployment.
+
+For the live model path, copy `.env.example` to `.env` and add your `ANTHROPIC_API_KEY` there — `.env`
+is gitignored and must never be committed. `server.js` reads it from `.env` and keeps it only in its
+own process; the key is never sent to or visible in the browser.
+
+### Without Node at all
+
+Any static file server works for the read-only parts of the app:
+
+```bash
 python3 -m http.server 8000
 # then open http://localhost:8000
 ```
 
 Opening `index.html` straight off the filesystem also works — the role data is embedded in the page
-as a fallback for exactly that case.
+as a fallback for exactly that case. Either way, `/api/generate` and `/api/suggest-scores` are not
+served (there is no process running the functions), so the app falls back to its own local template
+generator and placeholder scores respectively. **The demo never shows an error.**
 
-For local development against the live model path, copy `.env.example` to `.env` and add your
-`ANTHROPIC_API_KEY` there — `.env` is gitignored and must never be committed. Note that
-`/api/generate` is a serverless function: it only runs behind a dev server that executes it (e.g.
-`vercel dev`) or in a deployment. Opening `index.html` directly serves the built-in fallback content
-regardless of what is in `.env`.
-
-### Deploying
+### Deploying to Vercel
 
 Vercel, framework preset **Other / none**. `vercel.json` sets `cleanUrls`, rewrites everything that
-is not under `/api/` to `/index.html`, and raises the function timeout. Static files are matched
-before rewrites, so `styles.css`, `data/` and `vendor/` are served normally.
+is not under `/api/` to `/index.html`, and raises both functions' timeout to 60s. Static files are
+matched before rewrites, so `styles.css`, `data/` and `vendor/` are served normally.
 
 The only environment variable is `ANTHROPIC_API_KEY`, and it is optional — see below.
 
-> **As shipped, `ANTHROPIC_API_KEY` is unset.** It is not in the repository and it is not configured in
-> the Vercel project, so `/api/generate` answers **HTTP 200 with `"source": "fallback"`** and the app
-> serves deterministic template content behind a small **offline content** marker. Everything works; the
-> four narrative sections are just written by the local template library rather than by a model. To turn
-> the live path on, add `ANTHROPIC_API_KEY` in the Vercel project settings and redeploy — no code change.
+> **As shipped, `ANTHROPIC_API_KEY` is unset.** It is not in the repository, so `/api/generate` and
+> `/api/suggest-scores` answer **HTTP 200 with `"source": "fallback"`** and the app serves
+> deterministic template content (or a flagged placeholder score) behind a small **offline content**
+> marker. Everything works; the content is just written by local logic rather than by a model. To turn
+> the live path on, set `ANTHROPIC_API_KEY` wherever you're running `server.js` or your Vercel project,
+> and restart/redeploy — no code change.
 
 ---
 
 ## Where the LLM is, and is not
 
-**Not** in the scoring. Scoring and tier assignment are deterministic and always run locally in the
-browser.
+**Not** in the scoring. Scoring and tier assignment (`scoreRole`, `assignTier`, the 3.5 threshold) are
+deterministic and always run locally in the browser, for every entry path — the three worked examples,
+a role added through the new-project wizard, or one scored entirely by hand.
 
-The LLM writes **only** the four qualitative sections of a role one-pager — redesign narrative,
-training curriculum, comms message, adoption actions — grounded in that role's description, its
-sub-factor scores, its assigned tier and package, its before/after task lists and its constraints.
+The LLM is used for two things, both of them assistive, never authoritative:
+
+1. **The four qualitative sections of a role one-pager** — redesign narrative, training curriculum,
+   comms message, adoption actions — grounded in that role's description, its sub-factor scores, its
+   assigned tier and package, its before/after task lists and its constraints. `api/generate.js`.
+2. **A first-pass suggestion for the six sub-factor scores** in the "Start new project" wizard, from a
+   free-text description of what changes for a role — pre-filling the same sliders a human would
+   otherwise set by hand, against the same anchor ladders, always labelled **"AI-suggested — review
+   before finalizing"** and fully editable before the role is added. `api/suggest-scores.js`. It never
+   touches `scoreRole`/`assignTier` — it only proposes numbers for the sliders.
 
 `api/generate.js` is a Vercel Node serverless function:
 
@@ -244,74 +265,43 @@ The fallback is written to be presentable on stage: it is driven by the same tie
 and sub-factor scores the model receives, so it names the decision-rights shift where one exists and
 switches to deskless delivery where the population has no inbox.
 
+`api/suggest-scores.js` follows the same shape — `claude-sonnet-5`, strict JSON schema,
+`"source": "anthropic" | "fallback"` — but its fallback is honestly a flat 3.0 across all six
+sub-factors, not a deterministic estimate: there is no principled way to infer a score from free text
+without a model, so it is labelled **placeholder** rather than passed off as an assessment.
+
 ---
 
 ## Repository layout
 
 ```
-index.html          the whole app — React 18 + ReactDOM UMD, JSX via Babel Standalone
-styles.css          design tokens and layout, including the print stylesheet
-data/roles.json     the role dataset (synthetic); fetched at startup
-api/generate.js     Vercel serverless function for the four generated sections
-vercel.json         static config, cleanUrls, SPA rewrite that spares /api/
-vendor/             local copies of React, ReactDOM, Babel and Chart.js
-tools/embed-seed.js re-embeds data/roles.json into index.html as the offline fallback
-docs/               the source deck
+index.html                  the whole app — React 18 + ReactDOM UMD, JSX via Babel Standalone
+styles.css                  design tokens and layout, including the print stylesheet
+server.js                   dependency-free local Node server; run this directly (see Running it)
+start.bat                   double-click launcher for server.js, Windows
+data/roles.json             the flagship consumer-products dataset (synthetic); fetched at startup
+data/roles-healthcare.json  the Bellcrest Health System example dataset
+data/roles-financial.json   the Ashford Mutual Underwriting example dataset
+data/role-import-template.csv  CSV template for the new-project wizard's role import
+api/generate.js             serverless function for the four generated one-pager sections
+api/suggest-scores.js       serverless function that AI-suggests the six sub-factor scores
+vercel.json                 static config, cleanUrls, SPA rewrite that spares /api/
+vendor/                     local copies of React, ReactDOM, Babel and Chart.js
+assets/brand/               Aberdeen logo and favicon SVGs (light/dark variants)
+tools/embed-seed.js         re-embeds data/roles.json into index.html as the offline fallback
+tools/verify/                Playwright end-to-end suites — written against an earlier tab layout;
+                             expect them to need updating before they pass against the current build
+docs/                        the source deck, the evidence base and the team handover brief
 ```
 
 **Libraries** load from CDN with a vendored local fallback, so the demo survives a hostile
-conference network or a machine with no connectivity at all. Nothing here is compiled.
+conference network or a machine with no connectivity at all. Nothing here is compiled. There is no
+`package.json` — the whole repo runs with nothing installed.
 
 **After editing `data/roles.json`**, run `node tools/embed-seed.js` so the offline copy embedded in
 `index.html` matches. The app works either way — the embedded copy just goes stale.
 
 ---
-
-## What the engine reproduces from the deck
-
-Run against the shipped 38-role dataset, the deterministic engine lands on the deck's own numbers
-without any of them being hardcoded:
-
-**This is on screen, not just in this file.** The **Reproduced, not hardcoded** tab prints the whole
-comparison live and computes every verdict by comparing the deck's cell against the engine's, so the
-claim can be checked in front of an audience rather than taken on trust. Totals: **24 comparisons, 18
-exact, 6 near misses.**
-
-| Deck | Deck says | Tool computes |
-|---|---|---|
-| Slide 9 — tier table | 9 / 620 / 12% · 14 / 1,180 / 24% · 11 / 1,340 / 27% · 4 / 1,860 / 37% | identical |
-| Slide 9 — budget share | 55% · 27% · 13% · 5% | 54% · 27% · 14% · 5% — *near miss, see below* |
-| Slide 10 — Plant Scheduler | 4.6 / 4.4 · Rebuild | identical |
-| Slide 10 — Warehouse Team Lead | 4.1 / 4.7 · Rebuild | identical |
-| Slide 10 — AP Specialist | 4.4 / 4.5 · Rebuild | identical |
-| Slide 10 — Master Data Steward | 4.8 / 4.1 · Rebuild | identical |
-| Slide 10 — Customer Service, Order Entry | 4.5 / 3.9 · Rebuild | identical |
-| Slide 10 — Plant Buyer | 3.8 / 4.2 · Rebuild | identical |
-| Slide 10 — Plant Controller | 4.3 / 3.6 · Enable | 4.3 / **3.4** · Enable — *near miss, see below* |
-| Slide 13 — super-users | 42, at 1:15 in Rebuild roles | 42 |
-| Slide 13 — sandbox seats | 62 | 62 |
-| Slide 13 — deskless formats | 9 | 9 |
-| Slide 13 — message tracks | 4 | 4 |
-| Slide 13 — hypercare | 8 weeks | 8 |
-| Slide 14 — dip depth | 22% → 11% | identical |
-| Slide 14 — recovery | 14 weeks → 6 weeks | identical |
-| Slide 14 — loss avoided | ≈$5.3M | $5.3M |
-
-Six figures **do not match the deck, and are not claimed to**, because the tool derives them from a
-printed rule rather than asserting them — the rule is shown beside each figure on the Costed plan tab
-and again on the Reproduced tab:
-
-| Figure | Deck | Tool | Rule the tool applies |
-|---|---|---|---|
-| Role-based curricula | 18 | **14** | 1 per Rebuild role + 1 shared per value stream in Enable |
-| Manager cascade scripts | 11 | **13** | 1 per Rebuild role + 1 per non-Rebuild role with decision rights ≥ 4 |
-| Supervisors briefed | 340 | **314** | 1 per 10 people in Rebuild, Enable or Reassure roles |
-| Site change coaches | 6 | **8** | one per site carrying a Rebuild role. The deck's 6 is the plant count — it counts plants. The engine counts every site that carries a Rebuild role, and the widest Rebuild spread in the dataset is Warehouse Team Lead, which spans both archetypes: the six plant warehouses and the two DCs, so 6 + 2 = 8. The two figures answer different questions and **do not reconcile** — the deck's 6 leaves the DC shifts uncoached. State it as a divergence, not a match. |
-| Plant Controller adoption risk | 3.6 | **3.4** | slide 10 contradicts itself: 3.6 is above our inclusive 3.5 line and would tier Rebuild, but the slide tiers the role Enable. The dataset resolves it in favour of the tier the deck assigns. |
-| Budget share | 55 · 27 · 13 · 5 | **54 · 27 · 14 · 5** | not a deck-derived figure at all — it falls out of our own per-head cost weighting, which the deck does not state. Lands within one rounding point. |
-
-The derivation is the right answer here, not the deck's number: change an input and these move, which is
-the whole point. Say "every number traces back to a role × process × site row" and point at the rule.
 
 ## What is synthetic, and what the deck actually gave us
 
@@ -322,8 +312,13 @@ one's provenance (see *What a score means* above); the dataset itself is still o
 - the other **31 roles**, every headcount and site count outside those 7, and **every sub-factor value
   in the dataset** are our synthetic illustration, built to be internally consistent with the deck's
   tier table and its seven named roles;
-- the seven named roles reproduce the deck's own axis scores exactly (see the table above);
+- the seven named roles reproduce the deck's own axis scores exactly;
 - no client data, real HRIS extract or real readiness-pulse result is present anywhere in this repository.
+
+The two other worked examples (Bellcrest Health System, Ashford Mutual Underwriting) have no source
+deck behind them at all — they are entirely our own synthetic illustration of the same engine at a
+different scale and industry, and the app does not claim otherwise (`hasDeckReproduction` is `false`
+for both).
 
 ### Licence hygiene
 
@@ -345,38 +340,38 @@ keep the hygiene claim scoped to the product rather than to the whole repository
 
 ## Notes for the presenters
 
-- **"Add a role" is the money moment.** Sliders update both axis scores and the tier live; submit
-  drops the role onto the heat map and opens its one-pager. Then switch to **Costed plan** — the
-  resourced plan and the dollar figure have already moved. Adding a ~60-person Rebuild role takes
-  the avoided loss from $5.3M to about $5.5M in front of the audience. Note the form starts
-  **incomplete** by design — set all six sliders before you reach for submit.
-- **The strongest single thing to show a judge is the Reproduced tab.** It is the claim that this is an
-  engine and not a slide: 18 of the 24 figures our deck published fall out of it, and the 6 that do not
-  are labelled near misses on screen with the rule that produced them. Every verdict on that page is
-  computed by comparing the two cells, so say that out loud — it cannot flatter itself. If someone has
-  been dragging weights, matches will start failing; that is the page being honest, and worth pointing at
-  rather than hiding.
-- **If someone asks what a 4.2 on capability delta means, drag that slider.** The anchor under it
-  describes the score in Aberdeen's own words, and "All five anchors" opens the ladder with its
-  provenance. Use **Frequency and volume** if you want to show the tool admitting a weakness: it is
-  badged *OURS end to end — no source measures this*, in amber, and the note says it is the sub-factor
-  most likely to be challenged. Volunteering that is more persuasive than being caught by it.
-- **If someone challenges the weights, open the Weighting panel and hand it to them.** They are ours
-  and they are tunable; drag one and the portfolio re-tiers live. Plant Buyer is the honest example:
-  its impact severity is 3.8 on our default weighting but 3.3 if all the impact weight sits on
-  consequence of error, which moves it out of Rebuild. Reset restores the default in one click.
-- **If someone asks where the packages come from**, the answer is on the Costed plan tab under
-  *Delivery standards behind every package*: methods, durations, job-aid ranges, the five milestones,
-  the four-layer escalation and the cadences are Aberdeen's own delivery material — **the mapping of
-  tier to tactic is ours**, and the 1:15 super-user ratio is from our own deck, not Aberdeen's.
-- **Plant Controller** carries an adoption risk of 3.4 in the dataset, so the fixed 3.5 threshold
-  puts it in **Enable** — the tier slide 10 assigns it. Slide 10's own 3.6 would tier it Rebuild;
-  the dataset resolves the deck's internal inconsistency in favour of the tier, which is what the
-  audience sees.
+- **Open on the project picker.** Three worked examples at three different scales and industries
+  (5,000-person ERP, 800-person hospital EHR, 150-person insurance underwriting) show the same engine
+  generalizes; **Start new project** shows it working live on a real engagement, not just the shipped
+  data.
+- **The new-project wizard is the money moment now.** Type a company, a couple of sites, and one role
+  with a free-text description of what changes — the assistant proposes the six sub-factor scores
+  against the same anchor ladders the manual sliders use, labelled **AI-suggested: review before
+  finalizing**, and you can still drag every slider before finishing. Finish drops you straight onto
+  that project's heat map.
+- **If someone asks what a 4.2 on capability delta means, drag that slider** (on the one-pager, or in
+  the wizard's role review). The anchor under it describes the score in Aberdeen's own words, and "All
+  five anchors" opens the ladder with its provenance. Use **Frequency and volume** if you want to show
+  the tool admitting a weakness: it is badged *OURS end to end — no source measures this*, in amber,
+  and the note says it is the sub-factor most likely to be challenged. Volunteering that is more
+  persuasive than being caught by it.
+- **If someone challenges the weights, open the Weighting panel on Stakeholder Impact and hand it to
+  them.** They are ours and they are tunable; drag one and the portfolio re-tiers live. Plant Buyer
+  (in the consumer-products example) is the honest illustration: its impact severity is 3.8 on our
+  default weighting but 3.3 if all the impact weight sits on consequence of error, which moves it out
+  of Rebuild. Reset restores the default in one click.
+- **If someone asks where the packages come from**, the answer is on the **Training** tab under
+  *Delivery standards*: methods, durations, job-aid ranges, the five milestones, the four-layer
+  escalation and the cadences are Aberdeen's own delivery material — **the mapping of tier to tactic
+  is ours**, and the 1:15 super-user ratio is from our own deck, not Aberdeen's.
+- **Plant Controller** (consumer-products example) carries an adoption risk of 3.4 in the dataset, so
+  the fixed 3.5 threshold puts it in **Enable** — the tier the source deck's slide 10 assigns. Slide
+  10's own 3.6 would tier it Rebuild; the dataset resolves the deck's internal inconsistency in favour
+  of the tier the deck itself shows.
 - **Warehouse Team Lead is the best role to demo.** It is the only role that trips both modifiers at
   once — deskless *and* a decision-rights shift — so the one-pager visibly rewrites the package:
   on-shift micro-training, laminated job aids, email dropped, plus a cascade script on decision
   rights.
-- The four generated sections show an **offline content** marker until `ANTHROPIC_API_KEY` is set in
-  Vercel. The fallback is presentable — it names the decision-rights shift and switches to deskless
-  channels — so the demo is safe either way.
+- The four generated one-pager sections show an **offline content** marker until `ANTHROPIC_API_KEY`
+  is set (in `.env` for `server.js`, or in the Vercel project). The fallback is presentable — it names
+  the decision-rights shift and switches to deskless channels — so the demo is safe either way.
