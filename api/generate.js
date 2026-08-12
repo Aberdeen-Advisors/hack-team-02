@@ -112,6 +112,8 @@ const SYSTEM_PROMPT = [
   '4. If the role is deskless, every intervention you describe must reach people who have no desk, no screen and no corporate inbox:',
   '   on-shift micro-training at the line, laminated job aids in local language, QR codes at the shift huddle. Never propose email or e-learning.',
   '5. Honour the doses supplied (sandbox days, super-user ratio, coaching weeks, hypercare weeks). Do not inflate them.',
+  '5b. Hypercare is the FLOOR deliverable, not a top-tier extra: every tier gets it and only the duration scales, so include a',
+  '   hypercare action sized to the supplied hypercare weeks whatever the tier — including Inform.',
   '6. Curriculum items must be built from what the work becomes, not from the ERP module list.',
   '7. Adoption actions must each carry a named accountable owner and a timing relative to go-live.',
   '8. The DELIVERY STANDARDS block supplies the training method, its duration, the job-aid count, the five communications',
@@ -316,6 +318,10 @@ function fallback(p) {
     adoptionActions.push({ action: 'Confirm every shift pattern is covered by an on-shift session — including nights', owner: 'Site lead', timing: 'Go-live minus 2 weeks' });
   }
   adoptionActions.push({ action: `Publish the four-layer support escalation for this role — ${supportLayers.join(' → ').toLowerCase()}`, owner: 'Change lead', timing: 'Go-live minus 1 week' });
+  // Hypercare is the floor deliverable in every tier, not a Rebuild extra —
+  // Aberdeen's lowest-ambition tier is training, go-live comms and hypercare.
+  const hw = d.hypercareWeeks || 1;
+  adoptionActions.push({ action: `Staff ${hw} week${hw === 1 ? '' : 's'} of hypercare for this role — the floor every tier gets, scaled to this one`, owner: 'Change lead', timing: `Go-live to +${hw} week${hw === 1 ? '' : 's'}` });
   adoptionActions.push({ action: `Re-score this role at ${d.rescoreDays || 30}-day intervals; the dashboard is the go-live gate`, owner: 'Change lead', timing: `Every ${d.rescoreDays || 30} days` });
   adoptionActions.push({ action: 'Reassess site readiness for this role on the standing cadence', owner: 'Site lead', timing: `Every ${cadence.readinessReassessMonths} months` });
   adoptionActions.push({ action: `Measure adoption on ${adoptionMetrics.join(', ')}`, owner: 'Change lead', timing: `Across the ${cadence.adoptionWindowMonths}-month window after go-live` });

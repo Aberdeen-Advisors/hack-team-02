@@ -57,8 +57,15 @@ const NOTE = {
   mapping: 'Provenance: the tier → tactic mapping is OURS. Aberdeen’s OCM delivery material supplies the training method table, job-aid ranges, '
       + 'communications milestones, four-layer support escalation and cadences — it contains no tier-to-tactic mapping, so the mapping is our extension of it, not something inherited.',
   ratio: 'The 1:15 super-user ratio comes from Team 2’s own deck (slide 13). Aberdeen’s material states no ratio.',
+  hypercare: 'Hypercare is the floor deliverable, not a top-tier extra. Aberdeen’s lowest-ambition delivery tier is defined as training, '
+      + 'go-live communications and hypercare — so every tier here carries hypercare and only the duration scales. The 8 weeks at the top of the '
+      + 'range is our own deck’s number (slide 13); how it steps down across the other three tiers is ours.',
   dataset: 'The deck names 7 of the 38 roles and gives no 1–5 anchors per sub-factor. The other 31 roles and every sub-factor value are our synthetic illustration.',
   incomplete: 'A role scores only when all six sub-factors are set. Anything less shows as incomplete — never as a score or a tier.',
+  anchors: 'Every sub-factor carries a 1–5 anchor, so a score reads as a description rather than a number. The source deck states the '
+      + '1–5 scale and never defines a single point on it, so these ladders are ours to own: where Aberdeen’s or the client plan’s band text '
+      + 'exists we use it and say so, and where it does not the wording is ours. They are not equally well grounded, and each one says which it is — '
+      + 'capability delta is Aberdeen’s own wording at 1, 3 and 5; frequency and volume is ours end to end, because no source in the evidence base measures it.',
 };
 
 const IMPACT_FACTORS = [
@@ -72,6 +79,121 @@ const RISK_FACTORS = [
   { key: 'capabilityDelta', weight: 0.35, label: 'Capability delta',             hint: 'Skill required vs. current' },
   { key: 'localReadiness',  weight: 0.25, label: 'Local readiness gap',          hint: 'Site leadership capacity, change fatigue, digital maturity, deskless access (5 = least ready)' },
 ];
+
+/* ---------------------------------------------------------------------------
+   1-5 ANCHORS PER SUB-FACTOR — what a score actually means.
+
+   The source deck states the 1-5 scale twice and never defines a single point
+   on it, for any sub-factor or either axis (docs/source-synthesis.md §2). These
+   ladders fill that gap, and each one carries its own provenance because the
+   six are NOT equally well grounded. Listed here in descending order of how
+   much source material stands behind them:
+
+     capabilityDelta   - best supported. 1, 3 and 5 are Aberdeen's own band text.
+     errorConsequence  - Openlink's four named bands, interpolated to five.
+     taskShare         - Aberdeen band wording, our percentage cut-offs.
+     decisionRights    - our ladder over Aberdeen's driver vocabulary.
+     localReadiness    - two limbs sourced, two effectively unsourced.
+     frequencyVolume   - OURS END TO END. No source measures it at all.
+
+   `origin` is the short badge shown on screen; `note` is the sentence a
+   presenter can defend out loud. Neither is decoration - if a client asks
+   where a 4 comes from, this is the answer.
+   --------------------------------------------------------------------------- */
+
+const ANCHORS = {
+  capabilityDelta: {
+    origin: 'Aberdeen’s own band wording at 1 · 3 · 5',
+    note: 'The best-grounded of the six. Anchors 1, 3 and 5 are Aberdeen’s Knowledge & Skills and '
+        + 'Organization & Roles band text, quotable to Aberdeen rather than to us; the observable content at 2 and 4 is ours, '
+        + 'over a “small / medium / large” gap gauge.',
+    bands: [
+      'Minor changes to skills or knowledge required — no specific training need; capabilities already present in the role',
+      'Existing skills transfer; navigation-level familiarisation only — a “small” gap',
+      'Some development of skills and knowledge in specialist areas; some new capabilities required for the role',
+      'Substantial new skills in a core part of the role, built on a recognisable base — a “large” gap',
+      'Employees do not possess the skills and knowledge required to perform their daily role; a significant number of new capabilities',
+    ],
+  },
+  errorConsequence: {
+    origin: 'Openlink’s four named bands · safety limb ours',
+    note: 'Bands follow the Openlink client plan, the only source that bands consequence on named levels with written '
+        + 'descriptors (operational impact, data integrity, legal and compliance). Two authored moves: it has four bands and we need five, '
+        + 'so 3 is our interpolation — and no source in the set scores safety consequence at all, so the safety limb at 5 is ours. '
+        + 'Say so before a plant manager asks.',
+    bands: [
+      'An error is self-correcting within the shift and never leaves the team',
+      'A downstream control catches the error before it reaches a customer or the ledger',
+      'The error degrades a service level, or forces manual rework inside one group',
+      'The error reaches a customer, the ledger or the plant schedule',
+      'The error creates a safety exposure, a reportable financial-control failure, or a line stoppage',
+    ],
+  },
+  taskShare: {
+    origin: 'Aberdeen band wording · percentage cut-offs ours',
+    note: 'The observable wording is Aberdeen’s process-change band text over Prosci’s magnitude ladder. The percentage bands are '
+        + 'entirely ours — no source expresses task share as a percentage. They are here because a deterministic scorer needs a '
+        + 'countable rule, and the to-be process designs make the numerator and denominator available.',
+    bands: [
+      'Under 10% of the role’s daily tasks change — limited process change, minimal hand-off change',
+      'Roughly 10–25% of daily tasks change; the shape of the day is still recognisable',
+      'Roughly 25–50% change — noticeable process change, noticeable change to the number of steps',
+      'Roughly 50–75% change; large-scale process change, and hand-offs in and out of the role move',
+      'Over 75% of daily tasks change, or the role is net-new',
+    ],
+  },
+  decisionRights: {
+    origin: 'Our ladder · Aberdeen driver vocabulary at 1 · 2 · 4',
+    note: 'The ladder is ours. No instrument in the evidence base scores decision rights as its own dimension — not one of '
+        + 'Prosci’s 28 risk items and none of its 10 impact aspects — which is precisely why it is in our model. The vocabulary at '
+        + '1, 2 and 4 is Aberdeen’s driver wording; the anchor at 5 is our own deck’s sentence.',
+    bands: [
+      'No change to what the role may approve, release or override',
+      'The same approvals, but new evidence or an audit trail is required — a reason code, a second signature',
+      'Approval limits or thresholds change, or an approval moves one level up or down. The role still decides',
+      'A decision the role used to make is now system-determined and the role validates it, or it moves to another role',
+      'Discretionary authority removed, replaced by rules-based exception handling — “I used to approve this, and now the system does”',
+    ],
+  },
+  localReadiness: {
+    origin: 'Two limbs sourced · digital maturity and deskless access barely',
+    note: 'Four limbs, one score. Site-leadership capacity and change fatigue carry Prosci Organizational-Attributes wording that '
+        + 'appears identically in two independent Prosci products — the strongest corroboration in the set. Digital maturity is scored '
+        + 'by no source at all, and deskless access rests on a single Aberdeen sentence. Our recommendation, not a source position: '
+        + 'score each limb and take the highest, not the mean — a site where nobody has a screen is not a moderate-risk site.',
+    bands: [
+      'Very few changes and under capacity; leadership highly effective at change; all staff desk-based with individual access',
+      'One concurrent change; the site manager is credible but stretched; desk access universal',
+      'Several concurrent changes; the manager needs a script to run the cascade; mixed desk and shared-terminal access',
+      'Poorly managed changes in recent memory; manager capacity is the binding constraint; most of the population shares terminals or works shifts',
+      'Everything is changing and over capacity; the population has no computer access and email is ineffective',
+    ],
+  },
+  frequencyVolume: {
+    origin: 'OURS end to end — no source measures this',
+    note: 'This ladder is ours, every word of it. This is the least grounded of the six sub-factors: no source in the evidence base '
+        + 'scores task frequency or volume. The nearest items measure the frequency of communications and the size of the '
+        + 'population, which are different things and are not offered as equivalents. Team 2 added this sub-factor. The honest defence '
+        + 'is that it is directly countable from the system transaction lists our own deck already names as an input — and it is the '
+        + 'sub-factor most likely to be challenged.',
+    bands: [
+      'The changed task runs less than monthly for a given post-holder',
+      'Monthly',
+      'Weekly',
+      'Daily, at low volume — a handful of transactions per shift',
+      'Continuous — the changed task is the role’s core throughput, many transactions per shift',
+    ],
+  },
+};
+
+/* A 1-5 slider moves in 0.1 steps, so a value usually sits between two
+   anchors. We show the nearest one and say when it is only the nearest. */
+function anchorFor(key, value) {
+  const a = ANCHORS[key];
+  if (!a || !isScore(value)) return null;
+  const n = Math.min(5, Math.max(1, Math.round(value)));
+  return { n, text: a.bands[n - 1], exact: Math.abs(value - n) < 0.05, origin: a.origin, note: a.note };
+}
 
 const ALL_FACTORS = [...IMPACT_FACTORS, ...RISK_FACTORS];
 /* Our default weighting. Frozen, so "Reset to our defaults" always has a home. */
@@ -147,6 +269,12 @@ function scoreRole(role) {
    material contains no tier-to-tactic mapping, so nothing here may be
    presented as inherited. The 1:15 super-user ratio is from Team 2's own deck
    (slide 13); Aberdeen's material states no ratio at all.
+
+   HYPERCARE IS THE FLOOR, NOT A TOP-TIER EXTRA. Aberdeen's lowest-ambition
+   delivery tier is defined as training, go-live communications and hypercare,
+   so every tier below carries hypercareWeeks and only the duration scales. The
+   8 weeks at Rebuild is our own deck's number (slide 13); the step-down across
+   the other three tiers is ours.
    =========================================================================== */
 
 const DOSES = {
@@ -527,10 +655,132 @@ function resourcedPlan(scored) {
         { n: siteCoaches, txt: 'site change coaches',
           rule: 'one per site carrying a Rebuild role' },
         { n: tiersPresent.length ? Math.max(...tiersPresent.map((t) => DOSES[t].hypercareWeeks)) : 0, txt: 'weeks hypercare',
-          rule: 'the longest tier dose in the population, staffed to predicted ticket concentration' },
+          rule: `hypercare is the floor in every tier (${TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks); `
+              + 'this is the longest dose present, staffed to predicted ticket concentration' },
       ],
     },
   ];
+}
+
+/* ===========================================================================
+   3b. "REPRODUCED, NOT HARDCODED"
+
+   The strongest claim this tool can make is that our own deck's published
+   figures fall OUT of the engine instead of being typed into it. This section
+   states that claim in a form a sceptic can check: the deck's number, the
+   engine's number, and — where they differ — the rule that produced the
+   difference.
+
+   Two rules for this panel, and they are the whole point of it:
+
+   1. The verdict is COMPUTED, never asserted. Every row compares a live engine
+      value against a frozen deck value and decides "match" or "near miss" on
+      the spot. Nothing here can claim a match it does not have, and if a
+      presenter tunes a weight the matches will start failing on screen — which
+      is correct, not a bug.
+   2. Near misses are shown as near misses, with their derivation rule. There
+      are six, not the three the plan tab is best known for: site change coaches
+      and Plant Controller's adoption risk also diverge, and the budget share
+      differs by a rounding point. All six are in the table below and all six are
+      in the README. Hiding any of them would make the panel a worse argument,
+      not a better one.
+   =========================================================================== */
+
+/* The deck's own published figures, frozen. These are the ONLY hardcoded
+   numbers in this file that the engine is measured against — they are the
+   claim being tested, not an input to anything. */
+const DECK_FIGURES = {
+  tiers: { Rebuild: { roles: 9, people: 620 }, Enable: { roles: 14, people: 1180 },
+           Reassure: { roles: 11, people: 1340 }, Inform: { roles: 4, people: 1860 } },
+  budgetShare: { Rebuild: '55%', Enable: '27%', Reassure: '13%', Inform: '5%' },
+  roles: [
+    { match: 'Plant Scheduler',              impact: '4.6', risk: '4.4', tier: 'Rebuild' },
+    { match: 'Warehouse Team Lead',          impact: '4.1', risk: '4.7', tier: 'Rebuild' },
+    { match: 'AP Specialist',                impact: '4.4', risk: '4.5', tier: 'Rebuild' },
+    { match: 'Master Data Steward',          impact: '4.8', risk: '4.1', tier: 'Rebuild' },
+    { match: 'Customer Service - Order Entry', impact: '4.5', risk: '3.9', tier: 'Rebuild' },
+    { match: 'Plant Controller',             impact: '4.3', risk: '3.6', tier: 'Enable' },
+    { match: 'Plant Buyer',                  impact: '3.8', risk: '4.2', tier: 'Rebuild' },
+  ],
+  plan: {
+    'role-based curricula': 18, 'sandbox seats': 62, 'deskless on-shift formats': 9,
+    'message tracks': 4, 'manager cascade scripts': 11, 'supervisors briefed on decision rights': 340,
+    'super-users': 42, 'site change coaches': 6, 'weeks hypercare': 8,
+  },
+  roi: { lossAvoided: '$5.3M', dip: '22% → 11%', recovery: '14 → 6 weeks' },
+};
+
+/* Why each near miss is a near miss. Keyed to the row it explains. */
+const DIVERGENCE = {
+  'role-based curricula': 'The deck asserts 18. The engine derives one curriculum per Rebuild role plus one shared per value stream in '
+      + 'Enable, which is 14 on this population. Change the population and it moves — that is the point.',
+  'manager cascade scripts': 'The deck asserts 11. The engine derives one per Rebuild role plus one per non-Rebuild role whose '
+      + 'decision-rights score is 4 or higher, which finds 13 — two roles the deck’s figure misses.',
+  'supervisors briefed on decision rights': 'The deck asserts 340. The engine derives one per 10 people across Rebuild, Enable and '
+      + 'Reassure, which is 314 on the shipped headcounts.',
+  'site change coaches': 'The deck asserts 6, which counts the plants. The engine derives one per site carrying a Rebuild role, and the '
+      + 'widest-spread Rebuild role is Warehouse Team Lead across 8 DCs — so it returns 8. The two are counting different sites, and the '
+      + 'engine is counting the ones that actually carry a Rebuild role.',
+  'Plant Controller': 'The deck’s slide 10 prints an adoption risk of 3.6 but tiers the role Enable — and 3.6 is above our inclusive '
+      + '3.5 line, which would make it Rebuild. The deck contradicts itself. The dataset resolves it in favour of the tier the deck '
+      + 'assigns: 3.4, which lands in Enable. Impact matches exactly.',
+  budgetShare: 'Budget share is not a deck-derived figure at all — it falls out of our own per-head cost weighting, which the deck does '
+      + 'not state. It lands within one rounding point of the deck’s split.',
+};
+
+/* Build the whole report. Every `ok` below is decided here, live, by comparison. */
+function reproductionReport(scored) {
+  const agg = aggregate(scored);
+  const plan = resourcedPlan(scored);
+  const roi = roiModel(scored);
+  const row = (label, deck, engine, rule) => ({ label, deck: String(deck), engine: String(engine), ok: String(deck) === String(engine), rule });
+
+  const tierRows = TIER_ORDER.map((t) => {
+    const d = DECK_FIGURES.tiers[t];
+    const b = agg.byTier[t];
+    return row(`${t} — roles / people`, `${d.roles} / ${d.people.toLocaleString()}`,
+      `${b.roles} / ${b.people.toLocaleString()}`, 'counted from the scored rows, then summed by tier');
+  });
+  tierRows.push(row('Budget share — all four tiers',
+    TIER_ORDER.map((t) => DECK_FIGURES.budgetShare[t]).join(' · '),
+    TIER_ORDER.map((t) => pct(agg.byTier[t].budgetShare)).join(' · '),
+    DIVERGENCE.budgetShare));
+
+  const roleRows = [];
+  DECK_FIGURES.roles.forEach((d) => {
+    const r = scored.find((x) => x.role.startsWith(d.match));
+    if (!r) return;
+    const rule = d.match === 'Plant Controller' ? DIVERGENCE['Plant Controller']
+      : 'weighted sum of the six sub-factor scores, then the inclusive 3.5 threshold on both axes';
+    roleRows.push(row(`${d.match} — impact / risk / tier`,
+      `${d.impact} / ${d.risk} / ${d.tier}`,
+      `${r.scores.impact.toFixed(1)} / ${r.scores.risk.toFixed(1)} / ${r.tier}`, rule));
+  });
+
+  const planRows = [];
+  plan.forEach((g) => g.rows.forEach((pr) => {
+    if (!(pr.txt in DECK_FIGURES.plan)) return;
+    planRows.push(row(pr.txt, DECK_FIGURES.plan[pr.txt], pr.n, DIVERGENCE[pr.txt] || pr.rule));
+  }));
+
+  const roiRows = [
+    row('Productivity loss avoided', DECK_FIGURES.roi.lossAvoided, money(roi.lossAvoided),
+      `${roi.affectedHeads.toLocaleString()} people in Rebuild + Enable × ${roi.avoidedWeeksPerHead.toFixed(2)} productive weeks recovered `
+      + `× $${Math.round(roi.weeklyCost).toLocaleString()}/week — the weeks come from the area between the two productivity curves`),
+    row('Dip depth', DECK_FIGURES.roi.dip, `${Math.round(roi.dipUntargeted)}% → ${Math.round(roi.dipTargeted)}%`,
+      'deepest point below baseline on each curve'),
+    row('Recovery', DECK_FIGURES.roi.recovery, `${roi.recoveryUntargeted} → ${roi.recoveryTargeted} weeks`,
+      `first week each curve is back within ${100 - ASSUMPTIONS.recoveryThresholdPct}% of baseline`),
+  ];
+
+  const groups = [
+    { group: 'Slide 9 — the tier table', rows: tierRows },
+    { group: 'Slide 10 — axis scores, the seven roles the deck names', rows: roleRows },
+    { group: 'Slide 13 — the resourced plan', rows: planRows },
+    { group: 'Slide 14 — the money', rows: roiRows },
+  ];
+  const all = groups.flatMap((g) => g.rows);
+  return { groups, matched: all.filter((r) => r.ok).length, total: all.length };
 }
 
 /* ===========================================================================
@@ -2300,6 +2550,9 @@ function localTemplate(role) {
     adoptionActions.push({ action: 'Confirm every shift pattern is covered by an on-shift session — including nights', owner: 'Site lead', timing: 'Go-live minus 2 weeks' });
   }
   adoptionActions.push({ action: `Publish the four-layer support escalation for this role — ${SUPPORT_LAYERS.join(' → ').toLowerCase()}`, owner: 'Change lead', timing: 'Go-live minus 1 week' });
+  // Hypercare is the floor deliverable, not a Rebuild extra: Aberdeen's lowest-ambition
+  // tier is training, go-live comms and hypercare. Every tier gets it; only the length scales.
+  adoptionActions.push({ action: `Staff ${d.hypercareWeeks} week${d.hypercareWeeks === 1 ? '' : 's'} of hypercare for this role — the floor every tier gets, scaled to this one`, owner: 'Change lead', timing: `Go-live to +${d.hypercareWeeks} week${d.hypercareWeeks === 1 ? '' : 's'}` });
   adoptionActions.push({ action: `Re-score this role at ${d.rescoreDays}-day intervals; the dashboard is the go-live gate`, owner: 'Change lead', timing: `Every ${d.rescoreDays} days` });
   adoptionActions.push({ action: `Reassess site readiness for this role on the standing cadence`, owner: 'Site lead', timing: `Every ${CADENCE.readinessReassessMonths} months` });
   adoptionActions.push({ action: `Measure adoption on ${ADOPTION_METRICS.join(', ')}`, owner: 'Change lead', timing: `Across the ${CADENCE.adoptionWindowMonths}-month window after go-live` });
@@ -2605,9 +2858,12 @@ function WeightTuner({ weights, onChange, onReset }) {
   );
 }
 
-function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, weights, onWeight, onResetWeights }) {
+function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepro, weights, onWeight, onResetWeights }) {
   const [vs, setVs] = useState('All');
   const [sa, setSa] = useState('All');
+  // Deliberately the whole population, not the filtered view: the claim is about
+  // the deck's published figures, which are portfolio-wide.
+  const repro = useMemo(() => reproductionReport(scored), [scored]);
 
   const match = (r) => (vs === 'All' || r.valueStream === vs) && (sa === 'All' || r.siteArchetype === sa);
   const filtered = useMemo(() => scored.filter(match), [scored, vs, sa]);
@@ -2629,6 +2885,17 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, weight
           Ours: the source deck says role × process × site on slides 5 and 13 but tiers at role level on slides 9 and 10, so we
           state the unit and tier at row level.
         </p>
+      </div>
+
+      {/* The claim a judge should be handed first: these figures are outputs, not inputs. */}
+      <div className="repro-strip no-print">
+        <span className="rs-n">{repro.matched}/{repro.total}</span>
+        <span className="rs-t">
+          <b>Reproduced, not hardcoded.</b> {repro.matched} of the {repro.total} figures our deck published fall out of this engine —
+          the tier table, the seven named roles' axis scores, the resourced plan and the {money(roiModel(scored).lossAvoided)}.
+          The other {repro.total - repro.matched} are near misses and are shown as near misses, with the rule that produced them.
+        </span>
+        <button className="btn" onClick={onRepro}>See the comparison →</button>
       </div>
 
       <div className="filters no-print">
@@ -2724,14 +2991,25 @@ function AxisBreakdown({ name, factors, values, score }) {
         <span className="val" style={{ color: score >= THRESHOLD ? 'var(--ink)' : 'var(--ink-2)' }}>{score.toFixed(1)}</span>
       </div>
       <div className="subfactors">
-        {factors.map((f) => (
-          <div className="sf" key={f.key}>
-            <span className="lbl" title={f.hint}>{f.label}</span>
-            <span className="w">×{effWeight(factors, f).toFixed(2)}</span>
-            <span className="v">{values[f.key].toFixed(1)}</span>
-            <span className="bar"><i style={{ width: `${(values[f.key] / 5) * 100}%` }} /></span>
-          </div>
-        ))}
+        {factors.map((f) => {
+          const hit = anchorFor(f.key, values[f.key]);
+          const ours = /^OURS/.test(ANCHORS[f.key].origin);
+          return (
+            <div className="sf" key={f.key}>
+              <span className="lbl" title={f.hint}>{f.label}</span>
+              <span className="w">×{effWeight(factors, f).toFixed(2)}</span>
+              <span className="v">{values[f.key].toFixed(1)}</span>
+              <span className="bar"><i style={{ width: `${(values[f.key] / 5) * 100}%` }} /></span>
+              {hit && (
+                <span className="sf-an" title={hit.note}>
+                  <b>{hit.exact ? hit.n : `~${hit.n}`}</b>
+                  <span className="t">{hit.text}</span>
+                  <i className={'prov' + (ours ? ' ours' : '')}>{hit.origin}</i>
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
       <div className="sf-total">
         {factors.map((f) => `${effWeight(factors, f).toFixed(2)}×${values[f.key].toFixed(1)}`).join('  +  ')}
@@ -2807,6 +3085,17 @@ function onePagerText(role, gen) {
   L.push(`Impact severity ${role.scores.impact.toFixed(1)} = ` + IMPACT_FACTORS.map((f) => `${effWeight(IMPACT_FACTORS, f).toFixed(2)}x${role.impact[f.key].toFixed(1)} (${f.label})`).join(' + '));
   L.push(`Adoption risk   ${role.scores.risk.toFixed(1)} = ` + RISK_FACTORS.map((f) => `${effWeight(RISK_FACTORS, f).toFixed(2)}x${role.risk[f.key].toFixed(1)} (${f.label})`).join(' + '));
   L.push(`Threshold ${THRESHOLD} on both axes, inclusive (exactly 3.5 counts as above) -> ${role.tier}`);
+  L.push('');
+  L.push('WHAT EACH SCORE MEANS (1-5 anchors, with their provenance)');
+  ALL_FACTORS.forEach((f) => {
+    const v = (IMPACT_FACTORS.includes(f) ? role.impact : role.risk)[f.key];
+    const a = anchorFor(f.key, v);
+    if (!a) return;
+    L.push(`  ${f.label} ${v.toFixed(1)} — anchor ${a.n}${a.exact ? '' : ' (nearest)'}: ${a.text}`);
+    L.push(`    provenance: ${a.origin}`);
+  });
+  L.push(`  The source deck defines no point on the 1-5 scale. Frequency and volume is ours end to end - no source measures it.`);
+  L.push('');
   L.push(`Weights are ours: our default, and tunable. The source deck states no weights and no aggregation method.`);
   L.push(`Unit of analysis: role x value stream x site archetype — one row is one role in one value stream at one site archetype.`);
   L.push('');
@@ -2826,6 +3115,8 @@ function onePagerText(role, gen) {
   L.push('  Communications milestones:');
   commsPlan(role).forEach((m) => L.push(`    - ${m.name} — ${m.objective} · ${m.channel}`));
   L.push('  Support escalation: ' + SUPPORT_LAYERS.join(' -> '));
+  L.push(`  Hypercare: ${DOSES[role.tier].hypercareWeeks} week(s) — the floor in every tier `
+       + `(${TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks); only the duration scales.`);
   L.push(`  Cadence: readiness reassessed every ${CADENCE.readinessReassessMonths} months; role re-scored every ${DOSES[role.tier].rescoreDays} days`);
   L.push(`  Adoption measured over a ${CADENCE.adoptionWindowMonths}-month window on: ${ADOPTION_METRICS.join(', ')}`);
   L.push('  The 1:15 super-user ratio is from Team 2\'s own deck (slide 13); Aberdeen\'s material states no ratio.');
@@ -2886,6 +3177,7 @@ function DeliveryDetail({ role }) {
         <ol className="esc">{SUPPORT_LAYERS.map((s) => <li key={s}>{s}</li>)}</ol>
         <p className="sub" style={{ marginBottom: 0 }}>
           Hypercare is the floor, not a tier-specific extra: {d.hypercareWeeks} week{d.hypercareWeeks === 1 ? '' : 's'} for this tier.
+          {' '}Every tier carries it — {TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks — only the duration scales.
         </p>
       </div>
 
@@ -3002,6 +3294,7 @@ function OnePager({ role, gen, status, onGenerate, onBack }) {
             </div>
             <p className="footnote">{NOTE.threshold}</p>
             <p className="footnote">{NOTE.weights}</p>
+            <p className="footnote">{NOTE.anchors}</p>
             <p className="footnote">{NOTE.unit}</p>
           </div>
         </div>
@@ -3097,6 +3390,9 @@ const BLANK = {
 function Slider({ factor, weightFactors, value, onChange }) {
   const unset = !isScore(value);
   const commit = (e) => { if (unset) onChange(parseFloat(e.currentTarget.value)); };
+  const a = ANCHORS[factor.key];
+  const hit = anchorFor(factor.key, value);
+  const ours = /^OURS/.test(a.origin);
   return (
     <div className={'slider' + (unset ? ' unset' : '')}>
       <div className="top">
@@ -3110,6 +3406,28 @@ function Slider({ factor, weightFactors, value, onChange }) {
              onChange={(e) => onChange(parseFloat(e.target.value))}
              onPointerUp={commit} onKeyUp={commit} onClick={commit} />
       <div className="ends"><span>1.0 low</span><span>5.0 high</span></div>
+      <div className={'anchor' + (unset ? ' unset' : '')} aria-live="polite">
+        {hit ? (
+          <>
+            <span className="an">{hit.exact ? `anchor ${hit.n}` : `nearest anchor ${hit.n}`}</span>
+            <span className="at">{hit.text}</span>
+          </>
+        ) : (
+          <span className="at">Move the slider to see what the score means — every point on the scale is anchored.</span>
+        )}
+      </div>
+      <details className="anchor-all">
+        <summary>
+          All five anchors
+          <span className={'prov' + (ours ? ' ours' : '')}>{a.origin}</span>
+        </summary>
+        <ol className="anchor-list">
+          {a.bands.map((b, i) => (
+            <li key={i} className={hit && hit.n === i + 1 ? 'on' : ''}><b>{i + 1}</b><span>{b}</span></li>
+          ))}
+        </ol>
+        <p className="anchor-note">{a.note}</p>
+      </details>
     </div>
   );
 }
@@ -3161,6 +3479,7 @@ function AddRoleView({ onCreate }) {
           All six sub-factors are required: until they are set the row reads <b>incomplete</b>, with no score and no tier.
           {' '}{NOTE.threshold} {NOTE.weights}
         </p>
+        <p className="lede unit">{NOTE.anchors}</p>
       </div>
 
       <form onSubmit={submit}>
@@ -3276,6 +3595,106 @@ function AddRoleView({ onCreate }) {
          </div>
         </div>
       </form>
+    </>
+  );
+}
+
+/* ===========================================================================
+   9b. REPRODUCED, NOT HARDCODED — the claim, stated where a judge can read it.
+   Every "computes" cell below is live. Nothing on this view is asserted.
+   =========================================================================== */
+
+function ReproducedView({ scored, weightsDefault }) {
+  const rep = useMemo(() => reproductionReport(scored), [scored]);
+  const misses = rep.total - rep.matched;
+  return (
+    <>
+      <div className="view-head">
+        <h2>Reproduced, not hardcoded</h2>
+        <p className="lede">
+          Our own deck published a set of figures. None of them is typed into this tool as an answer: the engine scores
+          {' '}{scored.length} rows from their six sub-factors and the figures fall out the other side. This page puts the deck's number
+          next to what the engine computes, live, so the claim can be checked rather than believed.
+        </p>
+        <p className="lede unit">
+          <b>{rep.matched} of {rep.total} figures reproduce exactly.</b> The other {misses} are <b>near misses, and they are not
+          claimed as matches</b> — each one shows the rule that produced it. The derivation is the right answer there, not the deck's
+          number: change an input and these move, which is the whole point of a tool over a slide.
+          {!weightsDefault && ' Weights have been changed from our default, so figures that normally reproduce may not — that is the engine being honest, not a fault.'}
+        </p>
+      </div>
+
+      <div className="repro-summary">
+        <div className="rs-tile ok">
+          <div className="n">{rep.matched}</div>
+          <div className="l">reproduce exactly</div>
+        </div>
+        <div className="rs-tile miss">
+          <div className="n">{misses}</div>
+          <div className="l">near misses, shown as near misses</div>
+        </div>
+        <div className="rs-tile">
+          <div className="n">{scored.length}</div>
+          <div className="l">rows scored to get there · role × process × site</div>
+        </div>
+        <div className="rs-tile">
+          <div className="n">0</div>
+          <div className="l">of these figures is hardcoded as an output</div>
+        </div>
+      </div>
+
+      {rep.groups.map((g) => (
+        <div className="card repro-card" key={g.group}>
+          <div className="card-head">
+            <h3>{g.group}</h3>
+            <span className="hint">
+              {g.rows.filter((r) => r.ok).length} of {g.rows.length} exact
+            </span>
+          </div>
+          <div className="card-body">
+            <div className="repro-table">
+              <div className="rt-head">
+                <span>Figure</span><span>Deck says</span><span>Engine computes</span><span>Verdict</span>
+              </div>
+              {g.rows.map((r) => (
+                <div className={'rt-row' + (r.ok ? '' : ' miss')} key={r.label}>
+                  <span className="f">{r.label}</span>
+                  <span className="d num">{r.deck}</span>
+                  <span className="e num">{r.engine}</span>
+                  <span className="v">{r.ok ? 'reproduced' : 'near miss'}</span>
+                  <span className="r">{r.ok ? <>Rule: {r.rule}</> : <><b>Why it differs:</b> {r.rule}</>}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <div className="card">
+        <div className="card-head"><h3>What this page is not claiming</h3></div>
+        <div className="card-body">
+          <ul className="caveats">
+            <li>
+              <b>It is not a validation of the deck.</b> The deck's figures are footnoted <i>illustrative</i>, and the dataset
+              behind them is synthetic. What reproduces is the arithmetic, not a fact about a real client.
+            </li>
+            <li>
+              <b>The dataset was built to be consistent with the deck.</b> {NOTE.dataset} The seven named roles were given
+              sub-factor scores that produce the deck's axis scores — so slide 10 reproducing is a fair demonstration that the
+              engine is deterministic and auditable, not independent evidence that the scores are right.
+            </li>
+            <li>
+              <b>The near misses are the honest part.</b> Four plan figures diverge, one axis score diverges, and the budget split
+              lands a rounding point away — and in every case the tool prints its rule rather than bending to the slide. Plant
+              Controller is the sharpest: the deck's own slide 10 is internally inconsistent, printing a 3.6 adoption risk while
+              tiering the role Enable, and the engine resolves it in favour of the tier the deck assigns.
+            </li>
+            <li>
+              <b>Nothing here is inherited provenance.</b> {NOTE.weights} {NOTE.threshold}
+            </li>
+          </ul>
+        </div>
+      </div>
     </>
   );
 }
@@ -3518,6 +3937,11 @@ function PlanView({ scored }) {
               <h4 style={{ marginTop: 14 }}>Cadence and measurement</h4>
               <dl>
                 <dt>Readiness reassessed</dt><dd>every {CADENCE.readinessReassessMonths} months</dd>
+                <dt>Hypercare</dt>
+                <dd>
+                  every tier — {DOSES.Inform.hypercareWeeks}–{DOSES.Rebuild.hypercareWeeks} weeks, scaling by tier
+                  {' '}({TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')})
+                </dd>
                 <dt>Role re-scored (go-live gate)</dt><dd>every {DOSES.Rebuild.rescoreDays}–{DOSES.Inform.rescoreDays} days by tier</dd>
                 <dt>Change network onboarded</dt><dd>{CADENCE.changeNetworkOnboardMonths} months pre go-live</dd>
                 <dt>Adoption measured across</dt><dd>{CADENCE.adoptionWindowMonths} months post go-live</dd>
@@ -3528,6 +3952,7 @@ function PlanView({ scored }) {
             </div>
           </div>
           <p className="footnote">{NOTE.mapping}</p>
+          <p className="footnote">{NOTE.hypercare}</p>
           <p className="footnote">{NOTE.ratio}</p>
         </div>
       </div>
@@ -3574,6 +3999,7 @@ const TABS = [
   { id: 'role',      label: 'Role one-pager' },
   { id: 'add',       label: 'Add a role' },
   { id: 'plan',      label: 'Costed plan / ROI' },
+  { id: 'repro',     label: 'Reproduced, not hardcoded' },
 ];
 
 function App() {
@@ -3649,7 +4075,8 @@ function App() {
       <main className="main">
         {tab === 'portfolio' && (
           <PortfolioView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
-                         onAdd={() => setTab('add')} weights={weights} onWeight={setWeight} onResetWeights={resetWeights} />
+                         onAdd={() => setTab('add')} onRepro={() => setTab('repro')}
+                         weights={weights} onWeight={setWeight} onResetWeights={resetWeights} />
         )}
         {tab === 'role' && (
           <OnePager role={selected} gen={gen[selectedId]} status={genStatus[selectedId] || 'idle'}
@@ -3657,6 +4084,7 @@ function App() {
         )}
         {tab === 'add' && <AddRoleView onCreate={createRole} />}
         {tab === 'plan' && <PlanView scored={scored} />}
+        {tab === 'repro' && <ReproducedView scored={scored} weightsDefault={weightsAreDefault(weights)} />}
       </main>
     </div>
   );

@@ -19,8 +19,9 @@ adoption package for each role — then costs the plan.
 |---|---|
 | **Portfolio heat map** | Every role plotted on impact severity × adoption risk, with the 3.5 gridlines and four labelled quadrants. Points sized by headcount, coloured by tier. Filters by value stream and site archetype. A **Weighting — ours, and tunable** panel that re-tiers the whole portfolio live. Summary tiles for roles, people and share of change budget per tier, plus a sortable role table that shows incomplete rows as *incomplete* rather than scoring them. |
 | **Role one-pager** | Before/after task lists, the removed/changed/new counts and FTE delta, both axis scores with their full sub-factor arithmetic shown so the number is auditable, the assigned tier and its package with doses, the delivery detail for that role (training method and duration, job-aid count, the five comms milestones with objectives, the four-layer support escalation, the measurement window) and four generated narrative sections. Copy to clipboard, or print to PDF. |
-| **Add a role** | Score a role live, in the room. Sub-factors start unset: the panel reads **incomplete** with no score and no tier until all six are set, and only then does submit unlock. On submit the role lands on the heat map and its one-pager opens. |
-| **Costed plan / ROI** | The productivity-through-go-live curves, dip depth and recovery tiles, a productivity-loss-avoided figure computed from the current population, the **delivery standards** the packages are built from (method table, job-aid bands, five comms milestones, four-layer escalation, cadences, adoption metrics) and the resourced plan (curricula, sandbox seats, deskless formats, message tracks, cascade scripts, super-users, site coaches, hypercare weeks) with the derivation rule printed beside every number. |
+| **Add a role** | Score a role live, in the room. Every slider carries a **1–5 anchor** that says what the score means as you move it, with the whole ladder and its provenance one click away. Sub-factors start unset: the panel reads **incomplete** with no score and no tier until all six are set, and only then does submit unlock. On submit the role lands on the heat map and its one-pager opens. |
+| **Costed plan / ROI** | The productivity-through-go-live curves, dip depth and recovery tiles, a productivity-loss-avoided figure computed from the current population, the **delivery standards** the packages are built from (method table, job-aid bands, five comms milestones, four-layer escalation, hypercare floor, cadences, adoption metrics) and the resourced plan (curricula, sandbox seats, deskless formats, message tracks, cascade scripts, super-users, site coaches, hypercare weeks) with the derivation rule printed beside every number. |
+| **Reproduced, not hardcoded** | The deck's own published figures next to what the engine computes, live: slide 9's tier table, slide 10's axis scores for all seven named roles, slide 13's resourced plan and slide 14's $5.3M. **24 comparisons, 18 exact, 6 near misses** — and every verdict on the page is computed by comparing the two cells, so nothing can claim a match it does not have. Each near miss prints the rule that produced it. |
 
 ---
 
@@ -54,6 +55,29 @@ does. The Portfolio tab carries a **Weighting — ours, and tunable** panel: dra
 whole portfolio re-tiers live, with a one-click reset back to the default above. Weights are
 normalised per axis, so a score can never leave the 1–5 scale, and zeroing an entire axis degrades to
 an equal split rather than dividing by zero.
+
+### What a score means — the 1–5 anchors
+
+The deck states the 1–5 scale twice and **never defines a single point on it**, for any sub-factor or
+either axis. So the tool supplies the anchors, and the Add-a-role sliders show the matching descriptor
+as you drag — a score reads as a description rather than a bare number. The full ladder for each
+sub-factor, with its provenance, is one click away under each slider, and the anchors also appear on
+the one-pager's sub-factor breakdown and in the copied text.
+
+**They are not equally well grounded, and each one says which it is.** The badge under each slider is
+the honest label, not decoration:
+
+| Sub-factor | Anchor provenance |
+|---|---|
+| **Capability delta** | The best-supported of the six. Anchors 1, 3 and 5 are **Aberdeen's own band wording** (Knowledge & Skills, Organization & Roles); only the observable content at 2 and 4 is ours. |
+| **Consequence of error** | Bands follow the **Openlink client plan**, the only source that bands consequence on named levels with written descriptors. Two authored moves: it has four bands and we need five, so 3 is our interpolation — and **no source scores safety consequence at all**, so the safety limb at 5 is ours. |
+| **Share of daily tasks changing** | Aberdeen's process-change band wording over Prosci's magnitude ladder; **the percentage cut-offs are ours** — no source expresses task share as a percentage. |
+| **Change in decision rights** | **Our ladder**, over Aberdeen's driver vocabulary at 1, 2 and 4, with our own deck's sentence as the anchor at 5. No instrument in the evidence base scores decision rights as its own dimension — which is why it is in our model. |
+| **Local readiness gap** | Site-leadership capacity and change fatigue carry Prosci wording corroborated across two products. **Digital maturity is scored by no source**, and deskless access rests on a single Aberdeen sentence. Score each limb and take the highest, not the mean — that recommendation is ours. |
+| **Frequency and volume** | **Ours end to end.** The least grounded of the six: no source in the evidence base scores task frequency or volume. Team 2 added this sub-factor. The honest defence is that it is countable from the system transaction lists our deck already names as an input — and it is the one most likely to be challenged. |
+
+If someone asks where a 4 comes from, that table is the answer, and the tool prints it rather than
+hiding it. See `docs/source-synthesis.md` §2 for the full derivation of every ladder.
 
 **Completeness gating.** A role scores only when all six sub-factors are set. Anything less renders as
 **incomplete** — no score, no tier, not plotted — in the role table, on the one-pager and, most
@@ -107,7 +131,8 @@ material, resolved per role:
 | Job-aid volume | Low impact 2 · medium 5–9 · high 6–9, with the point inside the range scaling with impact severity | Ranges Aberdeen's; band cut-offs and the chosen number **ours** |
 | Communications | Five milestones, each with its objective: Kick-Off *promote awareness* · Cutover News *set expectations* · Training Awareness *provide resources* · Go-Live *drive adoption* · Post Go-Live Support *reinforce changes*. Objective ladder: awareness → understanding → acceptance → commitment. | Aberdeen |
 | Milestone channels | Deskless roles get huddle brief / QR board / line-side poster; desk-based get town hall, cascade, email, portal | **Ours** |
-| Support after go-live | Four-layer escalation: job aids → project team → trainers and implementation leads → leadership (final escalation). Hypercare is the floor, not a tier-specific extra. | Aberdeen |
+| Support after go-live | Four-layer escalation: job aids → project team → trainers and implementation leads → leadership (final escalation). | Aberdeen |
+| Hypercare | **The floor deliverable in every tier, not a top-tier extra** — Aberdeen's lowest-ambition delivery tier is defined as training, go-live communications *and hypercare*. So all four tiers carry it and only the duration scales: **Rebuild 8 · Enable 4 · Reassure 2 · Inform 1 weeks.** It appears in every tier package, in the generated adoption actions for every tier, on the delivery-standards card and in the resourced plan, which reports the longest dose present. | Floor principle Aberdeen's; the 8 weeks is **our deck (slide 13)**; the step-down across the other three tiers is **ours** |
 | Cadence | Readiness reassessed every 3–4 months; change network onboarded ~3 months pre go-live; role re-scored every 30–90 days by tier (the go-live gate) | Aberdeen (the 30-day re-score interval is the deck's, slide 16) |
 | Adoption measurement | A six-month window after go-live, measured on unique sign-ons, business processes opened and completed, job-aid access rates, go-live communication click rates, HR case volume, qualitative feedback | Aberdeen |
 | Super-user ratio | 1:15 in Rebuild roles | **Team 2's own deck, slide 13** |
@@ -239,27 +264,43 @@ conference network or a machine with no connectivity at all. Nothing here is com
 Run against the shipped 38-role dataset, the deterministic engine lands on the deck's own numbers
 without any of them being hardcoded:
 
+**This is on screen, not just in this file.** The **Reproduced, not hardcoded** tab prints the whole
+comparison live and computes every verdict by comparing the deck's cell against the engine's, so the
+claim can be checked in front of an audience rather than taken on trust. Totals: **24 comparisons, 18
+exact, 6 near misses.**
+
 | Deck | Deck says | Tool computes |
 |---|---|---|
 | Slide 9 — tier table | 9 / 620 / 12% · 14 / 1,180 / 24% · 11 / 1,340 / 27% · 4 / 1,860 / 37% | identical |
-| Slide 9 — budget share | 55% · 27% · 13% · 5% | 54% · 27% · 14% · 5% |
-| Slide 10 — axis scores | Plant Scheduler 4.6/4.4, Warehouse Team Lead 4.1/4.7, AP Specialist 4.4/4.5, Plant Buyer 3.8/4.2 | identical |
+| Slide 9 — budget share | 55% · 27% · 13% · 5% | 54% · 27% · 14% · 5% — *near miss, see below* |
+| Slide 10 — Plant Scheduler | 4.6 / 4.4 · Rebuild | identical |
+| Slide 10 — Warehouse Team Lead | 4.1 / 4.7 · Rebuild | identical |
+| Slide 10 — AP Specialist | 4.4 / 4.5 · Rebuild | identical |
+| Slide 10 — Master Data Steward | 4.8 / 4.1 · Rebuild | identical |
+| Slide 10 — Customer Service, Order Entry | 4.5 / 3.9 · Rebuild | identical |
+| Slide 10 — Plant Buyer | 3.8 / 4.2 · Rebuild | identical |
+| Slide 10 — Plant Controller | 4.3 / 3.6 · Enable | 4.3 / **3.4** · Enable — *near miss, see below* |
 | Slide 13 — super-users | 42, at 1:15 in Rebuild roles | 42 |
 | Slide 13 — sandbox seats | 62 | 62 |
 | Slide 13 — deskless formats | 9 | 9 |
+| Slide 13 — message tracks | 4 | 4 |
 | Slide 13 — hypercare | 8 weeks | 8 |
 | Slide 14 — dip depth | 22% → 11% | identical |
 | Slide 14 — recovery | 14 weeks → 6 weeks | identical |
 | Slide 14 — loss avoided | ≈$5.3M | $5.3M |
 
-Three numbers **do not match the deck, and are not claimed to**, because the tool derives them from a
-printed rule rather than asserting them — the rule is shown beside each figure on the Costed plan tab:
+Six figures **do not match the deck, and are not claimed to**, because the tool derives them from a
+printed rule rather than asserting them — the rule is shown beside each figure on the Costed plan tab
+and again on the Reproduced tab:
 
-| Plan figure | Deck | Tool | Rule the tool applies |
+| Figure | Deck | Tool | Rule the tool applies |
 |---|---|---|---|
 | Role-based curricula | 18 | **14** | 1 per Rebuild role + 1 shared per value stream in Enable |
 | Manager cascade scripts | 11 | **13** | 1 per Rebuild role + 1 per non-Rebuild role with decision rights ≥ 4 |
 | Supervisors briefed | 340 | **314** | 1 per 10 people in Rebuild, Enable or Reassure roles |
+| Site change coaches | 6 | **8** | one per site carrying a Rebuild role — the widest-spread Rebuild role is Warehouse Team Lead across 8 DCs, where the deck's 6 counts plants only |
+| Plant Controller adoption risk | 3.6 | **3.4** | slide 10 contradicts itself: 3.6 is above our inclusive 3.5 line and would tier Rebuild, but the slide tiers the role Enable. The dataset resolves it in favour of the tier the deck assigns. |
+| Budget share | 55 · 27 · 13 · 5 | **54 · 27 · 14 · 5** | not a deck-derived figure at all — it falls out of our own per-head cost weighting, which the deck does not state. Lands within one rounding point. |
 
 The derivation is the right answer here, not the deck's number: change an input and these move, which is
 the whole point. Say "every number traces back to a role × process × site row" and point at the rule.
@@ -267,7 +308,8 @@ the whole point. Say "every number traces back to a role × process × site row"
 ## What is synthetic, and what the deck actually gave us
 
 The deck names **7 of the 38 roles** (slide 10) and gives **no 1–5 anchors for any sub-factor** — no
-definition of what a 4.2 on capability delta means. So:
+definition of what a 4.2 on capability delta means. The tool now supplies those anchors and labels each
+one's provenance (see *What a score means* above); the dataset itself is still ours. So:
 
 - the other **31 roles**, every headcount and site count outside those 7, and **every sub-factor value
   in the dataset** are our synthetic illustration, built to be internally consistent with the deck's
@@ -290,6 +332,17 @@ workbook licence forbids reproducing its content in another tool, and nothing he
   resourced plan and the dollar figure have already moved. Adding a ~60-person Rebuild role takes
   the avoided loss from $5.3M to about $5.5M in front of the audience. Note the form starts
   **incomplete** by design — set all six sliders before you reach for submit.
+- **The strongest single thing to show a judge is the Reproduced tab.** It is the claim that this is an
+  engine and not a slide: 18 of the 24 figures our deck published fall out of it, and the 6 that do not
+  are labelled near misses on screen with the rule that produced them. Every verdict on that page is
+  computed by comparing the two cells, so say that out loud — it cannot flatter itself. If someone has
+  been dragging weights, matches will start failing; that is the page being honest, and worth pointing at
+  rather than hiding.
+- **If someone asks what a 4.2 on capability delta means, drag that slider.** The anchor under it
+  describes the score in Aberdeen's own words, and "All five anchors" opens the ladder with its
+  provenance. Use **Frequency and volume** if you want to show the tool admitting a weakness: it is
+  badged *OURS end to end — no source measures this*, in amber, and the note says it is the sub-factor
+  most likely to be challenged. Volunteering that is more persuasive than being caught by it.
 - **If someone challenges the weights, open the Weighting panel and hand it to them.** They are ours
   and they are tunable; drag one and the portfolio re-tiers live. Plant Buyer is the honest example:
   its impact severity is 3.8 on our default weighting but 3.3 if all the impact weight sits on
