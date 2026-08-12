@@ -44,8 +44,21 @@ const TOTAL = DATA.reduce((s, r) => s + r.headcount, 0);
   /* ---- provenance + labelling on the portfolio ------------------------- */
   await step('portfolio states the unit of analysis is role × process × site, and that it is our choice', async () => {
     const t = await bodyText();
-    has(t, 'one role scoped to one value stream and one site archetype');
+    has(t, 'one role in one value stream at one site scope');
     has(t, 'role × process × site');
+    /* A site scope is an archetype OR a named combination of them. The copy has to say so:
+       without it the stated unit contradicts the rows on this very page labelled 'Plant + DC'. */
+    if (!/single archetype/i.test(t)) throw new Error('does not say a site scope can be a single archetype');
+    if (!/combination of them/i.test(t)) throw new Error('does not say a site scope can be a named combination of archetypes');
+    has(t, 'Plant + DC');
+    /* And it has to say why that scope is the unit — it is what the deliverables attach to. */
+    if (!/curriculum/i.test(t)) throw new Error('does not say a curriculum attaches to that scope');
+    if (!/comms message/i.test(t)) throw new Error('does not say a comms message attaches to that scope');
+    if (!/named accountable manager/i.test(t)) throw new Error('does not say a named accountable manager attaches to that scope');
+    /* The superseded wording claimed a row is scoped to ONE archetype. It must be gone. */
+    if (/(a|one) single site archetype|and one site archetype/i.test(t)) {
+      throw new Error('still claims a row is scoped to a single site archetype, which contradicts the combined-archetype rows');
+    }
     if (!/slides 5 and 13/.test(t) || !/slides 9 and 10/.test(t)) throw new Error('does not say where the deck is ambiguous');
   });
   await step('weights are labelled ours and tunable, and nothing cites the deck as their source', async () => {
