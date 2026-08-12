@@ -61,9 +61,11 @@ importantly, in the Add-a-role form, where the submit button stays disabled unti
 set. A half-filled row can never look authoritative on stage.
 
 Each axis is rounded to one decimal. **The threshold sits at 3.5 on both axes, and the rule is
-inclusive — a score of exactly 3.5 counts as above the line.** 3.5 is the “good” floor used in
-Aberdeen’s sponsor assessment, not the midpoint of the 1–5 scale (that would be 3.0). It gives the
-quadrant:
+inclusive — a score of exactly 3.5 counts as above the line.** 3.5 is the “good” floor used in the
+sponsor competency assessment we work from (70 of 100), **not** the midpoint of the 1–5 scale — that
+would be 3.0. See `docs/source-synthesis.md` §8.4: every instrument that grades a named person's
+competency cuts at 3.5, while the generic risk grids cut at 3.0, so our line is deliberately the
+stricter of the two. Never say a source uses 3.5 for risk tiering. It gives the quadrant:
 
 | | Adoption risk < 3.5 | Adoption risk ≥ 3.5 |
 |---|---|---|
