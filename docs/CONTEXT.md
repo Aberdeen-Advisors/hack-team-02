@@ -142,6 +142,11 @@ ERP value streams plus a `Cross-cutting` label used by four roles the deck treat
 streams, and four site archetypes (HQ, Plant, DC, Field/Commercial). Nine roles are flagged deskless;
 one (Master Data Steward) is net-new.
 
+One inconsistency to know about before someone else finds it: Warehouse Team Lead is recorded with site
+archetype `DC` and a site count of 8, which does not reconcile with the deck's site model of six plants
+and two DCs. That site count is load-bearing — it is what produces the engine's 8 site change coaches —
+so describe it as 8 sites rather than 8 DCs, or correct the archetype on that row.
+
 **It reproduces the deck's published figures by computation, not by hardcoding.** On a clean load the
 Reproduced tab runs **24 comparisons: 18 exact, 6 near misses**. The exact matches include slide 9's
 whole tier table (9/620, 14/1,180, 11/1,340, 4/1,860 — 38 roles, 5,000 people), slide 10's axis scores
@@ -157,7 +162,7 @@ rule rather than an assertion:
 | Role-based curricula | 18 | **14** | 1 per Rebuild role (9) + 1 shared per value stream in Enable (5) |
 | Manager cascade scripts | 11 | **13** | 1 per Rebuild role + 1 per non-Rebuild role with decision rights ≥ 4 |
 | Supervisors briefed | 340 | **314** | 1 per 10 people in Rebuild, Enable or Reassure roles |
-| Site change coaches | 6 | **8** | 1 per site carrying a Rebuild role — the widest-spread Rebuild role is Warehouse Team Lead across 8 DCs, where the deck's 6 counts plants only |
+| Site change coaches | 6 | **8** | 1 per site carrying a Rebuild role — the widest-spread Rebuild role is Warehouse Team Lead at 8 sites, where the deck's 6 counts plants only |
 
 The other two near misses are Plant Controller's adoption risk (§6) and the budget share
 (54/27/14/5 against the deck's 55/27/13/5, which falls out of our own per-head cost weighting and
