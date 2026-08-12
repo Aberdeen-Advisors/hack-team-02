@@ -247,12 +247,19 @@ inherited and what we authored.
 - **A live deployment is not required for submission.** The organisers confirmed the GitHub repository
   *is* the submission, and judges can open the HTML directly. The app runs from a local file with no
   server.
-- **The Vercel project does not exist**, and sessions cannot create one. So the live model-generated
-  path is currently unavailable and the app serves the deterministic fallback text behind its *offline
-  content* marker. Everything else works. An API key would go in a Vercel project's environment
-  variables — **never in the repository**, and never in a commit, an issue or a slide. The repo carries
-  a `.gitignore` and an `.env.example` with an empty value, so a key used for local testing cannot be
-  committed by accident.
+- **The Vercel project does not exist**, and sessions cannot create one — but that no longer blocks the
+  live model-generated path. **`server.js`** is a small dependency-free Node server (plain `http`, no
+  Express, no build step) that serves the static app and, for `POST /api/generate`, calls
+  `api/generate.js`'s exported handler directly and unchanged — so the prompts, schema and fallback
+  logic are never forked. It reads `ANTHROPIC_API_KEY` from `.env` and keeps it only in the server
+  process's environment; the key is never sent to or visible in the browser. **`start.bat`** in the repo
+  root launches `node server.js` and opens `http://localhost:3000` automatically, so double-clicking it
+  is the whole "run the app" experience. With a key in `.env` the app now calls Anthropic live and shows
+  the green **live** marker; without one it serves the same deterministic fallback text behind the
+  *offline content* marker as before. This is a local convenience only, not a deployment: an API key
+  still goes only in `.env` (or a future Vercel project's environment variables) — **never in the
+  repository**, and never in a commit, an issue or a slide. The repo carries a `.gitignore` and an
+  `.env.example` with an empty value, so a key used for local testing cannot be committed by accident.
 - **The final PowerPoint is to be 3–4 slides, and Sarah is handling it.** Do not build a deck.
 
 ---
