@@ -419,6 +419,17 @@ table.data td .incflag {
 
 .form-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .form-grid .full { grid-column: 1 / -1; }
+/* Non-blocking guidance on the add-a-role form: the site count has outgrown the
+   chosen site scope. Deliberately NOT styled as an error — no red, no icon, no
+   heavy border. It informs and gets out of the way. */
+.scope-hint {
+  margin: 0; padding: 10px 12px;
+  font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
+  background: var(--brand-wash); border-left: 3px solid var(--brand);
+  border-radius: var(--radius-s);
+}
+.scope-hint b { color: var(--ink); }
+
 .check { display: flex; align-items: flex-start; gap: 9px; font-size: 14px; }
 .check input { margin-top: 3px; }
 .check > span { display: grid; gap: 2px; }

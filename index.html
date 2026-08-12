@@ -33,8 +33,12 @@ const { useState, useMemo, useEffect, useRef, useCallback } = React;
    1. SCORING ENGINE  — deterministic JavaScript. Never an LLM call.
    Runs instantly and identically every time.
 
-   UNIT OF ANALYSIS — one row is one role scoped to a single value stream and a
-   single site archetype: role × process × site. Our choice, made explicit
+   UNIT OF ANALYSIS — one row is one role in one value stream at one site scope:
+   role × process × site. A site scope is either a single archetype (HQ, Plant,
+   DC, Field/Commercial) or a named combination of them (Plant + DC), because
+   some roles genuinely work across more than one. That scope is the level a
+   curriculum, a comms message and a named accountable manager can actually be
+   attached to, which is why we score and tier there. Our choice, made explicit
    because the source deck is ambiguous (slides 5 and 13 say role × process ×
    site; slides 9 and 10 tier at role level). We tier at the row level.
 
@@ -49,7 +53,8 @@ const THRESHOLD = 3.5;
 /* Short, honest provenance strings. Used verbatim on screen so the claims the
    tool makes on stage are the claims it can defend. */
 const NOTE = {
-  unit: 'Unit of analysis: one row = one role scoped to a single value stream and a single site archetype — role × process × site. '
+  unit: 'Unit of analysis: one row = one role in one value stream at one site scope — role × process × site. A site scope is either a single archetype or a named combination of them, like Plant + DC, because some roles genuinely work across both. '
+      + 'That scope is the level a curriculum, a comms message and a named accountable manager can actually be attached to, which is why we score and tier there. '
       + 'Our choice, stated because the source deck is ambiguous: slides 5 and 13 say role × process × site, slides 9 and 10 tier at role level. We tier at row level.',
   weights: 'The six sub-factor weights are ours — our default, and tunable. The source deck states no weights and no aggregation method, so nothing here is inherited from it.',
   threshold: 'Threshold 3.5 on both axes, inclusive — a score of exactly 3.5 counts as above the line. '
@@ -577,6 +582,40 @@ function archetypeParts(value) {
 function archetypeMatches(value, filter) {
   if (filter === 'All' || value === filter) return true;
   return archetypeParts(value).includes(filter);
+}
+
+/* How many real sites each base archetype can hold: the estate is one HQ, six
+   plants and two DCs. Field/Commercial has no fixed site list, so it has no
+   ceiling. A combination holds the sum of its parts, which is why 'Plant + DC'
+   holds 8 — exactly the Warehouse Team Lead's estate. */
+const SITE_CAPACITY = { HQ: 1, Plant: 6, DC: 2, 'Field/Commercial': Infinity };
+
+function archetypeCapacity(value) {
+  const parts = archetypeParts(value);
+  if (!parts.length) return Infinity;
+  return parts.reduce((sum, p) => sum + (p in SITE_CAPACITY ? SITE_CAPACITY[p] : Infinity), 0);
+}
+
+/* GUIDANCE ONLY — never a validation, never an input to a score. Used by the
+   add-a-role form to notice that a site count has outgrown the chosen scope and
+   to name the combined scope that would hold it, so the row does not end up
+   claiming eight DCs. Returns null when the count fits.
+
+   The suggestion is the smallest named scope that still contains every part of
+   the chosen archetype and does hold that many sites, so what it offers is
+   always a real option already in the dropdown. */
+function siteScopeHint(archetype, count) {
+  const n = parseInt(count, 10);
+  if (!Number.isFinite(n) || n < 1) return null;
+  const capacity = archetypeCapacity(archetype);
+  if (n <= capacity) return null;
+  const chosen = archetypeParts(archetype);
+  const suggestion = SITE_ARCHETYPES
+    .filter((a) => a !== archetype
+      && archetypeCapacity(a) >= n
+      && chosen.every((p) => archetypeParts(a).includes(p)))
+    .sort((a, b) => archetypeCapacity(a) - archetypeCapacity(b))[0] || null;
+  return { archetype, count: n, capacity, suggestion, suggestionCapacity: suggestion ? archetypeCapacity(suggestion) : null };
 }
 
 function aggregate(scored) {
@@ -2914,7 +2953,10 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepr
           it prescribes the intervention package, and its dose. Click any point or row to open the role one-pager.
         </p>
         <p className="lede unit">
-          <b>One row = one role scoped to one value stream and one site archetype — role × process × site.</b>{' '}
+          <b>One row = one role in one value stream at one site scope — role × process × site.</b>{' '}
+          A site scope is either a single archetype or a named combination of them, like <b>Plant + DC</b>, because some roles
+          genuinely work across both. That scope is the level a curriculum, a comms message and a named accountable manager can
+          actually be attached to, which is why we score and tier there.
           Ours: the source deck says role × process × site on slides 5 and 13 but tiers at role level on slides 9 and 10, so we
           state the unit and tier at row level.
         </p>
@@ -3135,7 +3177,9 @@ function onePagerText(role, gen) {
   L.push(`  The source deck defines no point on the 1-5 scale. Frequency and volume is ours end to end - no source measures it.`);
   L.push('');
   L.push(`Weights are ours: our default, and tunable. The source deck states no weights and no aggregation method.`);
-  L.push(`Unit of analysis: role x value stream x site archetype — one row is one role in one value stream at one site archetype.`);
+  L.push(`Unit of analysis: role x value stream x site scope — one row is one role in one value stream at one site scope, where a`);
+  L.push(`site scope is either a single archetype or a named combination of them (e.g. Plant + DC). That scope is what a curriculum,`);
+  L.push(`a comms message and a named accountable manager attach to.`);
   L.push('');
   L.push(`Tasks: ${role.tasksRemoved} removed · ${role.tasksChanged} changed · ${role.tasksNew} new · FTE delta ${role.fteDelta}`);
   L.push('');
@@ -3477,6 +3521,8 @@ function AddRoleView({ onCreate }) {
 
   const missing = missingFactors(f);
   const complete = missing.length === 0;
+  /* Guidance only: it never gates submit and never touches impact, risk or tier. */
+  const scopeHint = siteScopeHint(f.siteArchetype, f.siteCount);
   const impact = impactSeverity(f.impact);
   const risk = adoptionRisk(f.risk);
   const tier = complete ? assignTier(impact, risk) : null;
@@ -3513,7 +3559,9 @@ function AddRoleView({ onCreate }) {
           placed on the heat map and given a costed package the moment you submit. Change an input, the plan re-costs itself.
         </p>
         <p className="lede unit">
-          One row is one role in <b>one value stream at one site archetype</b> — role × process × site.
+          One row is one role in <b>one value stream at one site scope</b> — role × process × site, where a site scope is either a
+          single archetype or a named combination of them, like <b>Plant + DC</b>. That scope is what a curriculum, a comms message
+          and a named accountable manager attach to.
           All six sub-factors are required: until they are set the row reads <b>incomplete</b>, with no score and no tier.
           {' '}{NOTE.threshold} {NOTE.weights}
         </p>
@@ -3554,6 +3602,18 @@ function AddRoleView({ onCreate }) {
                   <input id="a-sc" type="number" min="1" max="99" value={f.siteCount}
                          onChange={(e) => set({ siteCount: e.target.value })} />
                 </div>
+                {scopeHint && (
+                  <p className="full scope-hint" data-testid="scope-hint" aria-live="polite">
+                    <b>Worth a look — this will still submit.</b>{' '}
+                    {scopeHint.archetype} covers {scopeHint.capacity === 1 ? 'one site' : `${scopeHint.capacity} sites`} in this
+                    estate, and you have entered {scopeHint.count}.{' '}
+                    {scopeHint.suggestion
+                      ? <>Setting the scope to <b>{scopeHint.suggestion}</b> covers {scopeHint.suggestionCapacity} — that is how
+                          the deck writes a role spanning two archetypes, as “HQ+6”.</>
+                      : <>Field/Commercial is the one scope with no fixed site list, if the role really is that wide.</>}
+                    {' '}Either way the score, the tier and the package are unchanged.
+                  </p>
+                )}
                 <div className="field">
                   <label htmlFor="a-hc">Headcount</label>
                   <input id="a-hc" type="number" min="1" max="9999" value={f.headcount}

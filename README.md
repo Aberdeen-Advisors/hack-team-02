@@ -27,11 +27,13 @@ adoption package for each role — then costs the plan.
 
 ## The unit of analysis
 
-**One row = one role scoped to a single value stream and a single site archetype — role × process ×
-site.** This is *our* choice, and the tool says so on screen. The deck is ambiguous about it: slides 5
-and 13 describe the unit as role × process × site, while slides 9 and 10 tier at role level. We tier at
-the row level, because that is the smallest thing that can own a curriculum, a message, a super-user
-and a named accountable manager.
+**One row = one role in one value stream at one site scope — role × process × site.** A site scope is
+either a single archetype (HQ, Plant, DC, Field/Commercial) or a named combination of them (`Plant + DC`),
+because some roles genuinely work across more than one — the deck does this too, printing `HQ+6` and
+`HQ+2` in slide 10's Sites column. This is *our* choice, and the tool says so on screen. The deck is
+ambiguous about it: slides 5 and 13 describe the unit as role × process × site, while slides 9 and 10 tier
+at role level. We tier at the row level, because that scope is the smallest thing that can own a
+curriculum, a message, a super-user and a named accountable manager.
 
 ## How the scoring works
 
