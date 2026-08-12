@@ -3455,175 +3455,6 @@ const PROJECTS = [
   },
 ];
 
-/* ===========================================================================
-   5. LLM-GENERATED QUALITATIVE CONTENT
-   The API is used ONLY for the four narrative sections. If it is unreachable
-   or unauthenticated the client falls back to a deterministic local template
-   generator, the stage demo never shows an error.
-   =========================================================================== */
-
-function localTemplate(role) {
-  const d = DOSES[role.tier];
-  const t = trainingDesign(role);
-  const deskless = role.deskless === true;
-  const drShift = role.risk.decisionRights >= 4;
-  const removed = role.tasksRemoved, changed = role.tasksChanged, added = role.tasksNew;
-  const site = role.siteCount > 1 ? `${role.siteCount} sites` : 'a single site';
-
-  const narrative = [
-    `${role.role} covers ${site}, ${role.headcount.toLocaleString()} people. `
-    + `The assessment scores it ${role.scores.impact.toFixed(1)} on impact severity and ${role.scores.risk.toFixed(1)} on adoption risk, `
-    + `placing it in ${role.tier}, ${TIERS[role.tier].quadrant.toLowerCase()}. `
-    + `${removed} tasks leave the role, ${changed} change shape and ${added} are new, an FTE delta of ${role.fteDelta > 0 ? '+' : ''}${role.fteDelta} per site.`,
-    drShift
-      ? `The load-bearing change is not the screen. Decision rights score ${role.risk.decisionRights.toFixed(1)}: authority this role exercised on judgement now sits with configured system rules, and the role's contribution moves from deciding to validating and clearing exceptions. That is where the resistance will come from, and it is a management conversation before it is a training one.`
-      : `Decision rights move only modestly (${role.risk.decisionRights.toFixed(1)}), so the redesign is a change of method rather than of authority. The role keeps what it approves; the mechanism it approves through is what changes.`,
-    role.isNewRole
-      ? `This is a new role. There is no incumbent population, no existing curriculum and no current-state habit to unlearn. The work is to build the role, staff it and give it standing with the functions that will depend on it.`
-      : deskless
-        ? `The population is deskless. Capability delta is ${role.risk.capabilityDelta.toFixed(1)} and local readiness ${role.risk.localReadiness.toFixed(1)}, so the constraint on this role is reach, not aptitude: any intervention that assumes a desk, a screen or an inbox will not land.`
-        : `Capability delta is ${role.risk.capabilityDelta.toFixed(1)} against local readiness ${role.risk.localReadiness.toFixed(1)}. The population can absorb the change; the plan has to give it the time and the sequence to do so.`,
-  ].join('\n\n');
-
-  const curriculum = [];
-  if (role.tier === 'Rebuild' || role.tier === 'Enable') {
-    curriculum.push({
-      module: `${role.role}: the work after go-live`,
-      format: `${t.primary.method}${deskless ? ', on-shift, at the line' : `, role cohort`} · ${t.complexity} complexity · ${t.trainTheTrainer ? 'train-the-trainer delivered' : 'self-driven'}`,
-      duration: t.primary.duration,
-      objective: `Walk the ${changed} changed and ${added} new tasks end to end, and name the ${removed} that disappear.`,
-    });
-    curriculum.push({
-      module: 'Exception handling in the sandbox',
-      format: `${d.sandboxDays}-day sandbox, live data copy`,
-      duration: `${d.sandboxDays * (deskless ? 2 : 6)}h`,
-      objective: 'Clear a full week of realistic exceptions unaided, to the standard the role will be held to.',
-    });
-  }
-  if (drShift) {
-    curriculum.push({
-      module: 'Working inside the rules: what the system decides now',
-      format: 'Manager-led, role plus line manager together',
-      duration: '90m',
-      objective: 'Practise the escalation path when the system blocks something the role would previously have released.',
-    });
-  }
-  if (role.tier === 'Reassure' || role.tier === 'Inform') {
-    curriculum.push({
-      module: `What changes for ${role.role}, and what does not`,
-      format: `${t.primary.method}${deskless ? ', shift huddle, 1 page + QR' : ''} · selected for ${t.why}`,
-      duration: t.primary.duration,
-      objective: 'Set an accurate expectation of the day-one experience so the change is not over-read.',
-    });
-  }
-  if (t.aids.count > 0) {
-    curriculum.push({
-      module: `${t.aids.count} job aids at the point of work`,
-      format: `${t.jobAidMethod.method}${deskless ? ', laminated, local language, at the line' : ', one-page desk aids'} · ${t.aids.band} band (${t.aids.range})`,
-      duration: t.jobAidMethod.duration,
-      objective: 'Carry the transactions the role performs least often, where recall will fail first.',
-    });
-  }
-
-  const channels = deskless
-    ? ['Shift huddle brief', 'QR code on the huddle board', 'Line-side poster in local language']
-    : ['Manager cascade', 'Team meeting', 'Email'];
-  const comms = {
-    headline: drShift
-      ? `${role.role}: the system takes the decision, you take the exception`
-      : role.tier === 'Reassure'
-        ? `${role.role}: less changes for you than you have been told`
-        : `${role.role}: what your day looks like after go-live`,
-    message: drShift
-      ? `From go-live, ${role.role.toLowerCase()}s stop making this call one item at a time. The system applies the rule and holds anything it cannot clear; your job is the exception queue and the judgement calls that reach it. You are not losing the decision, you are being handed the ones that actually need a person. Your manager will walk you through what the system now releases automatically and what still comes to you, before go-live and not on the day.`
-      : role.tier === 'Inform'
-        ? `The platform behind your day changes at go-live. Your tasks, your cadence and your authority do not. You will see a different screen in places and the same work behind it. If something looks wrong, raise it the way you raise anything else: there is nothing new to learn here.`
-        : `${changed} parts of your day change, ${removed} disappear and ${added} are new. Training is ${t.primary.method.toLowerCase()}, ${t.primary.duration}, built from that list and not from a menu of system modules, with ${t.aids.count} job aids at the point of work. ${deskless ? 'Everything reaches you at the line, on shift: there is nothing to log in to from home.' : 'Your manager will confirm your dates.'}`,
-    milestones: commsPlan(role),
-    channels,
-  };
-
-  const adoptionActions = [];
-  if (role.tier === 'Rebuild') {
-    adoptionActions.push({ action: `Name ${d.superUsersPerSite} super-user per site (${role.siteCount}) from the role itself, not from IT`, owner: 'Site lead', timing: 'Go-live minus 6 weeks' });
-    adoptionActions.push({ action: `Validate the redesigned task list with site leadership: 90 minutes per site`, owner: 'Change lead', timing: 'Go-live minus 5 weeks' });
-    adoptionActions.push({ action: `${d.floorCoachingWeeks} weeks of floor coaching, present on the shift the role actually works`, owner: 'Site change coach', timing: `Go-live to +${d.floorCoachingWeeks} weeks` });
-  } else if (role.tier === 'Enable') {
-    adoptionActions.push({ action: `Recruit ${Math.max(1, Math.ceil(role.headcount / d.superUserRatio))} champions from the strongest performers and give them the sandbox first`, owner: 'Function lead', timing: 'Go-live minus 4 weeks' });
-    adoptionActions.push({ action: 'Hold a peer-led drop-in clinic in the first two weeks after go-live', owner: 'Champions', timing: 'Go-live +1 to +2 weeks' });
-  } else if (role.tier === 'Reassure') {
-    adoptionActions.push({ action: `Run the manager cascade with ${d.cascadeScripts} scripts: address the fear, not the skill`, owner: 'Line manager', timing: 'Go-live minus 3 weeks' });
-    adoptionActions.push({ action: 'Publish a plain answer to "why is this different from the last attempt"', owner: 'Change lead', timing: 'Go-live minus 3 weeks' });
-  } else {
-    adoptionActions.push({ action: `Include in the ${d.broadcasts} programme broadcasts; no role-specific effort`, owner: 'Comms lead', timing: 'Go-live minus 4, minus 1, plus 1 weeks' });
-  }
-  if (drShift) {
-    adoptionActions.push({ action: 'Brief the accountable supervisor line on the decision-rights shift, using the cascade script', owner: 'Line manager', timing: 'Go-live minus 2 weeks' });
-  }
-  if (deskless) {
-    adoptionActions.push({ action: 'Confirm every shift pattern is covered by an on-shift session, including nights', owner: 'Site lead', timing: 'Go-live minus 2 weeks' });
-  }
-  adoptionActions.push({ action: `Publish the four-layer support escalation for this role: ${SUPPORT_LAYERS.join(' → ').toLowerCase()}`, owner: 'Change lead', timing: 'Go-live minus 1 week' });
-  // Hypercare is the floor deliverable, not a Rebuild extra: Aberdeen's lowest-ambition
-  // tier is training, go-live comms and hypercare. Every tier gets it; only the length scales.
-  adoptionActions.push({ action: `Staff ${d.hypercareWeeks} week${d.hypercareWeeks === 1 ? '' : 's'} of hypercare for this role, the floor every tier gets, scaled to this one`, owner: 'Change lead', timing: `Go-live to +${d.hypercareWeeks} week${d.hypercareWeeks === 1 ? '' : 's'}` });
-  adoptionActions.push({ action: `Re-score this role at ${d.rescoreDays}-day intervals; the dashboard is the go-live gate`, owner: 'Change lead', timing: `Every ${d.rescoreDays} days` });
-  adoptionActions.push({ action: `Reassess site readiness for this role on the standing cadence`, owner: 'Site lead', timing: `Every ${CADENCE.readinessReassessMonths} months` });
-  adoptionActions.push({ action: `Measure adoption on ${ADOPTION_METRICS.join(', ')}`, owner: 'Change lead', timing: `Across the ${CADENCE.adoptionWindowMonths}-month window after go-live` });
-
-  return { narrative, curriculum, comms, adoptionActions, source: 'fallback', local: true };
-}
-
-async function generateForRole(role) {
-  const payload = {
-    role: {
-      name: role.role, siteArchetype: role.siteArchetype,
-      siteCount: role.siteCount, headcount: role.headcount, deskless: !!role.deskless,
-      isNewRole: !!role.isNewRole, summary: role.summary,
-      tasksRemoved: role.tasksRemoved, tasksChanged: role.tasksChanged,
-      tasksNew: role.tasksNew, fteDelta: role.fteDelta,
-    },
-    tier: role.tier,
-    tierPackage: TIERS[role.tier].package,
-    doses: DOSES[role.tier],
-    axisScores: role.scores,
-    subFactors: { impact: role.impact, risk: role.risk },
-    // Aberdeen OCM delivery material, already resolved for this role. The model
-    // must use the method and duration given, not invent its own.
-    delivery: {
-      training: trainingDesign(role),
-      commsMilestones: commsPlan(role),
-      objectiveLadder: OBJECTIVE_LADDER,
-      supportLayers: SUPPORT_LAYERS,
-      adoptionMetrics: ADOPTION_METRICS,
-      cadence: CADENCE,
-      provenance: NOTE.mapping,
-    },
-    before: role.before || [],
-    after: role.after || [],
-    constraints: role.constraints || [],
-    modifiers: modifiersFor(role).map((m) => m.title),
-  };
-  try {
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 45000);
-    const res = await fetch('api/generate', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: ctl.signal,
-    });
-    clearTimeout(timer);
-    if (!res.ok) throw new Error('status ' + res.status);
-    const data = await res.json();
-    if (!data || typeof data.narrative !== 'string' || !Array.isArray(data.curriculum)
-        || !data.comms || !Array.isArray(data.adoptionActions)) throw new Error('shape');
-    return data;
-  } catch (err) {
-    return localTemplate(role);
-  }
-}
-
 /* Assisted-input scoring for the "Start new project" wizard. Sends the SAME
    six anchor ladders the manual sliders show, so an AI-suggested score and a
    hand-set one are always calibrated against identical band text. This never
@@ -4062,59 +3893,7 @@ function AxisBreakdown({ name, factors, values, score }) {
   );
 }
 
-function GeneratedBlock({ data }) {
-  return (
-    <div className="gen-grid">
-      <div className="gen-sec">
-        <h4>Training curriculum</h4>
-        <ol>
-          {data.curriculum.map((c, i) => (
-            <li key={i}>
-              <b>{c.module || c.title || String(c)}</b>
-              {(c.format || c.duration) && <span className="meta">{[c.format, c.duration].filter(Boolean).join(' · ')}</span>}
-              {c.objective && <span className="meta">{c.objective}</span>}
-            </li>
-          ))}
-        </ol>
-      </div>
-      <div className="gen-sec">
-        <h4>Comms message</h4>
-        <div className="msg">
-          <div className="headline">{data.comms.headline}</div>
-          <p>{data.comms.message}</p>
-          {Array.isArray(data.comms.milestones) && data.comms.milestones.length > 0 && (
-            <table className="mini milestones">
-              <tbody>
-                {data.comms.milestones.map((m, i) => (
-                  <tr key={i} title={m.channel || undefined}>
-                    <th scope="row">{m.name}</th>
-                    <td className="ch">{m.objective}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {Array.isArray(data.comms.channels) && data.comms.channels.length > 0 && (
-            <div className="channels">Channels: {data.comms.channels.join(' · ')}</div>
-          )}
-        </div>
-      </div>
-      <div className="gen-sec">
-        <h4>Adoption actions</h4>
-        <ul>
-          {data.adoptionActions.map((a, i) => (
-            <li key={i}>
-              {a.action || String(a)}
-              {(a.owner || a.timing) && <span className="meta">{[a.owner, a.timing].filter(Boolean).join(' · ')}</span>}
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-function onePagerText(role, gen) {
+function onePagerText(role) {
   const L = [];
   L.push(`${role.role}: ${role.tier}`);
   L.push(`${role.siteArchetype} · ${role.siteCount} site(s) · ${role.headcount} people${role.deskless ? ' · deskless' : ''}`);
@@ -4161,15 +3940,6 @@ function onePagerText(role, gen) {
   L.push(`  Cadence: readiness reassessed every ${CADENCE.readinessReassessMonths} months; role re-scored every ${DOSES[role.tier].rescoreDays} days`);
   L.push(`  Adoption measured over a ${CADENCE.adoptionWindowMonths}-month window on: ${ADOPTION_METRICS.join(', ')}`);
   L.push('  The 1:15 super-user ratio is from Team 2\'s own deck (slide 13); Aberdeen\'s material states no ratio.');
-  if (gen) {
-    L.push(''); L.push('ROLE REDESIGN NARRATIVE'); L.push(gen.narrative);
-    L.push(''); L.push('TRAINING CURRICULUM');
-    gen.curriculum.forEach((c) => L.push(`  - ${c.module || c.title}: ${[c.format, c.duration].filter(Boolean).join(' · ')}${c.objective ? ', ' + c.objective : ''}`));
-    L.push(''); L.push('COMMS MESSAGE'); L.push(`  ${gen.comms.headline}`); L.push(`  ${gen.comms.message}`);
-    if (gen.comms.channels) L.push(`  Channels: ${gen.comms.channels.join(' · ')}`);
-    L.push(''); L.push('ADOPTION ACTIONS');
-    gen.adoptionActions.forEach((a) => L.push(`  - ${a.action || a}${a.owner || a.timing ? ` (${[a.owner, a.timing].filter(Boolean).join(', ')})` : ''}`));
-  }
   L.push(''); L.push('Aberdeen Advisors · Change Impact Assessment Tool · illustrative figures, synthetic data');
   return L.join('\n');
 }
@@ -4235,7 +4005,7 @@ function DeliveryDetail({ role }) {
   );
 }
 
-function OnePager({ role, gen, status, onGenerate, onBack, backLabel }) {
+function OnePager({ role, onBack, backLabel }) {
   const label = backLabel || 'Stakeholder Impact';
   const [copied, setCopied] = useState(false);
   const [showScore, setShowScore] = useState(false);
@@ -4266,7 +4036,7 @@ function OnePager({ role, gen, status, onGenerate, onBack, backLabel }) {
   const mods = modifiersFor(role);
 
   const copy = async () => {
-    const txt = onePagerText(role, gen);
+    const txt = onePagerText(role);
     try { await navigator.clipboard.writeText(txt); }
     catch (e) {
       const ta = document.createElement('textarea');
@@ -4354,20 +4124,11 @@ function OnePager({ role, gen, status, onGenerate, onBack, backLabel }) {
       </div>
 
       {/* 4. THE PLAN: concrete action items, not prose. Prescribed package,
-          modifiers and constraints from the deterministic engine, plus the
-          generated training/comms/adoption-actions detail once available. */}
+          modifiers and constraints from the deterministic engine. */}
       <div className="card">
         <div className="card-head">
           <h3>The plan</h3>
           <span className="hint">{TIERS[role.tier].quadrant}</span>
-          <div className="gen-status" style={{ marginLeft: 'auto' }}>
-            {gen && (gen.source === 'anthropic'
-              ? <span className="mark live">live · {gen.model || 'claude'}</span>
-              : <span className="mark offline">offline content</span>)}
-            <button className="btn primary no-print" onClick={onGenerate} disabled={status === 'loading'}>
-              {status === 'loading' ? 'Generating…' : gen ? 'Regenerate' : 'Generate'}
-            </button>
-          </div>
         </div>
         <div className="card-body">
           <ul className="pkg-list">
@@ -4391,32 +4152,6 @@ function OnePager({ role, gen, status, onGenerate, onBack, backLabel }) {
           <DeliveryDetail role={role} />
           <p className="footnote">{NOTE.mapping}</p>
           <p className="footnote">{NOTE.ratio}</p>
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--hairline)' }}>
-          {status === 'loading' && (
-            <div className="gen-grid">
-              {[0, 1, 2].map((i) => (
-                <div className="gen-sec" key={i}>
-                  <h4>{['Training curriculum', 'Comms message', 'Adoption actions'][i]}</h4>
-                  <div className="skeleton"><i /><i /><i /><i /></div>
-                </div>
-              ))}
-            </div>
-          )}
-          {status !== 'loading' && !gen && (
-            <p style={{ color: 'var(--ink-2)', maxWidth: '72ch' }}>
-              The scoring and tier above are deterministic. The three sections below, training curriculum, comms
-              message and adoption actions, are written for this role, grounded in its description, sub-factor
-              scores, tier package and constraints. Press <b>Generate</b>.
-            </p>
-          )}
-          {status !== 'loading' && gen && <GeneratedBlock data={gen} />}
-          {gen && gen.source !== 'anthropic' && (
-            <p className="footnote">
-              Generated locally from the deterministic template library (no API key present, or the API was unreachable).
-              Content is grounded in the same inputs the model receives.
-            </p>
-          )}
-          </div>
         </div>
       </div>
       <p className="footnote">All figures illustrative. All data synthetic.</p>
@@ -4866,7 +4601,9 @@ function RedesignRow({ role, onOpen }) {
       <button type="button" className="draft-row-head" onClick={() => setOpen((o) => !o)}>
         <span className="drn">{role.role}</span>
         <span className="drm">{role.siteArchetype} · {(role.headcount || 0).toLocaleString()} people</span>
-        <span className="drm n">−{role.tasksRemoved || 0} · ~{role.tasksChanged || 0} · +{role.tasksNew || 0} · FTE {fte > 0 ? '+' : ''}{fte}</span>
+        <span className="drm n" title={`${role.tasksRemoved || 0} tasks removed, ${role.tasksChanged || 0} changed, ${role.tasksNew || 0} new, FTE delta ${fte > 0 ? '+' : ''}${fte}`}>
+          −{role.tasksRemoved || 0} removed · ~{role.tasksChanged || 0} changed · +{role.tasksNew || 0} new · FTE {fte > 0 ? '+' : ''}{fte}
+        </span>
         {role.complete ? <TierBadge tier={role.tier} /> : <span className="incflag">incomplete</span>}
         <span className="drx" aria-hidden="true">{open ? '▲' : '▼'}</span>
       </button>
@@ -5173,17 +4910,8 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckP
 }
 
 function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate }) {
-  const [tierFilter, setTierFilter] = useState('All');
-  const roi = useMemo(() => roiModel(scored), [scored]);
-  const trend = useMemo(() => roiTrend(scored), [scored]);
-  const plan = useMemo(() => resourcedPlan(scored), [scored]);
-  const adoptionGroup = plan.find((g) => g.group === 'Adoption');
   const agg = useMemo(() => aggregate(scored), [scored]);
   const daysLive = useMemo(() => daysSince(goLiveDate), [goLiveDate]);
-  const rows = useMemo(
-    () => scored.filter((r) => tierFilter === 'All' || r.tier === tierFilter),
-    [scored, tierFilter]
-  );
   const tierStatus = useMemo(() => TIER_ORDER.map((t) => ({
     tier: t, count: agg.byTier[t].roles, people: agg.byTier[t].people, ...rescoreStatus(t, daysLive),
   })).filter((s) => s.count > 0), [agg, daysLive]);
@@ -5191,9 +4919,6 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
     o[t] = simulatedTrainingCompletion(t, daysLive); return o;
   }, {}));
   const metrics = useMemo(() => simulatedAdoptionMetrics(agg, daysLive), [agg, daysLive]);
-  const todayWeek = daysLive === null || daysLive < 0 ? null : Math.min(16, daysLive / 7);
-  const recoveredToDate = todayWeek === null ? 0
-    : trend.points.reduce((best, p) => (p.week <= todayWeek ? p.dollars : best), 0);
 
   const liveLede = daysLive === null
     ? 'No target go-live date is set for this project yet, so tracking has not started. Set one on the engagement profile.'
@@ -5255,160 +4980,18 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         </div>
       </div>
 
-      <div className="grid cols-4" style={{ marginBottom: 16 }}>
+      <div className="grid cols-4" style={{ marginBottom: 12 }}>
         <Tile label="Unique sign-ons" value={`${metrics.signOnRate}%`} meta="of in-scope headcount, at least once" />
         <Tile label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} meta="simulated at 3.2 per person over the adoption window" />
         <Tile label="Job-aid access rate" value={`${metrics.jobAidAccessRate}%`} meta="of issued job aids opened at least once" />
         <Tile label="Comms click rate" value={`${metrics.commsClickRate}%`} meta="go-live communication click-through" />
         <Tile label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} meta="Rebuild + Enable population, tapering as adoption matures" />
-        <Tile label="Qualitative feedback" value={metrics.qualitative} />
       </div>
 
-      <div className="grid cols-4" style={{ marginBottom: 16 }}>
-        <Tile label="Dip depth" value={`${roi.dipUntargeted}% → ${roi.dipTargeted}%`} meta="deepest point below baseline" />
-        <Tile label="Recovery" value={`${roi.recoveryUntargeted} wks → ${roi.recoveryTargeted} wks`} meta={`first week back within ${100 - ASSUMPTIONS.recoveryThresholdPct}% of baseline`} />
-        <Tile label="Recovered to date" value={money(recoveredToDate)} accent
-              meta={todayWeek === null ? `of ${money(roi.lossAvoided)} projected` : `of ${money(roi.lossAvoided)} projected, week ${todayWeek.toFixed(1)}`} />
-        <Tile label="Concentration" value={`${pct(agg.byTier.Rebuild.popShare)} → ${pct(agg.byTier.Rebuild.budgetShare)}`}
-              meta="Rebuild share of population → of budget" />
+      <div className="card">
+        <div className="card-head"><h3>Qualitative feedback</h3></div>
+        <div className="card-body"><p style={{ margin: 0 }}>{metrics.qualitative}</p></div>
       </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-head">
-          <h3>Productivity through go-live</h3>
-          <span className="hint">Illustrative curve{showDeckProvenance ? ' · deck slide 14 workbook values' : ' · same curve shape applied to this portfolio'}</span>
-        </div>
-        <div className="card-body"><RoiChart /></div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-head">
-          <h3>Avoided productivity loss, as a trend</h3>
-          <span className="hint">Cumulative dollars recovered, integrating the same curves above week by week</span>
-        </div>
-        <div className="card-body"><RoiTrendChart points={trend.points} todayWeek={todayWeek} /></div>
-      </div>
-
-      <div className="grid cols-2" style={{ marginBottom: 16 }}>
-        <div className="assume">
-          <h4>How the money is derived, so it is defensible</h4>
-          <dl>
-            <dt>Loaded cost per head, per year</dt><dd>${ASSUMPTIONS.loadedCostPerHeadPerYear.toLocaleString()}</dd>
-            <dt>Cost per head, per week</dt><dd>${Math.round(roi.weeklyCost).toLocaleString()}</dd>
-            <dt>Lost-productivity area, untargeted</dt><dd>{roi.areaU} pp·wks</dd>
-            <dt>Lost-productivity area, targeted</dt><dd>{roi.areaT} pp·wks</dd>
-            <dt>Productive weeks recovered per head</dt><dd>{roi.avoidedWeeksPerHead.toFixed(2)}</dd>
-            <dt>People in scope (Rebuild + Enable)</dt><dd>{roi.affectedHeads.toLocaleString()}</dd>
-            <dt>Value recovered per head</dt><dd>${Math.round(roi.perHead).toLocaleString()}</dd>
-          </dl>
-          <div className="calc">
-            {roi.affectedHeads.toLocaleString()} people × {roi.avoidedWeeksPerHead.toFixed(2)} weeks
-            × ${Math.round(roi.weeklyCost).toLocaleString()}/week = <b>{money(roi.lossAvoided)}</b>
-          </div>
-          <p className="footnote" style={{ marginTop: 10 }}>
-            Areas are trapezoidal integrals of the gap to baseline across weeks 0–16. Only Rebuild and Enable
-            populations are counted: those are the roles whose daily work materially changes.
-          </p>
-        </div>
-
-        <div className="assume">
-          <h4>Why targeting is cheaper, not more expensive</h4>
-          <p style={{ fontSize: 13.5 }}>
-            Every number on this page traces back to a role × site row. The tiering does not add
-            interventions. It moves them. {pct(agg.byTier.Rebuild.popShare)} of the population attracts
-            {' '}{pct(agg.byTier.Rebuild.budgetShare)} of the effort, and {pct(agg.byTier.Inform.popShare)} attracts
-            {' '}{pct(agg.byTier.Inform.budgetShare)}. The saving is the classroom time not spent on the
-            {' '}{agg.byTier.Inform.people.toLocaleString()} people for whom nothing meaningfully changes.
-          </p>
-          <dl style={{ marginTop: 12 }}>
-            {TIER_ORDER.map((t) => (
-              <React.Fragment key={t}>
-                <dt><i className="dot" style={{ '--dot': TIERS[t].hex, display: 'inline-block', marginRight: 7 }} />{t} · cost weight per head</dt>
-                <dd>{ASSUMPTIONS.budgetWeightPerHead[t].toFixed(3)}</dd>
-              </React.Fragment>
-            ))}
-          </dl>
-          <p className="footnote">
-            The per-head cost weights are ours, calibrated on the shipped population. The deck states no cost weighting.
-          </p>
-        </div>
-      </div>
-
-      {adoptionGroup && (
-        <div className="grid cols-4" style={{ marginBottom: 16 }}>
-          {adoptionGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} meta={r.rule} />)}
-        </div>
-      )}
-
-      <div className="filters no-print">
-        <div className="field">
-          <label htmlFor="ad-tier">Tier</label>
-          <select id="ad-tier" value={tierFilter} onChange={(e) => setTierFilter(e.target.value)}>
-            <option value="All">All tiers</option>
-            {TIER_ORDER.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-      </div>
-
-      <div className="table-scroll" style={{ marginBottom: 16 }}>
-        <table className="data">
-          <thead><tr><th>Role</th><th>Tier</th><th className="n">Hypercare</th><th className="n">Re-score every</th></tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className={selectedId === r.id ? 'sel' : ''} onClick={() => onSelect(r.id)}>
-                <td><span className="rolename">{r.role}</span></td>
-                <td><TierBadge tier={r.tier} /></td>
-                <td className="n">{DOSES[r.tier].hypercareWeeks} week{DOSES[r.tier].hypercareWeeks === 1 ? '' : 's'}</td>
-                <td className="n">{DOSES[r.tier].rescoreDays} days</td>
-              </tr>
-            ))}
-            {!rows.length && <tr><td colSpan={4} style={{ color: 'var(--ink-3)' }}>No roles match this filter.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-      {incomplete.length > 0 && (
-        <p className="footnote">{incomplete.length} incomplete role{incomplete.length === 1 ? '' : 's'}, no tier yet, not shown here.</p>
-      )}
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-head">
-          <h3>Support after go-live, and how adoption is measured</h3>
-          <span className="hint">Aberdeen OCM delivery material · the tier → tactic mapping is ours</span>
-        </div>
-        <div className="card-body">
-          <div className="grid cols-2">
-            <div className="assume">
-              <h4>Four-layer support escalation</h4>
-              <ol className="esc">{SUPPORT_LAYERS.map((s) => <li key={s}>{s}</li>)}</ol>
-            </div>
-            <div className="assume">
-              <h4>Cadence and measurement</h4>
-              <dl>
-                <dt>Readiness reassessed</dt><dd>every {CADENCE.readinessReassessMonths} months</dd>
-                <dt>Hypercare</dt>
-                <dd>
-                  every tier: {DOSES.Inform.hypercareWeeks}–{DOSES.Rebuild.hypercareWeeks} weeks, scaling by tier
-                  {' '}({TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')})
-                </dd>
-                <dt>Role re-scored (go-live gate)</dt><dd>every {DOSES.Rebuild.rescoreDays}–{DOSES.Inform.rescoreDays} days by tier</dd>
-                <dt>Change network onboarded</dt><dd>{CADENCE.changeNetworkOnboardMonths} months pre go-live</dd>
-                <dt>Adoption measured across</dt><dd>{CADENCE.adoptionWindowMonths} months post go-live</dd>
-              </dl>
-              <p className="footnote" style={{ marginBottom: 0 }}>
-                Adoption metrics: {ADOPTION_METRICS.join(' · ')}.
-              </p>
-            </div>
-          </div>
-          <p className="footnote">{NOTE.mapping}</p>
-          {showDeckProvenance && <p className="footnote">{NOTE.hypercare}</p>}
-          {showDeckProvenance && <p className="footnote">{NOTE.ratio}</p>}
-        </div>
-      </div>
-      <p className="footnote">
-        Illustrative figures. Same training budget, redistributed, not increased. All data synthetic.
-        Every plan number above is derived from the rule printed beside it.
-      </p>
-      <p className="footnote">{showDeckProvenance && NOTE.dataset} {NOTE.weights}</p>
     </>
   );
 }
@@ -6024,8 +5607,6 @@ function App() {
   const [tab, setTab] = useState('portfolio');
   const [returnTab, setReturnTab] = useState('portfolio'); // where "← Back" on the one-pager / methodology page returns to
   const [selectedId, setSelectedId] = useState(null);
-  const [gen, setGen] = useState({});      // roleId -> generated content
-  const [genStatus, setGenStatus] = useState({});
   const [weights, setWeights] = useState(() => ({ ...DEFAULT_WEIGHTS }));
 
   useEffect(() => {
@@ -6059,15 +5640,6 @@ function App() {
     setTab('role');
   }, []);
 
-  const generate = useCallback(async () => {
-    if (!selected) return;
-    const id = selected.id;
-    setGenStatus((s) => ({ ...s, [id]: 'loading' }));
-    const data = await generateForRole(selected);
-    setGen((g) => ({ ...g, [id]: data }));
-    setGenStatus((s) => ({ ...s, [id]: 'done' }));
-  }, [selected]);
-
   // Entering a project (from the picker, or leaving one via the header) always
   // resets session state, a previous project's weights, selection or live-added
   // roles must never bleed into the next one.
@@ -6076,7 +5648,6 @@ function App() {
     setWizardActive(false);
     setRaw([]); setDataSource('');
     setTab('portfolio'); setReturnTab('portfolio'); setSelectedId(null);
-    setGen({}); setGenStatus({});
     setWeights({ ...DEFAULT_WEIGHTS });
   }, []);
 
@@ -6137,8 +5708,7 @@ function App() {
                     showDeckProvenance={project.hasDeckReproduction} goLiveDate={project.goLiveDate} />
         )}
         {tab === 'role' && (
-          <OnePager role={selected} gen={gen[selectedId]} status={genStatus[selectedId] || 'idle'}
-                    onGenerate={generate} onBack={() => setTab(returnTab)} backLabel={TAB_LABELS[returnTab] || 'Stakeholder Impact'} />
+          <OnePager role={selected} onBack={() => setTab(returnTab)} backLabel={TAB_LABELS[returnTab] || 'Stakeholder Impact'} />
         )}
         {tab === 'add' && <AddRoleView onCreate={createRole} project={project} />}
       </main>

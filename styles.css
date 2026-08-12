@@ -520,40 +520,6 @@ table.data td .incflag {
   border-radius: 999px; padding: 3px 10px; color: var(--ink-2);
 }
 
-/* generated content */
-.gen-status { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--ink-3); }
-.mark {
-  font-size: 11px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase;
-  border-radius: 4px; padding: 2px 7px; border: 1px solid var(--hairline-strong); color: var(--ink-2);
-}
-.mark.offline { background: var(--flag-wash); border-color: var(--flag-line); color: var(--flag); }
-.mark.live { background: var(--live-wash); border-color: var(--live-line); color: var(--live); }
-
-.gen-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
-.gen-sec h4 {
-  font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3);
-  margin-bottom: 9px; padding-bottom: 7px; border-bottom: 1px solid var(--hairline);
-}
-.gen-sec { font-size: 14px; }
-.gen-sec ol, .gen-sec ul { margin: 0; padding-left: 18px; }
-.gen-sec li { margin-bottom: 8px; }
-.gen-sec li .meta { display: block; font-size: 12.5px; color: var(--ink-3); }
-.gen-sec .msg {
-  background: var(--surface-sunk); border: 1px solid var(--hairline); border-radius: var(--radius-s);
-  padding: 12px 14px;
-}
-.gen-sec .msg .headline { font-weight: 500; margin-bottom: 6px; }
-.gen-sec .msg .channels { margin-top: 9px; font-size: 12.5px; color: var(--ink-3); }
-.skeleton { display: grid; gap: 9px; }
-.skeleton i {
-  display: block; height: 11px; border-radius: 4px;
-  background: linear-gradient(90deg, var(--hairline) 25%, var(--surface-sunk) 50%, var(--hairline) 75%);
-  background-size: 240% 100%; animation: sh 1.15s linear infinite;
-}
-.skeleton i:nth-child(2) { width: 92%; }
-.skeleton i:nth-child(3) { width: 76%; }
-@keyframes sh { from { background-position: 120% 0; } to { background-position: -120% 0; } }
-
 /* ------------------------------------------------------------------- forms */
 
 .form-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
@@ -677,12 +643,12 @@ table.data td .incflag {
   .main { padding: 0; max-width: none; }
   .only-print { display: block; }
   .card { border: 1px solid var(--hairline-strong); box-shadow: none; break-inside: avoid; }
-  .gen-grid, .cols-2 { display: block; }
+  .cols-2 { display: block; }
   /* keep the metric tiles four-across on paper, they are small */
   .cols-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6pt; }
   .tile .value { font-size: 18pt; }
   .ba { display: grid; grid-template-columns: 1fr 1fr; }
-  .gen-sec, .tile { break-inside: avoid; margin-bottom: 10pt; }
+  .tile { break-inside: avoid; margin-bottom: 10pt; }
   .view-head .lede { display: none; }
   a[href]::after { content: ""; }
 }
