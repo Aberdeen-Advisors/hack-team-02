@@ -71,9 +71,9 @@ the honest label, not decoration:
 |---|---|
 | **Capability delta** | The best-supported of the six. Anchors 1, 3 and 5 are **Aberdeen's own band wording** (Knowledge & Skills, Organization & Roles); only the observable content at 2 and 4 is ours. |
 | **Consequence of error** | Bands follow the **Openlink client plan**, the only source that bands consequence on named levels with written descriptors. Two authored moves: it has four bands and we need five, so 3 is our interpolation — and **no source scores safety consequence at all**, so the safety limb at 5 is ours. |
-| **Share of daily tasks changing** | Aberdeen's process-change band wording over Prosci's magnitude ladder; **the percentage cut-offs are ours** — no source expresses task share as a percentage. |
+| **Share of daily tasks changing** | Aberdeen's own process-change band wording, on a generic low-to-high magnitude ladder; **the percentage cut-offs are ours** — no source expresses task share as a percentage. |
 | **Change in decision rights** | **Our ladder**, over Aberdeen's driver vocabulary at 1, 2 and 4, with our own deck's sentence as the anchor at 5. No instrument in the evidence base scores decision rights as its own dimension — which is why it is in our model. |
-| **Local readiness gap** | Site-leadership capacity and change fatigue carry Prosci wording corroborated across two products. **Digital maturity is scored by no source**, and deskless access rests on a single Aberdeen sentence. Score each limb and take the highest, not the mean — that recommendation is ours. |
+| **Local readiness gap** | The four limbs — site-leadership capacity, change fatigue and change history, digital maturity, deskless access — are **our own deck's definition** (slide 7); **all five band descriptions are our wording**, written against the construct rather than lifted from an instrument. The limbs are unevenly evidenced: leadership capacity and change fatigue are measured by published instruments (whose licensed wording we do not reproduce), **digital maturity is scored by no source**, and deskless access rests on a single Aberdeen sentence. Score each limb and take the highest, not the mean — that recommendation is ours. |
 | **Frequency and volume** | **Ours end to end.** The least grounded of the six: no source in the evidence base scores task frequency or volume. Team 2 added this sub-factor. The honest defence is that it is countable from the system transaction lists our deck already names as an input — and it is the one most likely to be challenged. |
 
 If someone asks where a 4 comes from, that table is the answer, and the tool prints it rather than
@@ -304,7 +304,7 @@ and again on the Reproduced tab:
 | Role-based curricula | 18 | **14** | 1 per Rebuild role + 1 shared per value stream in Enable |
 | Manager cascade scripts | 11 | **13** | 1 per Rebuild role + 1 per non-Rebuild role with decision rights ≥ 4 |
 | Supervisors briefed | 340 | **314** | 1 per 10 people in Rebuild, Enable or Reassure roles |
-| Site change coaches | 6 | **8** | one per site carrying a Rebuild role — the widest-spread Rebuild role is Warehouse Team Lead across 8 DCs, where the deck's 6 counts plants only |
+| Site change coaches | 6 | **8** | one per site carrying a Rebuild role. The deck's 6 is the plant count — it counts plants. The engine counts every site that carries a Rebuild role, and the widest Rebuild spread in the dataset is Warehouse Team Lead, which spans both archetypes: the six plant warehouses and the two DCs, so 6 + 2 = 8. The two figures answer different questions and **do not reconcile** — the deck's 6 leaves the DC shifts uncoached. State it as a divergence, not a match. |
 | Plant Controller adoption risk | 3.6 | **3.4** | slide 10 contradicts itself: 3.6 is above our inclusive 3.5 line and would tier Rebuild, but the slide tiers the role Enable. The dataset resolves it in favour of the tier the deck assigns. |
 | Budget share | 55 · 27 · 13 · 5 | **54 · 27 · 14 · 5** | not a deck-derived figure at all — it falls out of our own per-head cost weighting, which the deck does not state. Lands within one rounding point. |
 
@@ -325,11 +325,21 @@ one's provenance (see *What a score means* above); the dataset itself is still o
 
 ### Licence hygiene
 
-This tool reproduces **no third-party licensed change-management content**. The assessment sub-factors,
-the item wording, the tier packages and the tactic lists are our own or Aberdeen's own delivery
-material; the dataset is synthetic. The repository was grepped for Prosci-derived item wording,
-assessment item banks and licensed tactic lists before shipping and came back clean — the Prosci
-workbook licence forbids reproducing its content in another tool, and nothing here does.
+The shipped tool reproduces **no third-party licensed change-management content**. The assessment
+sub-factors, the anchor and item wording, the tier packages and the tactic lists are our own or
+Aberdeen's own delivery material; the dataset is synthetic. Stated precisely, because the scope of the
+claim matters: **the app's own code, data and on-screen text — `index.html`, `styles.css`, `api/`,
+`data/roles.json`, `tools/` — contain no Prosci item wording, no assessment item bank and no licensed
+tactic list.** The Prosci workbook licence forbids reproducing its content in another product, and
+nothing that ships to a screen does. The app names Prosci exactly once, in the decision-rights
+provenance note, and it does so to state what those instruments **do not** measure — a citation about
+an absence, not borrowed wording.
+
+One deliberate exception, which is a different use and not covered by that claim:
+`docs/source-synthesis.md` is an internal cited evidence document. It **quotes source items verbatim on
+purpose**, each with a reference, so a claim about provenance can be checked against what the sources
+actually say. It is not client-facing, nothing in it is rendered by the app, and it is the reason to
+keep the hygiene claim scoped to the product rather than to the whole repository.
 
 ## Notes for the presenters
 

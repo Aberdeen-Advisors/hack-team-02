@@ -93,7 +93,7 @@ const RISK_FACTORS = [
      errorConsequence  - Openlink's four named bands, interpolated to five.
      taskShare         - Aberdeen band wording, our percentage cut-offs.
      decisionRights    - our ladder over Aberdeen's driver vocabulary.
-     localReadiness    - two limbs sourced, two effectively unsourced.
+     localReadiness    - construct from our own deck; all five bands our wording.
      frequencyVolume   - OURS END TO END. No source measures it at all.
 
    `origin` is the short badge shown on screen; `note` is the sentence a
@@ -131,7 +131,8 @@ const ANCHORS = {
   },
   taskShare: {
     origin: 'Aberdeen band wording · percentage cut-offs ours',
-    note: 'The observable wording is Aberdeen’s process-change band text over Prosci’s magnitude ladder. The percentage bands are '
+    note: 'The observable wording is Aberdeen’s own process-change band text, on a generic low-to-high magnitude ladder of the kind '
+        + 'published assessments use — none of their item wording is reproduced here. The percentage bands are '
         + 'entirely ours — no source expresses task share as a percentage. They are here because a deterministic scorer needs a '
         + 'countable rule, and the to-be process designs make the numerator and denominator available.',
     bands: [
@@ -156,17 +157,21 @@ const ANCHORS = {
     ],
   },
   localReadiness: {
-    origin: 'Two limbs sourced · digital maturity and deskless access barely',
-    note: 'Four limbs, one score. Site-leadership capacity and change fatigue carry Prosci Organizational-Attributes wording that '
-        + 'appears identically in two independent Prosci products — the strongest corroboration in the set. Digital maturity is scored '
-        + 'by no source at all, and deskless access rests on a single Aberdeen sentence. Our recommendation, not a source position: '
-        + 'score each limb and take the highest, not the mean — a site where nobody has a screen is not a moderate-risk site.',
+    origin: 'Construct from our own deck · all five bands our wording',
+    note: 'Four limbs, one score: site-leadership capacity, change fatigue and the history of change at the site, digital maturity, '
+        + 'and deskless access. The four limbs are our own source deck’s definition of local readiness (slide 7); every word of the five '
+        + 'band descriptions below is ours, written against the construct rather than lifted from an instrument — licensed assessment '
+        + 'wording is not reproduced anywhere in this tool (docs/source-synthesis.md §8.8). Worth knowing how unevenly the limbs are '
+        + 'evidenced: leadership capacity and change fatigue are measured by published instruments, digital maturity is scored by no '
+        + 'source at all, and deskless access rests on a single Aberdeen sentence about site staff with no computer access. Our '
+        + 'recommendation, not a source position: score each limb and take the highest, not the mean — a site where nobody has a screen '
+        + 'is not a moderate-risk site.',
     bands: [
-      'Very few changes and under capacity; leadership highly effective at change; all staff desk-based with individual access',
-      'One concurrent change; the site manager is credible but stretched; desk access universal',
-      'Several concurrent changes; the manager needs a script to run the cascade; mixed desk and shared-terminal access',
-      'Poorly managed changes in recent memory; manager capacity is the binding constraint; most of the population shares terminals or works shifts',
-      'Everything is changing and over capacity; the population has no computer access and email is ineffective',
+      'Nothing else is competing for the site’s attention and the roster has slack; the site lead has taken earlier rollouts through to landing; everyone has an individual screen and already self-serves in systems',
+      'One other initiative running alongside; the site lead is trusted but short of spare hours; individual screen access is still universal',
+      'Two or three initiatives overlap; the site lead can front the cascade but needs a prepared script to do it; screen access is a mix of personal logins and shared terminals',
+      'A rollout here stalled within recent memory and people remember it; the site lead’s available hours are the binding constraint; most of the population shares a terminal or works shifts around office hours',
+      'The site is absorbing more change than it has the capacity to carry; much of the population never signs in to a system, has little practice with digital tools, and does not read email',
     ],
   },
   frequencyVolume: {
@@ -546,7 +551,33 @@ function modifiersFor(role) {
    =========================================================================== */
 
 const VALUE_STREAMS = ['Order-to-Cash', 'Procure-to-Pay', 'Plan-to-Produce', 'Record-to-Report', 'Hire-to-Retire', 'Cross-cutting'];
-const SITE_ARCHETYPES = ['HQ', 'Plant', 'DC', 'Field/Commercial'];
+/* The four base archetypes. The estate behind them is one HQ, six plants and two
+   DCs, so those three have a hard ceiling on how many sites a row can claim;
+   the field estate has no fixed site list and so has no ceiling. */
+const SITE_ARCHETYPE_BASE = ['HQ', 'Plant', 'DC', 'Field/Commercial'];
+
+/* Some roles genuinely work at more than one archetype — a Warehouse Team Lead
+   runs shifts in the six plant warehouses AND in both DCs, which is 8 sites, not
+   8 DCs. Those rows carry a combined value rather than being forced into one
+   archetype they overflow. The deck does this too: slide 10's Sites column
+   already prints "HQ+6" for Master Data Steward and "HQ+2" for Customer Service. */
+const SITE_ARCHETYPE_COMBOS = ['HQ + Plant', 'HQ + DC', 'Plant + DC'];
+const SITE_ARCHETYPES = [...SITE_ARCHETYPE_BASE, ...SITE_ARCHETYPE_COMBOS];
+
+/* 'Plant + DC' -> ['Plant', 'DC']. 'Field/Commercial' has no '+', so it is
+   returned whole — the slash is part of the name, not a separator. */
+function archetypeParts(value) {
+  return String(value || '').split('+').map((s) => s.trim()).filter(Boolean);
+}
+
+/* Filtering is component-aware on purpose: picking 'Plant' has to return the
+   roles that span plants as well as the plant-only ones, or the filter hides a
+   population that really is at those sites. Picking a combined value exactly
+   narrows to the spanning rows. */
+function archetypeMatches(value, filter) {
+  if (filter === 'All' || value === filter) return true;
+  return archetypeParts(value).includes(filter);
+}
 
 function aggregate(scored) {
   const byTier = {};
@@ -718,9 +749,11 @@ const DIVERGENCE = {
       + 'decision-rights score is 4 or higher, which finds 13 — two roles the deck’s figure misses.',
   'supervisors briefed on decision rights': 'The deck asserts 340. The engine derives one per 10 people across Rebuild, Enable and '
       + 'Reassure, which is 314 on the shipped headcounts.',
-  'site change coaches': 'The deck asserts 6, which counts the plants. The engine derives one per site carrying a Rebuild role, and the '
-      + 'widest-spread Rebuild role is Warehouse Team Lead across 8 DCs — so it returns 8. The two are counting different sites, and the '
-      + 'engine is counting the ones that actually carry a Rebuild role.',
+  'site change coaches': 'The deck asserts 6, and 6 is the plant count — the deck is counting plants. The engine counts every site that '
+      + 'carries a Rebuild role, which is a different question. The widest Rebuild spread in this dataset is Warehouse Team Lead, and that '
+      + 'role spans both archetypes: the six plant warehouses and the two distribution centres, so 6 + 2 = 8 sites, and the engine returns '
+      + '8. Both numbers are right about their own rule; they diverge because the deck stops at the plants and the engine has to staff the '
+      + 'DCs too. This is a divergence, not a match — the deck’s 6 does not cover the DC shifts.',
   'Plant Controller': 'The deck’s slide 10 prints an adoption risk of 3.6 but tiers the role Enable — and 3.6 is above our inclusive '
       + '3.5 line, which would make it Rebuild. The deck contradicts itself. The dataset resolves it in favour of the tier the deck '
       + 'assigns: 3.4, which lands in Enable. Impact matches exactly.',
@@ -837,7 +870,7 @@ const SEED_ROLES = /*__SEED__*/[
     "id": "warehouse-team-lead",
     "role": "Warehouse Team Lead",
     "valueStream": "Plan-to-Produce",
-    "siteArchetype": "DC",
+    "siteArchetype": "Plant + DC",
     "siteCount": 8,
     "headcount": 96,
     "deskless": true,
@@ -925,7 +958,7 @@ const SEED_ROLES = /*__SEED__*/[
     "id": "master-data-steward",
     "role": "Master Data Steward",
     "valueStream": "Cross-cutting",
-    "siteArchetype": "HQ",
+    "siteArchetype": "HQ + Plant",
     "siteCount": 7,
     "headcount": 18,
     "deskless": false,
@@ -968,7 +1001,7 @@ const SEED_ROLES = /*__SEED__*/[
     "id": "customer-service-order-entry",
     "role": "Customer Service - Order Entry",
     "valueStream": "Order-to-Cash",
-    "siteArchetype": "HQ",
+    "siteArchetype": "HQ + DC",
     "siteCount": 3,
     "headcount": 240,
     "deskless": false,
@@ -1275,7 +1308,7 @@ const SEED_ROLES = /*__SEED__*/[
     "id": "customer-service-claims-returns",
     "role": "Customer Service - Claims & Returns",
     "valueStream": "Order-to-Cash",
-    "siteArchetype": "HQ",
+    "siteArchetype": "HQ + DC",
     "siteCount": 3,
     "headcount": 150,
     "deskless": false,
@@ -2865,7 +2898,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepr
   // the deck's published figures, which are portfolio-wide.
   const repro = useMemo(() => reproductionReport(scored), [scored]);
 
-  const match = (r) => (vs === 'All' || r.valueStream === vs) && (sa === 'All' || r.siteArchetype === sa);
+  const match = (r) => (vs === 'All' || r.valueStream === vs) && archetypeMatches(r.siteArchetype, sa);
   const filtered = useMemo(() => scored.filter(match), [scored, vs, sa]);
   const filteredIncomplete = useMemo(() => incomplete.filter(match), [incomplete, vs, sa]);
 
@@ -2910,7 +2943,12 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepr
           <label htmlFor="f-sa">Site archetype</label>
           <select id="f-sa" value={sa} onChange={(e) => setSa(e.target.value)}>
             <option value="All">All site archetypes</option>
-            {SITE_ARCHETYPES.map((v) => <option key={v} value={v}>{v}</option>)}
+            <optgroup label="Archetype (includes roles that span it)">
+              {SITE_ARCHETYPE_BASE.map((v) => <option key={v} value={v}>{v}</option>)}
+            </optgroup>
+            <optgroup label="Spans more than one archetype">
+              {SITE_ARCHETYPE_COMBOS.map((v) => <option key={v} value={v}>{v}</option>)}
+            </optgroup>
           </select>
         </div>
         <div className="spacer" />
@@ -3503,7 +3541,12 @@ function AddRoleView({ onCreate }) {
                 <div className="field">
                   <label htmlFor="a-sa">Site archetype</label>
                   <select id="a-sa" value={f.siteArchetype} onChange={(e) => set({ siteArchetype: e.target.value })}>
-                    {SITE_ARCHETYPES.map((v) => <option key={v}>{v}</option>)}
+                    <optgroup label="One archetype">
+                      {SITE_ARCHETYPE_BASE.map((v) => <option key={v}>{v}</option>)}
+                    </optgroup>
+                    <optgroup label="Spans more than one">
+                      {SITE_ARCHETYPE_COMBOS.map((v) => <option key={v}>{v}</option>)}
+                    </optgroup>
                   </select>
                 </div>
                 <div className="field">
