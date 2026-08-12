@@ -9,6 +9,18 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo Pulling latest changes from origin...
+git pull --no-edit
+if errorlevel 1 (
+    echo.
+    echo Pull failed — most likely a merge conflict with origin.
+    echo Resolve it manually: run "git status" to see the conflicted files,
+    echo fix them, then "git add" the resolved files and "git commit" to
+    echo finish the merge. This script will not auto-resolve or force-push.
+    pause
+    exit /b 1
+)
+
 echo Staging changes...
 git add -A
 

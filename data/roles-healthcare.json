@@ -1,0 +1,402 @@
+{
+  "meta": {
+    "totalHeadcount": 800,
+    "roleCount": 12,
+    "generated": "synthetic demo data, illustrative only — example project: Bellcrest Health System EHR rollout"
+  },
+  "roles": [
+    {
+      "id": "rn-inpatient",
+      "role": "Registered Nurse — Inpatient",
+      "valueStream": "Clinical Documentation",
+      "siteArchetype": "Inpatient Unit",
+      "siteCount": 3,
+      "headcount": 326,
+      "deskless": true,
+      "isNewRole": false,
+      "summary": "Bedside nursing on the medical-surgical and telemetry floors across all three hospitals. Charting, vitals, medication pass and care-plan documentation move from a mix of paper flowsheets and a legacy nursing module into the new EHR's structured clinical documentation and eMAR.",
+      "impact": { "taskShare": 4.6, "frequencyVolume": 4.8, "errorConsequence": 4.9 },
+      "risk": { "decisionRights": 3.8, "capabilityDelta": 4.5, "localReadiness": 4.2 },
+      "before": [
+        "Vitals and I&O charted on paper flowsheet, transcribed into legacy system at shift end",
+        "Medication pass verified against a printed MAR",
+        "Care plan updated narratively in free-text nursing notes",
+        "Physician verbal orders relayed by phone or in person and transcribed by the unit clerk"
+      ],
+      "after": [
+        "Vitals entered directly at the bedside via workstation-on-wheels, flows straight into the structured record",
+        "Medication pass scanned against the electronic MAR with barcode patient/med matching",
+        "Care plan built from structured, problem-based templates with required fields",
+        "Physician orders arrive electronically through CPOE with a nursing task queue"
+      ],
+      "tasksRemoved": 3,
+      "tasksChanged": 9,
+      "tasksNew": 4,
+      "fteDelta": -0.2,
+      "constraints": [
+        "Documentation must be completed at the bedside without disrupting direct patient care",
+        "Three-shift rotation means training and go-live support must cover nights and weekends"
+      ]
+    },
+    {
+      "id": "rn-emergency-department",
+      "role": "Registered Nurse — Emergency Department",
+      "valueStream": "Clinical Documentation",
+      "siteArchetype": "Emergency Department",
+      "siteCount": 3,
+      "headcount": 110,
+      "deskless": true,
+      "isNewRole": false,
+      "summary": "ED nursing across all three sites, where triage, rapid reassessment and medication administration happen under time pressure. The new EHR replaces a separate ED tracking board and a paper triage form with one structured record shared with the rest of the hospital.",
+      "impact": { "taskShare": 4.5, "frequencyVolume": 4.9, "errorConsequence": 5.0 },
+      "risk": { "decisionRights": 3.5, "capabilityDelta": 4.4, "localReadiness": 4.5 },
+      "before": [
+        "Triage acuity recorded on a paper form, re-keyed into the ED tracking board",
+        "Medication administration charted after the fact, during a lull",
+        "Handoff between shifts relies on a verbal report plus a whiteboard",
+        "Discharge instructions printed from a separate template library"
+      ],
+      "after": [
+        "Triage acuity entered once, drives the electronic tracking board directly",
+        "Medications scanned and charted at the point of administration",
+        "Structured shift handoff note auto-populates from the record",
+        "Discharge instructions generated from the visit record and reconciled medication list"
+      ],
+      "tasksRemoved": 2,
+      "tasksChanged": 8,
+      "tasksNew": 3,
+      "fteDelta": -0.1,
+      "constraints": [
+        "No workflow change may add a step between triage and first clinical contact",
+        "High turnover and agency staff mean training has to work for people who joined after go-live too"
+      ]
+    },
+    {
+      "id": "hospitalist-attending",
+      "role": "Hospitalist / Attending Physician",
+      "valueStream": "Order Entry (CPOE)",
+      "siteArchetype": "Inpatient Unit",
+      "siteCount": 3,
+      "headcount": 55,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Inpatient attending physicians who write the majority of admission, medication and discharge orders. CPOE replaces verbal and handwritten orders with structured order sets and clinical decision support, which is the sharpest authority change in the rollout.",
+      "impact": { "taskShare": 4.0, "frequencyVolume": 4.7, "errorConsequence": 5.0 },
+      "risk": { "decisionRights": 4.6, "capabilityDelta": 3.6, "localReadiness": 3.9 },
+      "before": [
+        "Orders written by hand on the chart or given verbally to the unit clerk",
+        "Medication choice and dosing left to individual judgement and memory",
+        "Drug interaction and allergy checks performed manually or not at all",
+        "Discharge orders written the morning of discharge with no structured checklist"
+      ],
+      "after": [
+        "Orders entered directly into CPOE from structured, evidence-based order sets",
+        "Dosing pre-populated with weight-based and renal-adjusted defaults, overridable with a reason",
+        "Interaction, allergy and duplicate-therapy alerts fire at order entry, before the order is signed",
+        "Discharge order set triggers medication reconciliation and follow-up scheduling automatically"
+      ],
+      "tasksRemoved": 4,
+      "tasksChanged": 10,
+      "tasksNew": 5,
+      "fteDelta": 0,
+      "constraints": [
+        "Order sets must be built and validated by service line before go-live, not improvised on the floor",
+        "Physicians split time across all three hospitals, so downtime and training windows can't be site-specific"
+      ]
+    },
+    {
+      "id": "unit-clerk",
+      "role": "Unit Clerk / Ward Clerk",
+      "valueStream": "Patient Registration & Scheduling",
+      "siteArchetype": "Inpatient Unit",
+      "siteCount": 3,
+      "headcount": 40,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Coordinates the inpatient unit desk: admits, transfers, discharges and transcribing verbal orders into the chart. CPOE removes the order-transcription task entirely and shifts the role toward exception handling and bed coordination.",
+      "impact": { "taskShare": 3.8, "frequencyVolume": 4.0, "errorConsequence": 3.0 },
+      "risk": { "decisionRights": 2.0, "capabilityDelta": 3.2, "localReadiness": 3.0 },
+      "before": [
+        "Transcribes verbal and handwritten physician orders into the chart and notifies the right department",
+        "Manages the admission/transfer/discharge paper log",
+        "Answers unit phone and relays messages between physicians, nurses and families",
+        "Tracks bed status on a whiteboard"
+      ],
+      "after": [
+        "Orders route electronically to the right department with no transcription step",
+        "ADT events tracked directly in the EHR's bed-management module",
+        "Message routing partly absorbed by in-system secure messaging",
+        "Bed status visible system-wide in real time"
+      ],
+      "tasksRemoved": 5,
+      "tasksChanged": 6,
+      "tasksNew": 2,
+      "fteDelta": -0.4,
+      "constraints": [
+        "Some unit clerks are the only non-clinical staff on the floor overnight and need a fallback for system downtime",
+        "Role is being partly redefined, not eliminated — messaging on this needs to be explicit"
+      ]
+    },
+    {
+      "id": "pharmacist",
+      "role": "Pharmacist",
+      "valueStream": "Medication Administration (eMAR)",
+      "siteArchetype": "Ancillary (Lab/Pharmacy/Imaging)",
+      "siteCount": 3,
+      "headcount": 26,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Verifies every inpatient medication order before it reaches the floor. CPOE and eMAR route orders directly to pharmacy with automated interaction and duplicate-therapy checking, changing verification from a first pass to an oversight and exception role.",
+      "impact": { "taskShare": 4.2, "frequencyVolume": 4.3, "errorConsequence": 5.0 },
+      "risk": { "decisionRights": 4.3, "capabilityDelta": 3.8, "localReadiness": 3.5 },
+      "before": [
+        "Re-keys handwritten or verbal orders into the pharmacy dispensing system before verifying them",
+        "Manually checks interactions, allergies and duplicate therapy against reference material",
+        "Verification queue managed by paper printout and phone calls to the floor",
+        "Dispensing decisions documented informally in a shared log"
+      ],
+      "after": [
+        "Orders arrive in the verification queue directly from CPOE, no re-keying",
+        "System-flagged interaction, allergy and duplicate-therapy alerts surface at verification, pharmacist clears or escalates",
+        "Verification queue and turnaround time visible and reportable in the EHR",
+        "Every override is captured with a reason code, feeding the medication-safety committee"
+      ],
+      "tasksRemoved": 3,
+      "tasksChanged": 9,
+      "tasksNew": 4,
+      "fteDelta": -0.1,
+      "constraints": [
+        "Verification turnaround time cannot regress during the transition — it is a patient-safety metric",
+        "Alert volume must be tuned pre-go-live or override fatigue defeats the safety benefit"
+      ]
+    },
+    {
+      "id": "pharmacy-technician",
+      "role": "Pharmacy Technician",
+      "valueStream": "Medication Administration (eMAR)",
+      "siteArchetype": "Ancillary (Lab/Pharmacy/Imaging)",
+      "siteCount": 3,
+      "headcount": 34,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Fills and delivers inpatient medication orders once the pharmacist has verified them. The new system changes the queue technicians work from and adds barcode-driven fill checking, without changing who is allowed to verify or override an order.",
+      "impact": { "taskShare": 3.6, "frequencyVolume": 4.0, "errorConsequence": 3.4 },
+      "risk": { "decisionRights": 1.8, "capabilityDelta": 3.0, "localReadiness": 2.8 },
+      "before": [
+        "Fills orders from a printed pick list generated after pharmacist verification",
+        "Cross-checks fills manually against the original order",
+        "Restocks unit-based automated dispensing cabinets on a fixed round",
+        "Logs discrepancies on paper for the pharmacist to review"
+      ],
+      "after": [
+        "Fills orders from an electronic queue that updates the moment a pharmacist verifies",
+        "Barcode scan confirms the correct medication and strength at fill",
+        "Cabinet restocking list generated from real-time usage data",
+        "Discrepancies logged directly in the system and routed automatically"
+      ],
+      "tasksRemoved": 2,
+      "tasksChanged": 7,
+      "tasksNew": 2,
+      "fteDelta": 0,
+      "constraints": [
+        "Fill accuracy cannot dip during the changeover — this role has no independent verification authority to catch its own errors",
+        "Cabinet hardware integration with the new EHR needs to be tested per site before go-live"
+      ]
+    },
+    {
+      "id": "medical-assistant-ambulatory",
+      "role": "Medical Assistant — Ambulatory Clinic",
+      "valueStream": "Clinical Documentation",
+      "siteArchetype": "Ambulatory Clinic",
+      "siteCount": 3,
+      "headcount": 60,
+      "deskless": true,
+      "isNewRole": false,
+      "summary": "Rooms patients, takes vitals and documents intake in the outpatient clinics attached to each hospital. Intake moves from a paper rooming sheet into structured EHR templates that feed the physician's note directly.",
+      "impact": { "taskShare": 3.7, "frequencyVolume": 3.9, "errorConsequence": 3.2 },
+      "risk": { "decisionRights": 2.0, "capabilityDelta": 3.3, "localReadiness": 3.0 },
+      "before": [
+        "Vitals and chief complaint recorded on a paper rooming sheet",
+        "Sheet handed to the physician or scanned into the record later",
+        "Medication and allergy list confirmed verbally, updated inconsistently",
+        "Intake forms filed separately from the visit note"
+      ],
+      "after": [
+        "Vitals and chief complaint entered directly into the structured intake template",
+        "Intake flows straight into the physician's visit note, no handoff or scanning",
+        "Medication and allergy reconciliation is a required, structured step",
+        "Intake and visit note live in the same record automatically"
+      ],
+      "tasksRemoved": 2,
+      "tasksChanged": 7,
+      "tasksNew": 2,
+      "fteDelta": 0,
+      "constraints": [
+        "Rooming time budget per patient cannot increase — clinic schedules are already full",
+        "Several clinics share float staff across sites, so training has to be site-agnostic"
+      ]
+    },
+    {
+      "id": "registration-scheduling-clerk",
+      "role": "Registration / Scheduling Clerk — Ambulatory Clinic",
+      "valueStream": "Patient Registration & Scheduling",
+      "siteArchetype": "Ambulatory Clinic",
+      "siteCount": 3,
+      "headcount": 46,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Front-desk registration and appointment scheduling for the outpatient clinics. The clinical EHR module changes downstream documentation more than it changes front-desk work, but the front desk absorbs new patient questions about online check-in and portal access.",
+      "impact": { "taskShare": 2.8, "frequencyVolume": 3.5, "errorConsequence": 2.0 },
+      "risk": { "decisionRights": 1.8, "capabilityDelta": 4.5, "localReadiness": 4.8 },
+      "before": [
+        "Registers patients and verifies insurance at the desk",
+        "Books and reschedules appointments in the legacy scheduling system",
+        "Collects paper intake and consent forms",
+        "Answers questions about upcoming visits by phone"
+      ],
+      "after": [
+        "Registration and insurance verification happen in the same system used clinically",
+        "Scheduling shares a calendar with the new patient portal, so online self-scheduling appears on the same screen",
+        "Consent forms captured electronically at check-in",
+        "Fields many new questions about portal access and online check-in that did not exist before"
+      ],
+      "tasksRemoved": 1,
+      "tasksChanged": 5,
+      "tasksNew": 3,
+      "fteDelta": 0.1,
+      "constraints": [
+        "Front desks are chronically short-staffed, so any new task has to replace one, not add to the pile",
+        "High turnover means the anchor material has to work for someone hired the week after go-live"
+      ]
+    },
+    {
+      "id": "medical-coder-biller",
+      "role": "Medical Coder / Biller",
+      "valueStream": "Billing & Revenue Cycle",
+      "siteArchetype": "Corporate/Admin",
+      "siteCount": 1,
+      "headcount": 32,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Central billing office that codes and submits claims from the clinical record. Charge capture now originates from structured EHR documentation instead of a mix of paper superbills and free-text notes, a moderate but back-office-only change.",
+      "impact": { "taskShare": 2.5, "frequencyVolume": 3.0, "errorConsequence": 2.5 },
+      "risk": { "decisionRights": 1.2, "capabilityDelta": 2.0, "localReadiness": 2.0 },
+      "before": [
+        "Codes charges from a mix of paper superbills and dictated notes",
+        "Chases missing documentation by phone or email",
+        "Manually cross-checks charges against the visit schedule",
+        "Submits claims through a separate billing system"
+      ],
+      "after": [
+        "Codes directly from structured EHR documentation with charge-capture prompts built in",
+        "Missing-documentation queries route to the ordering provider inside the record",
+        "Charges reconcile against the visit schedule automatically",
+        "Claims submission integrates with the EHR's billing module"
+      ],
+      "tasksRemoved": 2,
+      "tasksChanged": 6,
+      "tasksNew": 1,
+      "fteDelta": 0,
+      "constraints": [
+        "Claims turnaround cannot slip during go-live month or cash flow is affected",
+        "Coding staff need the new charge-capture logic validated against payer rules before go-live, not after"
+      ]
+    },
+    {
+      "id": "lab-technician",
+      "role": "Laboratory Technician",
+      "valueStream": "Order Entry (CPOE)",
+      "siteArchetype": "Ancillary (Lab/Pharmacy/Imaging)",
+      "siteCount": 3,
+      "headcount": 38,
+      "deskless": true,
+      "isNewRole": false,
+      "summary": "Processes specimens and results for orders placed through CPOE. Orders and results now flow electronically end to end, replacing a paper requisition and a separate results-entry step.",
+      "impact": { "taskShare": 3.3, "frequencyVolume": 3.8, "errorConsequence": 3.6 },
+      "risk": { "decisionRights": 1.6, "capabilityDelta": 2.8, "localReadiness": 2.6 },
+      "before": [
+        "Receives paper requisitions alongside physical specimens",
+        "Manually matches specimen labels to the requisition",
+        "Enters results into a separate lab information system",
+        "Calls critical results to the floor and logs the call on paper"
+      ],
+      "after": [
+        "Receives electronic orders that print a barcode label matched to the specimen",
+        "Barcode scan confirms specimen-to-order match automatically",
+        "Results flow directly into the EHR from the lab system interface",
+        "Critical-result calls are logged in the EHR with an acknowledgement timestamp"
+      ],
+      "tasksRemoved": 2,
+      "tasksChanged": 6,
+      "tasksNew": 2,
+      "fteDelta": 0,
+      "constraints": [
+        "Interface between the lab system and the new EHR must be validated per analyzer before go-live",
+        "Turnaround-time targets for critical results are a regulatory requirement and cannot regress"
+      ]
+    },
+    {
+      "id": "clinical-informatics-analyst",
+      "role": "Clinical Informatics Analyst",
+      "valueStream": "Cross-cutting",
+      "siteArchetype": "Corporate/Admin",
+      "siteCount": 1,
+      "headcount": 9,
+      "deskless": false,
+      "isNewRole": true,
+      "summary": "A net-new role created to support the EHR rollout: builds order sets and documentation templates, monitors alert-override rates, and is the first line of triage between clinical staff and IT once the system is live.",
+      "impact": { "taskShare": 4.0, "frequencyVolume": 3.5, "errorConsequence": 3.0 },
+      "risk": { "decisionRights": 2.5, "capabilityDelta": 4.0, "localReadiness": 2.5 },
+      "before": [
+        "Role does not exist prior to the EHR rollout"
+      ],
+      "after": [
+        "Builds and maintains CPOE order sets and documentation templates with clinical input",
+        "Monitors clinical decision support override rates and flags alerts that need retuning",
+        "Runs the first-line triage queue between floor staff and the IT help desk",
+        "Trains super-users on template and order-set changes as they roll out"
+      ],
+      "tasksRemoved": 0,
+      "tasksChanged": 0,
+      "tasksNew": 9,
+      "fteDelta": 9,
+      "constraints": [
+        "Needs a clinical background to be credible with physicians and nurses, which narrows the hiring pool",
+        "First cohort has to be trained ahead of every other role, since they help train everyone else"
+      ]
+    },
+    {
+      "id": "nurse-manager-charge-nurse",
+      "role": "Nurse Manager / Charge Nurse",
+      "valueStream": "Cross-cutting",
+      "siteArchetype": "Inpatient Unit",
+      "siteCount": 3,
+      "headcount": 24,
+      "deskless": true,
+      "isNewRole": false,
+      "summary": "Runs daily staffing and patient assignment on the inpatient units. A new acuity-based staffing module recommends assignments directly from the EHR's patient data, changing a decision the charge nurse used to make unaided.",
+      "impact": { "taskShare": 3.8, "frequencyVolume": 3.6, "errorConsequence": 4.2 },
+      "risk": { "decisionRights": 4.4, "capabilityDelta": 3.5, "localReadiness": 3.6 },
+      "before": [
+        "Builds the shift assignment by hand using a whiteboard and personal knowledge of patient acuity",
+        "Tracks staffing ratios manually against unit policy",
+        "Escalates staffing gaps by phone to the house supervisor",
+        "Documents assignment changes on paper for the next shift"
+      ],
+      "after": [
+        "Reviews a system-generated assignment recommendation based on real-time acuity scores",
+        "Staffing ratios calculated and flagged automatically against policy",
+        "Escalation queue for staffing gaps runs inside the EHR, visible to the house supervisor in real time",
+        "Assignment history is part of the permanent record, not a handwritten handoff"
+      ],
+      "tasksRemoved": 1,
+      "tasksChanged": 8,
+      "tasksNew": 3,
+      "fteDelta": 0,
+      "constraints": [
+        "The recommendation engine has to be tunable per unit — a medical floor and an ICU do not staff the same way",
+        "Charge nurses need explicit authority to override the recommendation, or the tool will be worked around"
+      ]
+    }
+  ]
+}

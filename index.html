@@ -5,6 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Change Impact Assessment Tool — Aberdeen Advisors</title>
 <meta name="description" content="Scores every Role x Value Stream x Site, assigns an intervention tier, and generates the training, comms and adoption package per role. Synthetic data.">
+
+<!-- Favicon: the blue icon reads on the light tab chrome most browsers use;
+     the white icon takes over automatically for a dark browser theme. -->
+<link rel="icon" href="assets/brand/icon-blue.svg" type="image/svg+xml" media="(prefers-color-scheme: light)">
+<link rel="icon" href="assets/brand/icon-white.svg" type="image/svg+xml" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="assets/brand/icon-blue.svg" type="image/svg+xml">
+
+<!-- Poppins, per the Aberdeen brand system (ExtraLight headings, Medium
+     subheadings, Regular body). Arial is the plain CSS fallback in
+     styles.css if this request fails — no local vendoring, same as the
+     other CDN-first, fallback-covered assets on this page. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@200;400;500&display=swap" rel="stylesheet">
+
 <link rel="stylesheet" href="styles.css">
 
 <!--
@@ -467,14 +482,18 @@ const ASSUMPTIONS = {
 
 const TIER_ORDER = ['Rebuild', 'Enable', 'Reassure', 'Inform'];
 
+/* Literal hex, not var(--t-*) — these feed SVG fill attributes, and must
+   mirror the --t-* custom properties in styles.css exactly. Aberdeen brand's
+   chart-only secondary palette, fixed order: Rebuild -> Jasper, Enable ->
+   Gold, Reassure -> Deep Sky Blue, Inform -> Jade. */
 const TIERS = {
-  Rebuild:  { hex: '#c0392b', wash: 'var(--t-rebuild-wash)',  quadrant: 'High impact · High risk',
+  Rebuild:  { hex: '#DB504A', wash: 'var(--t-rebuild-wash)',  quadrant: 'High impact · High risk',
               package: ['Role redesign', 'Sandbox training', 'On-site super-user', 'Manager coaching'] },
-  Enable:   { hex: '#c98500', wash: 'var(--t-enable-wash)',   quadrant: 'High impact · Low risk',
+  Enable:   { hex: '#F7D002', wash: 'var(--t-enable-wash)',   quadrant: 'High impact · Low risk',
               package: ['Role-based training', 'Job aids', 'Recruit as champions'] },
-  Reassure: { hex: '#4a3aa7', wash: 'var(--t-reassure-wash)', quadrant: 'Low impact · High risk',
+  Reassure: { hex: '#5CC8FF', wash: 'var(--t-reassure-wash)', quadrant: 'Low impact · High risk',
               package: ['Manager cascade', 'Address the fear, not the skill'] },
-  Inform:   { hex: '#7a8794', wash: 'var(--t-inform-wash)',   quadrant: 'Low impact · Low risk',
+  Inform:   { hex: '#00A676', wash: 'var(--t-inform-wash)',   quadrant: 'Low impact · Low risk',
               package: ['Broadcast comms only'] },
 };
 
@@ -599,7 +618,10 @@ function aggregate(scored) {
 
 /* Chart.js paints to a canvas, which cannot read CSS custom properties —
    these must stay literal. They mirror --series-* in styles.css. */
-const SERIES = { untargeted: '#8c8378', targeted: '#2a78d6', band: 'rgba(42,120,214,.13)' };
+/* Literal hex, mirrors --series-* in styles.css — a canvas context cannot
+   resolve CSS custom properties. Aberdeen brand's chart-only palette:
+   untargeted (worse) -> Jasper, targeted (better) -> Jade. */
+const SERIES = { untargeted: '#DB504A', targeted: '#00A676', band: 'rgba(0,166,118,.13)' };
 
 /* Slide 14 — illustrative productivity curves, values from the deck workbook. */
 const ROI_WEEKS      = [0, 2, 4, 6, 8, 10, 12, 14, 16];
@@ -2460,19 +2482,987 @@ const SEED_ROLES = /*__SEED__*/[
   }
 ];
 
-async function loadRoles() {
+const SEED_ROLES_HEALTHCARE = [
+  {
+    "id": "rn-inpatient",
+    "role": "Registered Nurse — Inpatient",
+    "valueStream": "Clinical Documentation",
+    "siteArchetype": "Inpatient Unit",
+    "siteCount": 3,
+    "headcount": 326,
+    "deskless": true,
+    "isNewRole": false,
+    "summary": "Bedside nursing on the medical-surgical and telemetry floors across all three hospitals. Charting, vitals, medication pass and care-plan documentation move from a mix of paper flowsheets and a legacy nursing module into the new EHR's structured clinical documentation and eMAR.",
+    "impact": {
+      "taskShare": 4.6,
+      "frequencyVolume": 4.8,
+      "errorConsequence": 4.9
+    },
+    "risk": {
+      "decisionRights": 3.8,
+      "capabilityDelta": 4.5,
+      "localReadiness": 4.2
+    },
+    "before": [
+      "Vitals and I&O charted on paper flowsheet, transcribed into legacy system at shift end",
+      "Medication pass verified against a printed MAR",
+      "Care plan updated narratively in free-text nursing notes",
+      "Physician verbal orders relayed by phone or in person and transcribed by the unit clerk"
+    ],
+    "after": [
+      "Vitals entered directly at the bedside via workstation-on-wheels, flows straight into the structured record",
+      "Medication pass scanned against the electronic MAR with barcode patient/med matching",
+      "Care plan built from structured, problem-based templates with required fields",
+      "Physician orders arrive electronically through CPOE with a nursing task queue"
+    ],
+    "tasksRemoved": 3,
+    "tasksChanged": 9,
+    "tasksNew": 4,
+    "fteDelta": -0.2,
+    "constraints": [
+      "Documentation must be completed at the bedside without disrupting direct patient care",
+      "Three-shift rotation means training and go-live support must cover nights and weekends"
+    ]
+  },
+  {
+    "id": "rn-emergency-department",
+    "role": "Registered Nurse — Emergency Department",
+    "valueStream": "Clinical Documentation",
+    "siteArchetype": "Emergency Department",
+    "siteCount": 3,
+    "headcount": 110,
+    "deskless": true,
+    "isNewRole": false,
+    "summary": "ED nursing across all three sites, where triage, rapid reassessment and medication administration happen under time pressure. The new EHR replaces a separate ED tracking board and a paper triage form with one structured record shared with the rest of the hospital.",
+    "impact": {
+      "taskShare": 4.5,
+      "frequencyVolume": 4.9,
+      "errorConsequence": 5
+    },
+    "risk": {
+      "decisionRights": 3.5,
+      "capabilityDelta": 4.4,
+      "localReadiness": 4.5
+    },
+    "before": [
+      "Triage acuity recorded on a paper form, re-keyed into the ED tracking board",
+      "Medication administration charted after the fact, during a lull",
+      "Handoff between shifts relies on a verbal report plus a whiteboard",
+      "Discharge instructions printed from a separate template library"
+    ],
+    "after": [
+      "Triage acuity entered once, drives the electronic tracking board directly",
+      "Medications scanned and charted at the point of administration",
+      "Structured shift handoff note auto-populates from the record",
+      "Discharge instructions generated from the visit record and reconciled medication list"
+    ],
+    "tasksRemoved": 2,
+    "tasksChanged": 8,
+    "tasksNew": 3,
+    "fteDelta": -0.1,
+    "constraints": [
+      "No workflow change may add a step between triage and first clinical contact",
+      "High turnover and agency staff mean training has to work for people who joined after go-live too"
+    ]
+  },
+  {
+    "id": "hospitalist-attending",
+    "role": "Hospitalist / Attending Physician",
+    "valueStream": "Order Entry (CPOE)",
+    "siteArchetype": "Inpatient Unit",
+    "siteCount": 3,
+    "headcount": 55,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Inpatient attending physicians who write the majority of admission, medication and discharge orders. CPOE replaces verbal and handwritten orders with structured order sets and clinical decision support, which is the sharpest authority change in the rollout.",
+    "impact": {
+      "taskShare": 4,
+      "frequencyVolume": 4.7,
+      "errorConsequence": 5
+    },
+    "risk": {
+      "decisionRights": 4.6,
+      "capabilityDelta": 3.6,
+      "localReadiness": 3.9
+    },
+    "before": [
+      "Orders written by hand on the chart or given verbally to the unit clerk",
+      "Medication choice and dosing left to individual judgement and memory",
+      "Drug interaction and allergy checks performed manually or not at all",
+      "Discharge orders written the morning of discharge with no structured checklist"
+    ],
+    "after": [
+      "Orders entered directly into CPOE from structured, evidence-based order sets",
+      "Dosing pre-populated with weight-based and renal-adjusted defaults, overridable with a reason",
+      "Interaction, allergy and duplicate-therapy alerts fire at order entry, before the order is signed",
+      "Discharge order set triggers medication reconciliation and follow-up scheduling automatically"
+    ],
+    "tasksRemoved": 4,
+    "tasksChanged": 10,
+    "tasksNew": 5,
+    "fteDelta": 0,
+    "constraints": [
+      "Order sets must be built and validated by service line before go-live, not improvised on the floor",
+      "Physicians split time across all three hospitals, so downtime and training windows can't be site-specific"
+    ]
+  },
+  {
+    "id": "unit-clerk",
+    "role": "Unit Clerk / Ward Clerk",
+    "valueStream": "Patient Registration & Scheduling",
+    "siteArchetype": "Inpatient Unit",
+    "siteCount": 3,
+    "headcount": 40,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Coordinates the inpatient unit desk: admits, transfers, discharges and transcribing verbal orders into the chart. CPOE removes the order-transcription task entirely and shifts the role toward exception handling and bed coordination.",
+    "impact": {
+      "taskShare": 3.8,
+      "frequencyVolume": 4,
+      "errorConsequence": 3
+    },
+    "risk": {
+      "decisionRights": 2,
+      "capabilityDelta": 3.2,
+      "localReadiness": 3
+    },
+    "before": [
+      "Transcribes verbal and handwritten physician orders into the chart and notifies the right department",
+      "Manages the admission/transfer/discharge paper log",
+      "Answers unit phone and relays messages between physicians, nurses and families",
+      "Tracks bed status on a whiteboard"
+    ],
+    "after": [
+      "Orders route electronically to the right department with no transcription step",
+      "ADT events tracked directly in the EHR's bed-management module",
+      "Message routing partly absorbed by in-system secure messaging",
+      "Bed status visible system-wide in real time"
+    ],
+    "tasksRemoved": 5,
+    "tasksChanged": 6,
+    "tasksNew": 2,
+    "fteDelta": -0.4,
+    "constraints": [
+      "Some unit clerks are the only non-clinical staff on the floor overnight and need a fallback for system downtime",
+      "Role is being partly redefined, not eliminated — messaging on this needs to be explicit"
+    ]
+  },
+  {
+    "id": "pharmacist",
+    "role": "Pharmacist",
+    "valueStream": "Medication Administration (eMAR)",
+    "siteArchetype": "Ancillary (Lab/Pharmacy/Imaging)",
+    "siteCount": 3,
+    "headcount": 26,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Verifies every inpatient medication order before it reaches the floor. CPOE and eMAR route orders directly to pharmacy with automated interaction and duplicate-therapy checking, changing verification from a first pass to an oversight and exception role.",
+    "impact": {
+      "taskShare": 4.2,
+      "frequencyVolume": 4.3,
+      "errorConsequence": 5
+    },
+    "risk": {
+      "decisionRights": 4.3,
+      "capabilityDelta": 3.8,
+      "localReadiness": 3.5
+    },
+    "before": [
+      "Re-keys handwritten or verbal orders into the pharmacy dispensing system before verifying them",
+      "Manually checks interactions, allergies and duplicate therapy against reference material",
+      "Verification queue managed by paper printout and phone calls to the floor",
+      "Dispensing decisions documented informally in a shared log"
+    ],
+    "after": [
+      "Orders arrive in the verification queue directly from CPOE, no re-keying",
+      "System-flagged interaction, allergy and duplicate-therapy alerts surface at verification, pharmacist clears or escalates",
+      "Verification queue and turnaround time visible and reportable in the EHR",
+      "Every override is captured with a reason code, feeding the medication-safety committee"
+    ],
+    "tasksRemoved": 3,
+    "tasksChanged": 9,
+    "tasksNew": 4,
+    "fteDelta": -0.1,
+    "constraints": [
+      "Verification turnaround time cannot regress during the transition — it is a patient-safety metric",
+      "Alert volume must be tuned pre-go-live or override fatigue defeats the safety benefit"
+    ]
+  },
+  {
+    "id": "pharmacy-technician",
+    "role": "Pharmacy Technician",
+    "valueStream": "Medication Administration (eMAR)",
+    "siteArchetype": "Ancillary (Lab/Pharmacy/Imaging)",
+    "siteCount": 3,
+    "headcount": 34,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Fills and delivers inpatient medication orders once the pharmacist has verified them. The new system changes the queue technicians work from and adds barcode-driven fill checking, without changing who is allowed to verify or override an order.",
+    "impact": {
+      "taskShare": 3.6,
+      "frequencyVolume": 4,
+      "errorConsequence": 3.4
+    },
+    "risk": {
+      "decisionRights": 1.8,
+      "capabilityDelta": 3,
+      "localReadiness": 2.8
+    },
+    "before": [
+      "Fills orders from a printed pick list generated after pharmacist verification",
+      "Cross-checks fills manually against the original order",
+      "Restocks unit-based automated dispensing cabinets on a fixed round",
+      "Logs discrepancies on paper for the pharmacist to review"
+    ],
+    "after": [
+      "Fills orders from an electronic queue that updates the moment a pharmacist verifies",
+      "Barcode scan confirms the correct medication and strength at fill",
+      "Cabinet restocking list generated from real-time usage data",
+      "Discrepancies logged directly in the system and routed automatically"
+    ],
+    "tasksRemoved": 2,
+    "tasksChanged": 7,
+    "tasksNew": 2,
+    "fteDelta": 0,
+    "constraints": [
+      "Fill accuracy cannot dip during the changeover — this role has no independent verification authority to catch its own errors",
+      "Cabinet hardware integration with the new EHR needs to be tested per site before go-live"
+    ]
+  },
+  {
+    "id": "medical-assistant-ambulatory",
+    "role": "Medical Assistant — Ambulatory Clinic",
+    "valueStream": "Clinical Documentation",
+    "siteArchetype": "Ambulatory Clinic",
+    "siteCount": 3,
+    "headcount": 60,
+    "deskless": true,
+    "isNewRole": false,
+    "summary": "Rooms patients, takes vitals and documents intake in the outpatient clinics attached to each hospital. Intake moves from a paper rooming sheet into structured EHR templates that feed the physician's note directly.",
+    "impact": {
+      "taskShare": 3.7,
+      "frequencyVolume": 3.9,
+      "errorConsequence": 3.2
+    },
+    "risk": {
+      "decisionRights": 2,
+      "capabilityDelta": 3.3,
+      "localReadiness": 3
+    },
+    "before": [
+      "Vitals and chief complaint recorded on a paper rooming sheet",
+      "Sheet handed to the physician or scanned into the record later",
+      "Medication and allergy list confirmed verbally, updated inconsistently",
+      "Intake forms filed separately from the visit note"
+    ],
+    "after": [
+      "Vitals and chief complaint entered directly into the structured intake template",
+      "Intake flows straight into the physician's visit note, no handoff or scanning",
+      "Medication and allergy reconciliation is a required, structured step",
+      "Intake and visit note live in the same record automatically"
+    ],
+    "tasksRemoved": 2,
+    "tasksChanged": 7,
+    "tasksNew": 2,
+    "fteDelta": 0,
+    "constraints": [
+      "Rooming time budget per patient cannot increase — clinic schedules are already full",
+      "Several clinics share float staff across sites, so training has to be site-agnostic"
+    ]
+  },
+  {
+    "id": "registration-scheduling-clerk",
+    "role": "Registration / Scheduling Clerk — Ambulatory Clinic",
+    "valueStream": "Patient Registration & Scheduling",
+    "siteArchetype": "Ambulatory Clinic",
+    "siteCount": 3,
+    "headcount": 46,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Front-desk registration and appointment scheduling for the outpatient clinics. The clinical EHR module changes downstream documentation more than it changes front-desk work, but the front desk absorbs new patient questions about online check-in and portal access.",
+    "impact": {
+      "taskShare": 2.8,
+      "frequencyVolume": 3.5,
+      "errorConsequence": 2
+    },
+    "risk": {
+      "decisionRights": 1.8,
+      "capabilityDelta": 4.5,
+      "localReadiness": 4.8
+    },
+    "before": [
+      "Registers patients and verifies insurance at the desk",
+      "Books and reschedules appointments in the legacy scheduling system",
+      "Collects paper intake and consent forms",
+      "Answers questions about upcoming visits by phone"
+    ],
+    "after": [
+      "Registration and insurance verification happen in the same system used clinically",
+      "Scheduling shares a calendar with the new patient portal, so online self-scheduling appears on the same screen",
+      "Consent forms captured electronically at check-in",
+      "Fields many new questions about portal access and online check-in that did not exist before"
+    ],
+    "tasksRemoved": 1,
+    "tasksChanged": 5,
+    "tasksNew": 3,
+    "fteDelta": 0.1,
+    "constraints": [
+      "Front desks are chronically short-staffed, so any new task has to replace one, not add to the pile",
+      "High turnover means the anchor material has to work for someone hired the week after go-live"
+    ]
+  },
+  {
+    "id": "medical-coder-biller",
+    "role": "Medical Coder / Biller",
+    "valueStream": "Billing & Revenue Cycle",
+    "siteArchetype": "Corporate/Admin",
+    "siteCount": 1,
+    "headcount": 32,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Central billing office that codes and submits claims from the clinical record. Charge capture now originates from structured EHR documentation instead of a mix of paper superbills and free-text notes, a moderate but back-office-only change.",
+    "impact": {
+      "taskShare": 2.5,
+      "frequencyVolume": 3,
+      "errorConsequence": 2.5
+    },
+    "risk": {
+      "decisionRights": 1.2,
+      "capabilityDelta": 2,
+      "localReadiness": 2
+    },
+    "before": [
+      "Codes charges from a mix of paper superbills and dictated notes",
+      "Chases missing documentation by phone or email",
+      "Manually cross-checks charges against the visit schedule",
+      "Submits claims through a separate billing system"
+    ],
+    "after": [
+      "Codes directly from structured EHR documentation with charge-capture prompts built in",
+      "Missing-documentation queries route to the ordering provider inside the record",
+      "Charges reconcile against the visit schedule automatically",
+      "Claims submission integrates with the EHR's billing module"
+    ],
+    "tasksRemoved": 2,
+    "tasksChanged": 6,
+    "tasksNew": 1,
+    "fteDelta": 0,
+    "constraints": [
+      "Claims turnaround cannot slip during go-live month or cash flow is affected",
+      "Coding staff need the new charge-capture logic validated against payer rules before go-live, not after"
+    ]
+  },
+  {
+    "id": "lab-technician",
+    "role": "Laboratory Technician",
+    "valueStream": "Order Entry (CPOE)",
+    "siteArchetype": "Ancillary (Lab/Pharmacy/Imaging)",
+    "siteCount": 3,
+    "headcount": 38,
+    "deskless": true,
+    "isNewRole": false,
+    "summary": "Processes specimens and results for orders placed through CPOE. Orders and results now flow electronically end to end, replacing a paper requisition and a separate results-entry step.",
+    "impact": {
+      "taskShare": 3.3,
+      "frequencyVolume": 3.8,
+      "errorConsequence": 3.6
+    },
+    "risk": {
+      "decisionRights": 1.6,
+      "capabilityDelta": 2.8,
+      "localReadiness": 2.6
+    },
+    "before": [
+      "Receives paper requisitions alongside physical specimens",
+      "Manually matches specimen labels to the requisition",
+      "Enters results into a separate lab information system",
+      "Calls critical results to the floor and logs the call on paper"
+    ],
+    "after": [
+      "Receives electronic orders that print a barcode label matched to the specimen",
+      "Barcode scan confirms specimen-to-order match automatically",
+      "Results flow directly into the EHR from the lab system interface",
+      "Critical-result calls are logged in the EHR with an acknowledgement timestamp"
+    ],
+    "tasksRemoved": 2,
+    "tasksChanged": 6,
+    "tasksNew": 2,
+    "fteDelta": 0,
+    "constraints": [
+      "Interface between the lab system and the new EHR must be validated per analyzer before go-live",
+      "Turnaround-time targets for critical results are a regulatory requirement and cannot regress"
+    ]
+  },
+  {
+    "id": "clinical-informatics-analyst",
+    "role": "Clinical Informatics Analyst",
+    "valueStream": "Cross-cutting",
+    "siteArchetype": "Corporate/Admin",
+    "siteCount": 1,
+    "headcount": 9,
+    "deskless": false,
+    "isNewRole": true,
+    "summary": "A net-new role created to support the EHR rollout: builds order sets and documentation templates, monitors alert-override rates, and is the first line of triage between clinical staff and IT once the system is live.",
+    "impact": {
+      "taskShare": 4,
+      "frequencyVolume": 3.5,
+      "errorConsequence": 3
+    },
+    "risk": {
+      "decisionRights": 2.5,
+      "capabilityDelta": 4,
+      "localReadiness": 2.5
+    },
+    "before": [
+      "Role does not exist prior to the EHR rollout"
+    ],
+    "after": [
+      "Builds and maintains CPOE order sets and documentation templates with clinical input",
+      "Monitors clinical decision support override rates and flags alerts that need retuning",
+      "Runs the first-line triage queue between floor staff and the IT help desk",
+      "Trains super-users on template and order-set changes as they roll out"
+    ],
+    "tasksRemoved": 0,
+    "tasksChanged": 0,
+    "tasksNew": 9,
+    "fteDelta": 9,
+    "constraints": [
+      "Needs a clinical background to be credible with physicians and nurses, which narrows the hiring pool",
+      "First cohort has to be trained ahead of every other role, since they help train everyone else"
+    ]
+  },
+  {
+    "id": "nurse-manager-charge-nurse",
+    "role": "Nurse Manager / Charge Nurse",
+    "valueStream": "Cross-cutting",
+    "siteArchetype": "Inpatient Unit",
+    "siteCount": 3,
+    "headcount": 24,
+    "deskless": true,
+    "isNewRole": false,
+    "summary": "Runs daily staffing and patient assignment on the inpatient units. A new acuity-based staffing module recommends assignments directly from the EHR's patient data, changing a decision the charge nurse used to make unaided.",
+    "impact": {
+      "taskShare": 3.8,
+      "frequencyVolume": 3.6,
+      "errorConsequence": 4.2
+    },
+    "risk": {
+      "decisionRights": 4.4,
+      "capabilityDelta": 3.5,
+      "localReadiness": 3.6
+    },
+    "before": [
+      "Builds the shift assignment by hand using a whiteboard and personal knowledge of patient acuity",
+      "Tracks staffing ratios manually against unit policy",
+      "Escalates staffing gaps by phone to the house supervisor",
+      "Documents assignment changes on paper for the next shift"
+    ],
+    "after": [
+      "Reviews a system-generated assignment recommendation based on real-time acuity scores",
+      "Staffing ratios calculated and flagged automatically against policy",
+      "Escalation queue for staffing gaps runs inside the EHR, visible to the house supervisor in real time",
+      "Assignment history is part of the permanent record, not a handwritten handoff"
+    ],
+    "tasksRemoved": 1,
+    "tasksChanged": 8,
+    "tasksNew": 3,
+    "fteDelta": 0,
+    "constraints": [
+      "The recommendation engine has to be tunable per unit — a medical floor and an ICU do not staff the same way",
+      "Charge nurses need explicit authority to override the recommendation, or the tool will be worked around"
+    ]
+  }
+];
+
+const SEED_ROLES_FINANCIAL = [
+  {
+    "id": "underwriter-new-business",
+    "role": "Underwriter",
+    "valueStream": "New Business Underwriting",
+    "siteArchetype": "HQ",
+    "siteCount": 1,
+    "headcount": 32,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Assesses and prices new-business submissions. An AI risk-scoring model now produces a recommended decision and price for every submission, moving the underwriter's core task from building a risk assessment from scratch to validating, adjusting or overriding a machine recommendation.",
+    "impact": {
+      "taskShare": 4.5,
+      "frequencyVolume": 4.6,
+      "errorConsequence": 4.5
+    },
+    "risk": {
+      "decisionRights": 4.7,
+      "capabilityDelta": 4.2,
+      "localReadiness": 3.6
+    },
+    "before": [
+      "Builds a risk assessment from the submission, external data pulls and personal judgement",
+      "Prices the policy manually against the rate manual",
+      "Documents the rationale for the decision in free-text underwriting notes",
+      "Refers borderline risks up to a senior underwriter by email"
+    ],
+    "after": [
+      "Reviews an AI-generated risk score and recommended decision alongside the submission",
+      "Adjusts or overrides the recommended price with a required reason code",
+      "Rationale is partly pre-populated from the model's key risk factors, edited rather than written from scratch",
+      "Borderline risks are flagged automatically and routed to the senior underwriter's queue"
+    ],
+    "tasksRemoved": 3,
+    "tasksChanged": 10,
+    "tasksNew": 3,
+    "fteDelta": -0.3,
+    "constraints": [
+      "Override rate is being watched closely by compliance in the first two quarters — this is not a rubber-stamp expectation",
+      "Underwriters need to understand the model's key factors well enough to explain a decision to a broker or regulator"
+    ]
+  },
+  {
+    "id": "senior-lead-underwriter",
+    "role": "Senior / Lead Underwriter",
+    "valueStream": "Risk Assessment & Pricing",
+    "siteArchetype": "HQ",
+    "siteCount": 1,
+    "headcount": 10,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Owns escalations and the largest or most complex risks, and sets underwriting authority limits for the team. The AI model changes which cases actually reach this desk, since routine cases the model handles with high confidence used to still cross a senior underwriter's desk for sign-off.",
+    "impact": {
+      "taskShare": 4,
+      "frequencyVolume": 3.8,
+      "errorConsequence": 4.6
+    },
+    "risk": {
+      "decisionRights": 4.5,
+      "capabilityDelta": 3.8,
+      "localReadiness": 3.2
+    },
+    "before": [
+      "Reviews and signs off on every risk above a fixed premium threshold",
+      "Sets underwriting authority limits for the team annually",
+      "Handles broker escalations personally",
+      "Mentors underwriters informally through shadowing"
+    ],
+    "after": [
+      "Reviews only the risks the model flags as low-confidence or high-severity, not every large case by default",
+      "Recalibrates authority limits against model performance, not just premium size",
+      "Broker escalations increasingly concern model-driven pricing, not just risk judgement",
+      "Mentors underwriters on how to read and challenge model output, not only on risk judgement"
+    ],
+    "tasksRemoved": 2,
+    "tasksChanged": 7,
+    "tasksNew": 2,
+    "fteDelta": -0.1,
+    "constraints": [
+      "Authority-limit redesign has to be signed off by Compliance before go-live",
+      "This desk is the escalation point of last resort — it cannot go down during the cutover"
+    ]
+  },
+  {
+    "id": "underwriting-assistant",
+    "role": "Underwriting Assistant / Processor",
+    "valueStream": "New Business Underwriting",
+    "siteArchetype": "HQ",
+    "siteCount": 1,
+    "headcount": 24,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Prepares submissions for underwriting review: data entry, document collection and file assembly. Much of this preparation is now done automatically by the intake system that feeds the AI model, shrinking the role's core task without touching underwriting judgement, which this role never held.",
+    "impact": {
+      "taskShare": 3.9,
+      "frequencyVolume": 4.2,
+      "errorConsequence": 2.8
+    },
+    "risk": {
+      "decisionRights": 1.8,
+      "capabilityDelta": 3.4,
+      "localReadiness": 3
+    },
+    "before": [
+      "Keys submission data from broker documents into the underwriting system",
+      "Chases missing documents by phone or email",
+      "Assembles the file into the format the underwriter expects",
+      "Logs file status manually in a shared tracker"
+    ],
+    "after": [
+      "Most submission data is extracted automatically from broker documents at intake",
+      "Missing-document requests are triggered and tracked by the system",
+      "File assembly is largely automatic; the role reviews for completeness rather than building it",
+      "File status is visible in the underwriting queue without manual tracking"
+    ],
+    "tasksRemoved": 5,
+    "tasksChanged": 6,
+    "tasksNew": 1,
+    "fteDelta": -0.6,
+    "constraints": [
+      "Reduced task volume affects headcount planning for this role and needs a direct, honest conversation, not a vague one",
+      "Remaining staff take on file-quality review, which is a different skill from data entry"
+    ]
+  },
+  {
+    "id": "actuarial-analyst",
+    "role": "Actuarial Analyst",
+    "valueStream": "Risk Assessment & Pricing",
+    "siteArchetype": "HQ",
+    "siteCount": 1,
+    "headcount": 12,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Builds and monitors the pricing models that sit alongside the new AI risk-scoring engine. The analyst's own daily tasks shift moderately toward validating model output against actuarial assumptions rather than building pricing tables from first principles.",
+    "impact": {
+      "taskShare": 3.6,
+      "frequencyVolume": 3.5,
+      "errorConsequence": 3.8
+    },
+    "risk": {
+      "decisionRights": 2.2,
+      "capabilityDelta": 3.6,
+      "localReadiness": 2.4
+    },
+    "before": [
+      "Builds pricing tables and rate factors from loss experience",
+      "Tests rate changes manually against a sample of historical policies",
+      "Documents pricing assumptions in a static actuarial memo",
+      "Reviews pricing adequacy on a fixed quarterly cycle"
+    ],
+    "after": [
+      "Validates the AI model's risk factors and pricing output against actuarial assumptions",
+      "Tests rate and model changes together against a shared holdout sample",
+      "Pricing assumptions and model factors are documented in a shared, versioned record",
+      "Reviews pricing adequacy continuously as model drift is flagged"
+    ],
+    "tasksRemoved": 1,
+    "tasksChanged": 6,
+    "tasksNew": 3,
+    "fteDelta": 0,
+    "constraints": [
+      "Needs visibility into model training data and feature importance, which is currently held by the vendor",
+      "Quarterly review cadence has to change to match a continuously-updating model, which is a governance decision, not just a workflow one"
+    ]
+  },
+  {
+    "id": "policy-servicing-rep",
+    "role": "Policy Servicing Representative",
+    "valueStream": "Policy Servicing",
+    "siteArchetype": "HQ",
+    "siteCount": 1,
+    "headcount": 28,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Handles endorsements, renewals administration and policyholder service requests after a policy is bound. This work sits downstream of underwriting and is only lightly touched by the new AI-assisted workflow — mainly a few updated document templates.",
+    "impact": {
+      "taskShare": 2,
+      "frequencyVolume": 3,
+      "errorConsequence": 2
+    },
+    "risk": {
+      "decisionRights": 1.2,
+      "capabilityDelta": 1.8,
+      "localReadiness": 2
+    },
+    "before": [
+      "Processes endorsements and mid-term changes against the original policy file",
+      "Generates renewal documents from a standard template set",
+      "Answers policyholder service calls",
+      "Updates billing records for policy changes"
+    ],
+    "after": [
+      "Processes endorsements against the same file, now with data validated at underwriting rather than re-checked here",
+      "Generates renewal documents from an updated template referencing the new risk factors",
+      "Answers policyholder service calls, largely unchanged",
+      "Updates billing records for policy changes, largely unchanged"
+    ],
+    "tasksRemoved": 0,
+    "tasksChanged": 3,
+    "tasksNew": 1,
+    "fteDelta": 0,
+    "constraints": [
+      "No new training burden should be added to this team beyond the template changes",
+      "Team should be the calm, unaffected reference point for staff anxious about the rollout"
+    ]
+  },
+  {
+    "id": "compliance-audit-officer",
+    "role": "Compliance & Audit Officer",
+    "valueStream": "Compliance & Audit",
+    "siteArchetype": "HQ",
+    "siteCount": 1,
+    "headcount": 8,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Oversees regulatory compliance and internal audit for underwriting decisions. The officer's own day-to-day tasks change only modestly, but the introduction of an algorithmic underwriting model creates real anxiety about explainability, bias testing and regulatory exposure that the current process was never built to answer.",
+    "impact": {
+      "taskShare": 2.4,
+      "frequencyVolume": 2.8,
+      "errorConsequence": 3.6
+    },
+    "risk": {
+      "decisionRights": 2,
+      "capabilityDelta": 4.3,
+      "localReadiness": 4.6
+    },
+    "before": [
+      "Audits a sample of underwriting files against documented policy each quarter",
+      "Reviews complaint and appeal files for fair-treatment concerns",
+      "Reports underwriting quality metrics to the board",
+      "Maintains the underwriting procedures manual"
+    ],
+    "after": [
+      "Audits now also review model override patterns and reason codes, not just human decisions",
+      "Complaint and appeal review has to consider whether a model recommendation contributed to the outcome",
+      "Board reporting adds model-performance and bias-testing metrics alongside underwriting quality",
+      "Procedures manual now has to document model governance, not only human process"
+    ],
+    "tasksRemoved": 0,
+    "tasksChanged": 4,
+    "tasksNew": 4,
+    "fteDelta": 0.2,
+    "constraints": [
+      "No internal precedent exists yet for auditing an algorithmic underwriting decision — this is being built, not adopted from elsewhere",
+      "Regulatory guidance on AI use in underwriting is still evolving, so the process has to be revisable, not fixed at go-live"
+    ]
+  },
+  {
+    "id": "renewal-underwriter",
+    "role": "Renewal Underwriter",
+    "valueStream": "Renewal Underwriting",
+    "siteArchetype": "HQ",
+    "siteCount": 1,
+    "headcount": 22,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Re-underwrites the existing book at renewal. The same AI risk-scoring model now runs against renewal submissions, flagging risks that have drifted enough to need a fresh look instead of a rollover, which is the same authority shift as new-business underwriting applied to an existing book.",
+    "impact": {
+      "taskShare": 4.3,
+      "frequencyVolume": 4.4,
+      "errorConsequence": 4.2
+    },
+    "risk": {
+      "decisionRights": 4.4,
+      "capabilityDelta": 4,
+      "localReadiness": 3.6
+    },
+    "before": [
+      "Reviews the renewal file and prior-year loss history to decide on rollover, adjustment or non-renewal",
+      "Manually flags accounts that need a fresh underwriting look",
+      "Prices the renewal against the rate manual and personal judgement",
+      "Documents the renewal rationale in free-text notes"
+    ],
+    "after": [
+      "Reviews an AI-generated drift score alongside the renewal file to decide on rollover, adjustment or non-renewal",
+      "Accounts needing a fresh look are flagged automatically by the model",
+      "Prices the renewal starting from a model-recommended adjustment, adjustable with a reason code",
+      "Rationale is partly pre-populated from the model's flagged drift factors"
+    ],
+    "tasksRemoved": 2,
+    "tasksChanged": 9,
+    "tasksNew": 3,
+    "fteDelta": -0.3,
+    "constraints": [
+      "Renewal cycle timing is fixed by policy expiry dates and cannot slip while the team learns the new workflow",
+      "Existing broker relationships mean explanation of any price change has to be clear and immediate"
+    ]
+  },
+  {
+    "id": "data-mlops-analyst",
+    "role": "Data / MLOps Analyst",
+    "valueStream": "Cross-cutting",
+    "siteArchetype": "HQ",
+    "siteCount": 1,
+    "headcount": 4,
+    "deskless": false,
+    "isNewRole": true,
+    "summary": "A net-new role created to run and monitor the underwriting AI model in production: tracking accuracy and drift, managing retraining, and being the technical point of contact for underwriters and compliance questioning a specific model output.",
+    "impact": {
+      "taskShare": 4,
+      "frequencyVolume": 3.6,
+      "errorConsequence": 3.4
+    },
+    "risk": {
+      "decisionRights": 2.4,
+      "capabilityDelta": 3.8,
+      "localReadiness": 2.2
+    },
+    "before": [
+      "Role does not exist prior to the AI-assisted underwriting rollout"
+    ],
+    "after": [
+      "Monitors model accuracy, drift and override rates on an ongoing basis",
+      "Manages model retraining and validation cycles with the vendor",
+      "Investigates specific flagged decisions when an underwriter or compliance officer questions the model's output",
+      "Maintains the technical documentation of model versions and changes"
+    ],
+    "tasksRemoved": 0,
+    "tasksChanged": 0,
+    "tasksNew": 4,
+    "fteDelta": 4,
+    "constraints": [
+      "Needs both the technical skill to interrogate the model and enough underwriting literacy to explain findings to non-technical staff",
+      "Reports jointly to underwriting leadership and compliance, which needs to be an explicit, not implied, reporting line"
+    ]
+  },
+  {
+    "id": "vp-underwriting",
+    "role": "VP / Head of Underwriting",
+    "valueStream": "Cross-cutting",
+    "siteArchetype": "HQ",
+    "siteCount": 1,
+    "headcount": 6,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Sets underwriting strategy, authority limits and escalation policy for the firm. The AI rollout redraws where human sign-off sits in the authority matrix and puts model-governance decisions on this desk for the first time.",
+    "impact": {
+      "taskShare": 3.9,
+      "frequencyVolume": 3.5,
+      "errorConsequence": 4.4
+    },
+    "risk": {
+      "decisionRights": 4.2,
+      "capabilityDelta": 3.4,
+      "localReadiness": 3.2
+    },
+    "before": [
+      "Sets underwriting authority limits by role and premium size",
+      "Owns escalation policy for large or unusual risks",
+      "Reports underwriting performance to the executive committee",
+      "Approves changes to underwriting guidelines"
+    ],
+    "after": [
+      "Sets authority limits by role, premium size and model confidence together",
+      "Owns escalation policy for both unusual risks and low-confidence model recommendations",
+      "Reports underwriting performance and model governance metrics to the executive committee",
+      "Approves changes to underwriting guidelines and to the model's decision thresholds"
+    ],
+    "tasksRemoved": 0,
+    "tasksChanged": 5,
+    "tasksNew": 3,
+    "fteDelta": 0,
+    "constraints": [
+      "Model-governance accountability has to be explicit at this level or it defaults to no one",
+      "Executive committee reporting cadence needs new metrics defined before the first post-go-live report is due"
+    ]
+  },
+  {
+    "id": "it-systems-support",
+    "role": "IT / Systems Support",
+    "valueStream": "Cross-cutting",
+    "siteArchetype": "HQ",
+    "siteCount": 1,
+    "headcount": 4,
+    "deskless": false,
+    "isNewRole": false,
+    "summary": "Supports the firm's core systems and end users. The underwriting AI model is a vendor-hosted addition to the policy administration system this team already supports, a modest incremental load rather than a new discipline.",
+    "impact": {
+      "taskShare": 2.2,
+      "frequencyVolume": 2.6,
+      "errorConsequence": 2.4
+    },
+    "risk": {
+      "decisionRights": 1,
+      "capabilityDelta": 2.2,
+      "localReadiness": 1.8
+    },
+    "before": [
+      "Supports the policy administration system and desktop environment",
+      "Manages user access requests and password resets",
+      "Coordinates with the policy admin vendor on defects and outages",
+      "Runs scheduled system backups and patching"
+    ],
+    "after": [
+      "Supports the policy administration system plus its new AI-scoring integration",
+      "Manages user access requests, now including model-output visibility permissions",
+      "Coordinates with both the policy admin and AI-model vendors on defects and outages",
+      "Runs scheduled backups and patching across one more integrated system"
+    ],
+    "tasksRemoved": 0,
+    "tasksChanged": 3,
+    "tasksNew": 1,
+    "fteDelta": 0,
+    "constraints": [
+      "Two vendors now need a clear escalation path when an issue could be either system's fault",
+      "Team is only 4 people supporting the whole firm — no slack for a second full rollout in parallel"
+    ]
+  }
+];
+
+/* Loads the dataset for whichever project is selected. Identical to the
+   original loadRoles() when called on the consumer-products project (same
+   fetch path, same embedded fallback) — this only generalises the source. */
+async function loadRolesForProject(project) {
+  if (!project.dataPath) {
+    // Every project reaching this branch came through the new-project wizard
+    // and carries its finalized roles as its seed.
+    const roles = project.seed || [];
+    return { roles, source: 'new project — from the engagement wizard' };
+  }
   try {
-    const res = await fetch('data/roles.json', { cache: 'no-store' });
+    const res = await fetch(project.dataPath, { cache: 'no-store' });
     if (!res.ok) throw new Error('status ' + res.status);
     const doc = await res.json();
     // Accept either a bare array or { meta, roles: [...] }.
     const data = Array.isArray(doc) ? doc : (doc && Array.isArray(doc.roles) ? doc.roles : null);
     if (!data || !data.length) throw new Error('no roles array');
-    return { roles: data, source: 'data/roles.json' };
+    return { roles: data, source: project.dataPath };
   } catch (err) {
-    return { roles: SEED_ROLES, source: 'embedded seed' };
+    return { roles: project.seed || [], source: 'embedded seed' };
   }
 }
+
+/* ===========================================================================
+   4b. PROJECTS — the picker's registry. Three worked examples plus a blank
+   starting point. Each entry carries its own dataset, vocabulary (value
+   streams / site archetypes) and whether the "Reproduced, not hardcoded"
+   comparison applies — that tab is specific to the original deck's published
+   figures and would be misleading against a dataset with no corresponding
+   deck, so it only shows for the consumer-products example.
+   =========================================================================== */
+
+const PROJECTS = [
+  {
+    id: 'consumer-products',
+    kind: 'example',
+    name: 'Thornwood Consumer Products',
+    industry: 'Consumer products manufacturing',
+    employeeCount: 5000,
+    oneLiner: 'New operating model and ERP platform rollout across corporate and manufacturing sites.',
+    dataPath: 'data/roles.json',
+    seed: SEED_ROLES,
+    valueStreams: VALUE_STREAMS,
+    siteArchetypeBase: SITE_ARCHETYPE_BASE,
+    siteArchetypeCombos: SITE_ARCHETYPE_COMBOS,
+    hasDeckReproduction: true,
+  },
+  {
+    id: 'healthcare-ehr',
+    kind: 'example',
+    name: 'Bellcrest Health System',
+    industry: 'Healthcare — hospital system',
+    employeeCount: 800,
+    oneLiner: 'New EHR clinical module (CPOE, eMAR) rollout across 3 hospital sites.',
+    dataPath: 'data/roles-healthcare.json',
+    seed: SEED_ROLES_HEALTHCARE,
+    valueStreams: ['Patient Registration & Scheduling', 'Clinical Documentation', 'Order Entry (CPOE)',
+                   'Medication Administration (eMAR)', 'Billing & Revenue Cycle', 'Cross-cutting'],
+    siteArchetypeBase: ['Inpatient Unit', 'Emergency Department', 'Ambulatory Clinic',
+                         'Ancillary (Lab/Pharmacy/Imaging)', 'Corporate/Admin'],
+    siteArchetypeCombos: [],
+    hasDeckReproduction: false,
+  },
+  {
+    id: 'fs-underwriting',
+    kind: 'example',
+    name: 'Ashford Mutual Underwriting',
+    industry: 'Financial services — insurance underwriting',
+    employeeCount: 150,
+    oneLiner: 'AI-assisted underwriting workflow across new-business and renewal underwriting, one site.',
+    dataPath: 'data/roles-financial.json',
+    seed: SEED_ROLES_FINANCIAL,
+    valueStreams: ['New Business Underwriting', 'Renewal Underwriting', 'Risk Assessment & Pricing',
+                   'Policy Servicing', 'Compliance & Audit', 'Cross-cutting'],
+    siteArchetypeBase: ['HQ'],
+    siteArchetypeCombos: [],
+    hasDeckReproduction: false,
+  },
+];
 
 /* ===========================================================================
    5. LLM-GENERATED QUALITATIVE CONTENT
@@ -2640,6 +3630,42 @@ async function generateForRole(role) {
     return data;
   } catch (err) {
     return localTemplate(role);
+  }
+}
+
+/* Assisted-input scoring for the "Start new project" wizard. Sends the SAME
+   six anchor ladders the manual sliders show, so an AI-suggested score and a
+   hand-set one are always calibrated against identical band text. This never
+   touches scoreRole/assignTier — it only proposes numbers to pre-fill the same
+   six sliders a human would otherwise set, and the caller marks every value
+   editable and labelled "AI-suggested" (or "placeholder" on the no-key/error
+   fallback) before it can be added to the portfolio. */
+async function suggestScoresForRole({ name, valueStream, siteArchetype, headcount, summary }) {
+  const anchors = {};
+  ALL_FACTORS.forEach((f) => { anchors[f.key] = { label: f.label, hint: f.hint, bands: ANCHORS[f.key].bands }; });
+  const payload = { role: { name, valueStream, siteArchetype, headcount, summary }, anchors };
+  const localFallback = () => ({
+    impact: { taskShare: 3, frequencyVolume: 3, errorConsequence: 3 },
+    risk: { decisionRights: 3, capabilityDelta: 3, localReadiness: 3 },
+    rationale: ALL_FACTORS.reduce((o, f) => { o[f.key] = 'Could not reach the scoring assistant — placeholder value, review and adjust.'; return o; }, {}),
+    source: 'fallback',
+  });
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 35000);
+    const res = await fetch('api/suggest-scores', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: ctl.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error('status ' + res.status);
+    const data = await res.json();
+    if (!data || !data.impact || !data.risk) throw new Error('shape');
+    return data;
+  } catch (err) {
+    return localFallback();
   }
 }
 
@@ -2891,12 +3917,14 @@ function WeightTuner({ weights, onChange, onReset }) {
   );
 }
 
-function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepro, weights, onWeight, onResetWeights }) {
+function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepro, weights, onWeight, onResetWeights,
+                          valueStreams, siteArchetypeBase, siteArchetypeCombos, showRepro }) {
   const [vs, setVs] = useState('All');
   const [sa, setSa] = useState('All');
   // Deliberately the whole population, not the filtered view: the claim is about
-  // the deck's published figures, which are portfolio-wide.
-  const repro = useMemo(() => reproductionReport(scored), [scored]);
+  // the deck's published figures, which are portfolio-wide. Only meaningful for
+  // the project that has a deck to reproduce against — see showRepro.
+  const repro = useMemo(() => (showRepro ? reproductionReport(scored) : null), [scored, showRepro]);
 
   const match = (r) => (vs === 'All' || r.valueStream === vs) && archetypeMatches(r.siteArchetype, sa);
   const filtered = useMemo(() => scored.filter(match), [scored, vs, sa]);
@@ -2920,23 +3948,26 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepr
         </p>
       </div>
 
-      {/* The claim a judge should be handed first: these figures are outputs, not inputs. */}
-      <div className="repro-strip no-print">
-        <span className="rs-n">{repro.matched}/{repro.total}</span>
-        <span className="rs-t">
-          <b>Reproduced, not hardcoded.</b> {repro.matched} of the {repro.total} figures our deck published fall out of this engine —
-          the tier table, the seven named roles' axis scores, the resourced plan and the {money(roiModel(scored).lossAvoided)}.
-          The other {repro.total - repro.matched} are near misses and are shown as near misses, with the rule that produced them.
-        </span>
-        <button className="btn" onClick={onRepro}>See the comparison →</button>
-      </div>
+      {/* The claim a judge should be handed first: these figures are outputs, not inputs.
+          Only shown for the project that has a deck to reproduce against. */}
+      {showRepro && repro && (
+        <div className="repro-strip no-print">
+          <span className="rs-n">{repro.matched}/{repro.total}</span>
+          <span className="rs-t">
+            <b>Reproduced, not hardcoded.</b> {repro.matched} of the {repro.total} figures our deck published fall out of this engine —
+            the tier table, the seven named roles' axis scores, the resourced plan and the {money(roiModel(scored).lossAvoided)}.
+            The other {repro.total - repro.matched} are near misses and are shown as near misses, with the rule that produced them.
+          </span>
+          <button className="btn" onClick={onRepro}>See the comparison →</button>
+        </div>
+      )}
 
       <div className="filters no-print">
         <div className="field">
           <label htmlFor="f-vs">Value stream</label>
           <select id="f-vs" value={vs} onChange={(e) => setVs(e.target.value)}>
             <option value="All">All value streams</option>
-            {VALUE_STREAMS.map((v) => <option key={v} value={v}>{v}</option>)}
+            {valueStreams.map((v) => <option key={v} value={v}>{v}</option>)}
           </select>
         </div>
         <div className="field">
@@ -2944,11 +3975,13 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepr
           <select id="f-sa" value={sa} onChange={(e) => setSa(e.target.value)}>
             <option value="All">All site archetypes</option>
             <optgroup label="Archetype (includes roles that span it)">
-              {SITE_ARCHETYPE_BASE.map((v) => <option key={v} value={v}>{v}</option>)}
+              {siteArchetypeBase.map((v) => <option key={v} value={v}>{v}</option>)}
             </optgroup>
-            <optgroup label="Spans more than one archetype">
-              {SITE_ARCHETYPE_COMBOS.map((v) => <option key={v} value={v}>{v}</option>)}
-            </optgroup>
+            {siteArchetypeCombos.length > 0 && (
+              <optgroup label="Spans more than one archetype">
+                {siteArchetypeCombos.map((v) => <option key={v} value={v}>{v}</option>)}
+              </optgroup>
+            )}
           </select>
         </div>
         <div className="spacer" />
@@ -2970,7 +4003,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepr
         <b>{pct(reb.popShare)} of the population absorbs {pct(reb.budgetShare)} of the effort.</b> That concentration is the deliverable.
         <span className="src">
           {reb.roles} Rebuild {reb.roles === 1 ? 'role' : 'roles'} · {reb.people.toLocaleString()} of {agg.totalPeople.toLocaleString()} people ·
-          {' '}budget share derived from our own per-head cost assumption, printed on the Costed plan tab · deck slide 9 states 12% → 55%.
+          {' '}budget share derived from our own per-head cost assumption, printed on the Adoption tab{showRepro ? ' · deck slide 9 states 12% → 55%' : ''}.
         </span>
       </div>
 
@@ -3232,7 +4265,8 @@ function DeliveryDetail({ role }) {
   );
 }
 
-function OnePager({ role, gen, status, onGenerate, onBack }) {
+function OnePager({ role, gen, status, onGenerate, onBack, backLabel }) {
+  const label = backLabel || 'Stakeholder Impact';
   const [copied, setCopied] = useState(false);
   if (!role) {
     return (
@@ -3252,7 +4286,7 @@ function OnePager({ role, gen, status, onGenerate, onBack }) {
         </p>
         <p className="footnote" style={{ maxWidth: '70ch', margin: '10px auto 0' }}>{NOTE.incomplete}</p>
         <div className="btn-row no-print" style={{ justifyContent: 'center', marginTop: 14 }}>
-          <button className="btn" onClick={onBack}>← Heat map</button>
+          <button className="btn" onClick={onBack}>← {label}</button>
         </div>
       </div></div>
     );
@@ -3274,7 +4308,7 @@ function OnePager({ role, gen, status, onGenerate, onBack }) {
   return (
     <>
       <div className="btn-row no-print" style={{ marginBottom: 14 }}>
-        <button className="btn" onClick={onBack}>← Heat map</button>
+        <button className="btn" onClick={onBack}>← {label}</button>
         <div style={{ marginLeft: 'auto' }} />
         <button className="btn" onClick={copy}>{copied ? '✓ Copied' : 'Copy one-pager'}</button>
         <button className="btn" onClick={() => window.print()}>Print / PDF</button>
@@ -3418,12 +4452,17 @@ function OnePager({ role, gen, status, onGenerate, onBack }) {
 
 /* Sub-factors start UNSET. A half-filled row must read as incomplete, not as a
    score — least of all on stage. */
-const BLANK = {
-  role: '', valueStream: 'Plan-to-Produce', siteArchetype: 'Plant',
-  siteCount: 6, headcount: 50, deskless: false, summary: '',
-  impact: { taskShare: null, frequencyVolume: null, errorConsequence: null },
-  risk: { decisionRights: null, capabilityDelta: null, localReadiness: null },
-};
+/* Defaults come from whichever project is open, so the form never starts a
+   healthcare or financial-services role pre-filled with a manufacturing
+   value stream and site archetype. */
+function blankFor(project) {
+  return {
+    role: '', valueStream: project.valueStreams[0], siteArchetype: project.siteArchetypeBase[0],
+    siteCount: 1, headcount: 50, deskless: false, summary: '',
+    impact: { taskShare: null, frequencyVolume: null, errorConsequence: null },
+    risk: { decisionRights: null, capabilityDelta: null, localReadiness: null },
+  };
+}
 
 function Slider({ factor, weightFactors, value, onChange }) {
   const unset = !isScore(value);
@@ -3470,8 +4509,8 @@ function Slider({ factor, weightFactors, value, onChange }) {
   );
 }
 
-function AddRoleView({ onCreate }) {
-  const [f, setF] = useState(() => JSON.parse(JSON.stringify(BLANK)));
+function AddRoleView({ onCreate, project }) {
+  const [f, setF] = useState(() => JSON.parse(JSON.stringify(blankFor(project))));
   const set = (patch) => setF((s) => ({ ...s, ...patch }));
   const setSub = (axis, key, v) => setF((s) => ({ ...s, [axis]: { ...s[axis], [key]: v } }));
 
@@ -3535,18 +4574,20 @@ function AddRoleView({ onCreate }) {
                 <div className="field">
                   <label htmlFor="a-vs">Value stream</label>
                   <select id="a-vs" value={f.valueStream} onChange={(e) => set({ valueStream: e.target.value })}>
-                    {VALUE_STREAMS.map((v) => <option key={v}>{v}</option>)}
+                    {project.valueStreams.map((v) => <option key={v}>{v}</option>)}
                   </select>
                 </div>
                 <div className="field">
                   <label htmlFor="a-sa">Site archetype</label>
                   <select id="a-sa" value={f.siteArchetype} onChange={(e) => set({ siteArchetype: e.target.value })}>
-                    <optgroup label="One archetype">
-                      {SITE_ARCHETYPE_BASE.map((v) => <option key={v}>{v}</option>)}
+                    <optgroup label={project.siteArchetypeCombos.length ? 'One archetype' : 'Archetype'}>
+                      {project.siteArchetypeBase.map((v) => <option key={v}>{v}</option>)}
                     </optgroup>
-                    <optgroup label="Spans more than one">
-                      {SITE_ARCHETYPE_COMBOS.map((v) => <option key={v}>{v}</option>)}
-                    </optgroup>
+                    {project.siteArchetypeCombos.length > 0 && (
+                      <optgroup label="Spans more than one">
+                        {project.siteArchetypeCombos.map((v) => <option key={v}>{v}</option>)}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
                 <div className="field">
@@ -3608,7 +4649,7 @@ function AddRoleView({ onCreate }) {
 
             <div className="btn-row">
               <button className="btn primary lg" type="submit" disabled={!complete}>Score it and open the one-pager →</button>
-              <button className="btn" type="button" onClick={() => setF(JSON.parse(JSON.stringify(BLANK)))}>Reset</button>
+              <button className="btn" type="button" onClick={() => setF(JSON.parse(JSON.stringify(blankFor(project))))}>Reset</button>
               {!complete && <span className="sub">{NOTE.incomplete}</span>}
             </div>
          </div>
@@ -3647,11 +4688,16 @@ function AddRoleView({ onCreate }) {
    Every "computes" cell below is live. Nothing on this view is asserted.
    =========================================================================== */
 
-function ReproducedView({ scored, weightsDefault }) {
+function ReproducedView({ scored, weightsDefault, onBack, backLabel }) {
   const rep = useMemo(() => reproductionReport(scored), [scored]);
   const misses = rep.total - rep.matched;
   return (
     <>
+      {onBack && (
+        <div className="btn-row no-print" style={{ marginBottom: 14 }}>
+          <button className="btn" onClick={onBack}>← {backLabel || 'Stakeholder Impact'}</button>
+        </div>
+      )}
       <div className="view-head">
         <h2>Reproduced, not hardcoded</h2>
         <p className="lede">
@@ -3762,7 +4808,9 @@ function RoiChart() {
       afterDatasetsDraw(chart) {
         const { ctx } = chart;
         ctx.save();
-        ctx.font = '600 12px system-ui, -apple-system, "Segoe UI", sans-serif';
+        // Canvas text can't wait on a webfont network request, so this stays a
+        // system-font stack rather than Poppins — weight still maps to Medium.
+        ctx.font = '500 12px system-ui, -apple-system, "Segoe UI", sans-serif';
         ctx.textAlign = 'left';
         [[1, -14, SERIES.targeted], [0, 20, SERIES.untargeted]].forEach(([di, dy, colour]) => {
           const pt = chart.getDatasetMeta(di).data[gapAt];
@@ -3771,7 +4819,7 @@ function RoiChart() {
           // surface halo so the label stays legible over the shaded band
           ctx.lineWidth = 3.5; ctx.strokeStyle = '#ffffff';
           ctx.strokeText(label, pt.x + 10, pt.y + dy);
-          ctx.fillStyle = '#545c66';
+          ctx.fillStyle = '#6B6B6B';
           ctx.fillText(label, pt.x + 10, pt.y + dy);
           ctx.beginPath();
           ctx.arc(pt.x + 5, pt.y + dy - 4, 3, 0, Math.PI * 2);
@@ -3813,7 +4861,7 @@ function RoiChart() {
             position: 'top', align: 'start',
             labels: {
               boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle',
-              color: '#545c66', font: { size: 12.5 },
+              color: '#6B6B6B', font: { size: 12.5 },
               // Take the swatch from the line colour, not the area-fill tint.
               generateLabels: (chart) => chart.data.datasets.map((ds, i) => ({
                 text: ds.label, fillStyle: ds.borderColor, strokeStyle: ds.borderColor,
@@ -3822,7 +4870,7 @@ function RoiChart() {
             },
           },
           tooltip: {
-            backgroundColor: '#14181d', padding: 10, cornerRadius: 7, displayColors: true, usePointStyle: true,
+            backgroundColor: '#09375F', padding: 10, cornerRadius: 7, displayColors: true, usePointStyle: true,
             callbacks: {
               title: (items) => `Week ${items[0].label} from go-live`,
               label: (i) => `${i.dataset.label}: ${i.parsed.y}% of baseline`,
@@ -3831,15 +4879,15 @@ function RoiChart() {
         },
         scales: {
           x: {
-            title: { display: true, text: 'Weeks from go-live', color: '#545c66', font: { size: 12.5, weight: '600' } },
-            grid: { color: '#e4e3de', drawTicks: false }, border: { color: '#cfcec8' },
-            ticks: { color: '#8a929c', font: { size: 11.5 } },
+            title: { display: true, text: 'Weeks from go-live', color: '#6B6B6B', font: { size: 12.5, weight: '500' } },
+            grid: { color: '#E0E0E0', drawTicks: false }, border: { color: '#C9C9C9' },
+            ticks: { color: '#8C8C8C', font: { size: 11.5 } },
           },
           y: {
             min: 70, max: 102,
-            title: { display: true, text: 'Productivity vs. baseline (%)', color: '#545c66', font: { size: 12.5, weight: '600' } },
-            grid: { color: '#e4e3de', drawTicks: false }, border: { color: '#cfcec8' },
-            ticks: { color: '#8a929c', font: { size: 11.5 }, stepSize: 5, callback: (v) => `${v}%` },
+            title: { display: true, text: 'Productivity vs. baseline (%)', color: '#6B6B6B', font: { size: 12.5, weight: '500' } },
+            grid: { color: '#E0E0E0', drawTicks: false }, border: { color: '#C9C9C9' },
+            ticks: { color: '#8C8C8C', font: { size: 11.5 }, stepSize: 5, callback: (v) => `${v}%` },
           },
         },
       },
@@ -3849,10 +4897,301 @@ function RoiChart() {
   return <div className="chart-box"><canvas ref={ref} /></div>;
 }
 
-function PlanView({ scored }) {
+/* ===========================================================================
+   10a. REDESIGN — before/after task lists and FTE deltas, scanned across the
+   whole portfolio instead of one role at a time. Every field here already
+   lives on the role record; nothing is re-derived.
+   =========================================================================== */
+
+function RedesignRow({ role, onOpen }) {
+  const [open, setOpen] = useState(false);
+  const fte = role.fteDelta || 0;
+  return (
+    <div className={'draft-row' + (role.complete ? '' : ' incomplete')}>
+      <button type="button" className="draft-row-head" onClick={() => setOpen((o) => !o)}>
+        <span className="drn">{role.role}</span>
+        <span className="drm">{role.valueStream} · {(role.headcount || 0).toLocaleString()} people</span>
+        <span className="drm n">−{role.tasksRemoved || 0} · ~{role.tasksChanged || 0} · +{role.tasksNew || 0} · FTE {fte > 0 ? '+' : ''}{fte}</span>
+        {role.complete ? <TierBadge tier={role.tier} /> : <span className="incflag">incomplete</span>}
+        <span className="drx" aria-hidden="true">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="draft-row-body">
+          <div className="grid cols-2">
+            <div>
+              <h4>Before</h4>
+              <ul className="tasklist">{(role.before || []).map((b, i) => <li key={i}>{b}</li>)}</ul>
+            </div>
+            <div>
+              <h4>After — with the new system</h4>
+              <ul className="tasklist">{(role.after || []).map((a, i) => <li key={i}>{a}</li>)}</ul>
+            </div>
+          </div>
+          <div className="btn-row">
+            <button type="button" className="btn" onClick={onOpen}>Open full one-pager →</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RedesignView({ all, selectedId, onSelect }) {
+  const [tierFilter, setTierFilter] = useState('All');
+  const rows = useMemo(
+    () => all.filter((r) => tierFilter === 'All' || r.tier === tierFilter),
+    [all, tierFilter]
+  );
+  const totals = useMemo(() => all.reduce((acc, r) => {
+    acc.removed += r.tasksRemoved || 0;
+    acc.changed += r.tasksChanged || 0;
+    acc.added += r.tasksNew || 0;
+    acc.fte += r.fteDelta || 0;
+    if (r.isNewRole) acc.newRoles += 1;
+    return acc;
+  }, { removed: 0, changed: 0, added: 0, fte: 0, newRoles: 0 }), [all]);
+
+  return (
+    <>
+      <div className="view-head">
+        <h2>Redesign — how the work changes, role by role</h2>
+        <p className="lede">
+          Before and after task lists for every role, scanned at portfolio level instead of one one-pager at a time.
+          Removed, changed and new task counts and the FTE delta come straight from each role's record.
+        </p>
+      </div>
+
+      <div className="grid cols-4" style={{ marginBottom: 16 }}>
+        <Tile label="Tasks removed" value={totals.removed} />
+        <Tile label="Tasks changed" value={totals.changed} />
+        <Tile label="Tasks new" value={totals.added} />
+        <Tile label="Net FTE delta" value={`${totals.fte > 0 ? '+' : ''}${totals.fte.toFixed(1)}`} accent
+              meta={`${totals.newRoles} net-new role${totals.newRoles === 1 ? '' : 's'}`} />
+      </div>
+
+      <div className="filters no-print">
+        <div className="field">
+          <label htmlFor="rd-tier">Tier</label>
+          <select id="rd-tier" value={tierFilter} onChange={(e) => setTierFilter(e.target.value)}>
+            <option value="All">All tiers</option>
+            {TIER_ORDER.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="draft-list">
+        {rows.map((r) => <RedesignRow key={r.id} role={r} onOpen={() => onSelect(r.id)} />)}
+        {!rows.length && <p className="sub">No roles match this filter.</p>}
+      </div>
+    </>
+  );
+}
+
+/* ===========================================================================
+   10b. TRAINING — method, duration, job aids and curriculum hours, by role.
+   trainingDesign() and resourcedPlan()'s Training group are the same
+   deterministic functions the one-pager and Adoption's plan table already
+   use — this view just presents them across the whole portfolio.
+   =========================================================================== */
+
+function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProvenance }) {
+  const [tierFilter, setTierFilter] = useState('All');
+  const plan = useMemo(() => resourcedPlan(scored), [scored]);
+  const trainingGroup = plan.find((g) => g.group === 'Training');
+  const rows = useMemo(() => scored
+    .filter((r) => tierFilter === 'All' || r.tier === tierFilter)
+    .map((r) => ({ role: r, design: trainingDesign(r) })), [scored, tierFilter]);
+
+  return (
+    <>
+      <div className="view-head">
+        <h2>Training — method, duration and job aids, by role</h2>
+        <p className="lede">
+          Every role's training design falls out of its tier, complexity and deskless status — filter by tier to plan
+          delivery waves.
+        </p>
+      </div>
+
+      {trainingGroup && (
+        <div className="grid cols-4" style={{ marginBottom: 16 }}>
+          {trainingGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} meta={r.rule} />)}
+        </div>
+      )}
+
+      <div className="filters no-print">
+        <div className="field">
+          <label htmlFor="tr-tier">Tier</label>
+          <select id="tr-tier" value={tierFilter} onChange={(e) => setTierFilter(e.target.value)}>
+            <option value="All">All tiers</option>
+            {TIER_ORDER.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="table-scroll" style={{ marginBottom: 16 }}>
+        <table className="data">
+          <thead>
+            <tr>
+              <th>Role</th><th>Tier</th><th>Method</th><th className="n">Duration</th>
+              <th>Complexity</th><th className="n">Job aids</th><th>Delivery</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ role, design }) => (
+              <tr key={role.id} className={selectedId === role.id ? 'sel' : ''} onClick={() => onSelect(role.id)}>
+                <td><span className="rolename">{role.role}</span></td>
+                <td><TierBadge tier={role.tier} /></td>
+                <td>{design.primary.method}</td>
+                <td className="n">{design.primary.duration}</td>
+                <td>{design.complexity}</td>
+                <td className="n">{design.aids.count} ({design.aids.band})</td>
+                <td>{design.trainTheTrainer ? 'Train-the-trainer' : 'Self-driven'}{role.deskless ? ' · deskless' : ''}</td>
+              </tr>
+            ))}
+            {!rows.length && <tr><td colSpan={7} style={{ color: 'var(--ink-3)' }}>No roles match this filter.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {incomplete.length > 0 && (
+        <p className="footnote">
+          {incomplete.length} incomplete role{incomplete.length === 1 ? '' : 's'} — no tier yet, so no training design —
+          {' '}{incomplete.length === 1 ? 'is' : 'are'} not shown here.
+        </p>
+      )}
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-head"><h3>Delivery standards</h3><span className="hint">Aberdeen OCM delivery material</span></div>
+        <div className="card-body">
+          <div className="grid cols-2">
+            <div className="assume">
+              <h4>Training methods, by complexity</h4>
+              <table className="mini">
+                <tbody>
+                  {METHOD_ORDER.map((k) => (
+                    <tr key={k}>
+                      <th scope="row">{TRAINING_METHODS[k].method}</th>
+                      <td className="num">{TRAINING_METHODS[k].duration}</td>
+                      <td className="ch">{TRAINING_METHODS[k].fits}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="footnote">
+                Our selection rule: high complexity → instructor-led, medium → virtual, low → web-based above
+                {' '}{LARGE_AUDIENCE} people and virtual below it, deskless → nano-learning on shift, Inform → nano-learning only.
+              </p>
+            </div>
+            <div className="assume">
+              <h4>Job aids scale with impact</h4>
+              <table className="mini">
+                <tbody>
+                  {JOB_AID_BANDS.map((b) => (
+                    <tr key={b.band}><th scope="row">{b.band}</th><td className="num">{b.range} aids</td>
+                      <td className="ch">impact severity {b.min ? `≥ ${b.min.toFixed(1)}` : `< 3.0`}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p className="footnote">{NOTE.mapping}</p>
+          {showDeckProvenance && <p className="footnote">{NOTE.dataset}</p>}
+        </div>
+      </div>
+      <p className="footnote">All figures illustrative. All data synthetic. {NOTE.weights}</p>
+    </>
+  );
+}
+
+/* ===========================================================================
+   10c. COMMUNICATION — milestones, channel, cascade scripts, by role.
+   =========================================================================== */
+
+function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckProvenance }) {
+  const [tierFilter, setTierFilter] = useState('All');
+  const plan = useMemo(() => resourcedPlan(scored), [scored]);
+  const commsGroup = plan.find((g) => g.group === 'Communication');
+  const rows = useMemo(() => scored
+    .filter((r) => tierFilter === 'All' || r.tier === tierFilter)
+    .map((r) => ({ role: r, milestones: commsPlan(r) })), [scored, tierFilter]);
+
+  return (
+    <>
+      <div className="view-head">
+        <h2>Communication — milestones, channels and cascade scripts</h2>
+        <p className="lede">
+          The same five milestones reach every role, but the channel changes for deskless populations. Cascade
+          scripts and message-track counts are derived from the scored population, not typed in.
+        </p>
+      </div>
+
+      {commsGroup && (
+        <div className="grid cols-4" style={{ marginBottom: 16 }}>
+          {commsGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} meta={r.rule} />)}
+        </div>
+      )}
+
+      <div className="filters no-print">
+        <div className="field">
+          <label htmlFor="cm-tier">Tier</label>
+          <select id="cm-tier" value={tierFilter} onChange={(e) => setTierFilter(e.target.value)}>
+            <option value="All">All tiers</option>
+            {TIER_ORDER.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="table-scroll" style={{ marginBottom: 16 }}>
+        <table className="data">
+          <thead><tr><th>Role</th><th>Tier</th><th>Go-live channel</th><th>Cascade needed?</th></tr></thead>
+          <tbody>
+            {rows.map(({ role, milestones }) => (
+              <tr key={role.id} className={selectedId === role.id ? 'sel' : ''} onClick={() => onSelect(role.id)}>
+                <td><span className="rolename">{role.role}</span></td>
+                <td><TierBadge tier={role.tier} /></td>
+                <td>{milestones[3].channel}</td>
+                <td>{(role.risk.decisionRights >= 4 || role.tier === 'Reassure') ? 'Yes' : 'No'}</td>
+              </tr>
+            ))}
+            {!rows.length && <tr><td colSpan={4} style={{ color: 'var(--ink-3)' }}>No roles match this filter.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {incomplete.length > 0 && (
+        <p className="footnote">{incomplete.length} incomplete role{incomplete.length === 1 ? '' : 's'} — no tier yet — not shown here.</p>
+      )}
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-head"><h3>The five milestones</h3><span className="hint">Aberdeen OCM delivery material</span></div>
+        <div className="card-body">
+          <table className="mini milestones">
+            <tbody>
+              {COMMS_MILESTONES.map((m) => (
+                <tr key={m.name}><th scope="row">{m.name}</th><td className="ch">{m.objective}</td></tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="footnote">
+            Objective ladder underneath: {OBJECTIVE_LADDER.join(' → ')}. Town hall run-of-show {CADENCE.townHallMinutes} min,
+            invitations {CADENCE.inviteLeadDays} business days ahead.
+          </p>
+          <p className="footnote">{NOTE.mapping}</p>
+        </div>
+      </div>
+      <p className="footnote">All figures illustrative. All data synthetic. {NOTE.weights}</p>
+    </>
+  );
+}
+
+function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance }) {
+  const [tierFilter, setTierFilter] = useState('All');
   const roi = useMemo(() => roiModel(scored), [scored]);
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
+  const adoptionGroup = plan.find((g) => g.group === 'Adoption');
   const agg = useMemo(() => aggregate(scored), [scored]);
+  const rows = useMemo(
+    () => scored.filter((r) => tierFilter === 'All' || r.tier === tierFilter),
+    [scored, tierFilter]
+  );
 
   return (
     <>
@@ -3860,7 +5199,8 @@ function PlanView({ scored }) {
         <h2>Targeting does not cost more. It costs less.</h2>
         <p className="lede">
           Same training budget, redistributed — not increased. The curve is illustrative; the money is computed
-          from the roles currently scored, so it moves the moment you add one.
+          from the roles currently scored, so it moves the moment you add one. Hypercare, support escalation and
+          adoption measurement — the cadence that runs after go-live — are folded in below.
         </p>
       </div>
 
@@ -3876,7 +5216,7 @@ function PlanView({ scored }) {
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-head">
           <h3>Productivity through go-live</h3>
-          <span className="hint">Illustrative curve · deck slide 14 workbook values</span>
+          <span className="hint">Illustrative curve{showDeckProvenance ? ' · deck slide 14 workbook values' : ' · same curve shape applied to this portfolio'}</span>
         </div>
         <div className="card-body"><RoiChart /></div>
       </div>
@@ -3926,58 +5266,55 @@ function PlanView({ scored }) {
         </div>
       </div>
 
+      {adoptionGroup && (
+        <div className="grid cols-4" style={{ marginBottom: 16 }}>
+          {adoptionGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} meta={r.rule} />)}
+        </div>
+      )}
+
+      <div className="filters no-print">
+        <div className="field">
+          <label htmlFor="ad-tier">Tier</label>
+          <select id="ad-tier" value={tierFilter} onChange={(e) => setTierFilter(e.target.value)}>
+            <option value="All">All tiers</option>
+            {TIER_ORDER.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="table-scroll" style={{ marginBottom: 16 }}>
+        <table className="data">
+          <thead><tr><th>Role</th><th>Tier</th><th className="n">Hypercare</th><th className="n">Re-score every</th></tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className={selectedId === r.id ? 'sel' : ''} onClick={() => onSelect(r.id)}>
+                <td><span className="rolename">{r.role}</span></td>
+                <td><TierBadge tier={r.tier} /></td>
+                <td className="n">{DOSES[r.tier].hypercareWeeks} week{DOSES[r.tier].hypercareWeeks === 1 ? '' : 's'}</td>
+                <td className="n">{DOSES[r.tier].rescoreDays} days</td>
+              </tr>
+            ))}
+            {!rows.length && <tr><td colSpan={4} style={{ color: 'var(--ink-3)' }}>No roles match this filter.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {incomplete.length > 0 && (
+        <p className="footnote">{incomplete.length} incomplete role{incomplete.length === 1 ? '' : 's'} — no tier yet — not shown here.</p>
+      )}
+
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-head">
-          <h3>Delivery standards behind every package</h3>
+          <h3>Support after go-live, and how adoption is measured</h3>
           <span className="hint">Aberdeen OCM delivery material · the tier → tactic mapping is ours</span>
         </div>
         <div className="card-body">
           <div className="grid cols-2">
             <div className="assume">
-              <h4>Training methods, by complexity</h4>
-              <table className="mini">
-                <tbody>
-                  {METHOD_ORDER.map((k) => (
-                    <tr key={k}>
-                      <th scope="row">{TRAINING_METHODS[k].method}</th>
-                      <td className="num">{TRAINING_METHODS[k].duration}</td>
-                      <td className="ch">{TRAINING_METHODS[k].fits}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="footnote">
-                Instructor-led and virtual are delivered by train-the-trainer participants; the rest are self-driven.
-                Our selection rule: high complexity → instructor-led, medium → virtual, low → web-based above
-                {' '}{LARGE_AUDIENCE} people and virtual below it, deskless → nano-learning on shift, Inform → nano-learning only.
-              </p>
-              <h4 style={{ marginTop: 14 }}>Job aids scale with impact</h4>
-              <table className="mini">
-                <tbody>
-                  {JOB_AID_BANDS.map((b) => (
-                    <tr key={b.band}><th scope="row">{b.band}</th><td className="num">{b.range} aids</td>
-                      <td className="ch">impact severity {b.min ? `≥ ${b.min.toFixed(1)}` : `< 3.0`}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="assume">
-              <h4>Communications — five milestones</h4>
-              <table className="mini">
-                <tbody>
-                  {COMMS_MILESTONES.map((m) => (
-                    <tr key={m.name}><th scope="row">{m.name}</th><td className="ch">{m.objective}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="footnote">
-                Objective ladder underneath: {OBJECTIVE_LADDER.join(' → ')}. Town hall run-of-show
-                {' '}{CADENCE.townHallMinutes} min, invitations {CADENCE.inviteLeadDays} business days ahead.
-              </p>
-              <h4 style={{ marginTop: 14 }}>Support after go-live</h4>
+              <h4>Four-layer support escalation</h4>
               <ol className="esc">{SUPPORT_LAYERS.map((s) => <li key={s}>{s}</li>)}</ol>
-              <h4 style={{ marginTop: 14 }}>Cadence and measurement</h4>
+            </div>
+            <div className="assume">
+              <h4>Cadence and measurement</h4>
               <dl>
                 <dt>Readiness reassessed</dt><dd>every {CADENCE.readinessReassessMonths} months</dd>
                 <dt>Hypercare</dt>
@@ -3995,40 +5332,15 @@ function PlanView({ scored }) {
             </div>
           </div>
           <p className="footnote">{NOTE.mapping}</p>
-          <p className="footnote">{NOTE.hypercare}</p>
-          <p className="footnote">{NOTE.ratio}</p>
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-head">
-          <h3>The output is a resourced plan, not a report</h3>
-          <span className="hint">Change an input, the plan re-costs itself</span>
-        </div>
-        <div className="card-body">
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))' }}>
-            {plan.map((g) => (
-              <div className="plan-group" key={g.group}>
-                <h4>{g.group}</h4>
-                <div className="plan-rows">
-                  {g.rows.map((r, i) => (
-                    <div className="plan-row" key={i}>
-                      <span className="n">{r.n}</span>
-                      <span className="txt">{r.txt}<span className="rule">{r.rule}</span></span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+          {showDeckProvenance && <p className="footnote">{NOTE.hypercare}</p>}
+          {showDeckProvenance && <p className="footnote">{NOTE.ratio}</p>}
         </div>
       </div>
       <p className="footnote">
         Illustrative figures. Same training budget, redistributed — not increased. All data synthetic.
-        Every plan number above is derived from the rule printed beside it, not asserted from the deck — three of them
-        land near the deck rather than on it, and the rule is the answer.
+        Every plan number above is derived from the rule printed beside it.
       </p>
-      <p className="footnote">{NOTE.dataset} {NOTE.weights}</p>
+      <p className="footnote">{showDeckProvenance && NOTE.dataset} {NOTE.weights}</p>
     </>
   );
 }
@@ -4037,31 +5349,637 @@ function PlanView({ scored }) {
    11. APP
    =========================================================================== */
 
-const TABS = [
-  { id: 'portfolio', label: 'Portfolio heat map' },
-  { id: 'role',      label: 'Role one-pager' },
-  { id: 'add',       label: 'Add a role' },
-  { id: 'plan',      label: 'Costed plan / ROI' },
-  { id: 'repro',     label: 'Reproduced, not hardcoded' },
+/* The five primary tabs match the challenge's five deliverables. "Role
+   one-pager", "Add a role" and "Reproduced, not hardcoded" are still real
+   views — reachable by clicking a role, the "+ Add a role" button, or the
+   "Methodology" link — they are just no longer primary navigation. */
+const ALL_TABS = [
+  { id: 'portfolio', label: 'Stakeholder Impact' },
+  { id: 'redesign',  label: 'Redesign' },
+  { id: 'training',  label: 'Training' },
+  { id: 'comms',     label: 'Communication' },
+  { id: 'plan',      label: 'Adoption' },
 ];
+const TAB_LABELS = ALL_TABS.reduce((o, t) => { o[t.id] = t.label; return o; }, {});
+
+/* ===========================================================================
+   11. PROJECT PICKER — the landing screen. Three worked examples (same engine,
+   three very different scales/industries/change types) plus a blank start.
+   =========================================================================== */
+
+const SITE_TYPES = ['HQ', 'Plant', 'Distribution Center', 'Field-Commercial', 'Office'];
+
+/* Minimal RFC4180-ish CSV parser: quoted fields, embedded commas/newlines,
+   "" escapes a literal quote inside a quoted field. Good enough for a
+   spreadsheet export; not a general-purpose CSV library. */
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  let src = String(text || '');
+  if (src.charCodeAt(0) === 0xFEFF) src = src.slice(1); // strip a UTF-8 BOM from an Excel export
+  src = src.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') { field += '"'; i++; } else { inQuotes = false; }
+      } else {
+        field += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      row.push(field); field = '';
+    } else if (ch === '\n') {
+      row.push(field); field = '';
+      rows.push(row); row = [];
+    } else {
+      field += ch;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.some((c) => (c || '').trim() !== ''));
+}
+
+/* Tolerant of column order and casing, so a client's own export doesn't have
+   to match the downloadable template byte for byte. */
+const CSV_HEADER_ALIASES = {
+  role: ['role name', 'role', 'title', 'job title'],
+  valueStream: ['value stream/process area', 'value stream', 'process area', 'value stream / process area'],
+  site: ['site', 'location', 'site name'],
+  headcount: ['headcount', 'employees', 'people', 'fte'],
+  summary: ['description of what changes', 'description', 'what changes', 'change description'],
+};
+function matchCsvHeader(raw) {
+  const norm = String(raw || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return Object.keys(CSV_HEADER_ALIASES).find((key) => CSV_HEADER_ALIASES[key].includes(norm)) || null;
+}
+
+/* Returns draft role records (raw strings — not yet resolved against the
+   engagement profile's site list, that happens where the profile is in
+   scope) plus any warnings worth surfacing rather than silently dropping. */
+function rolesFromCSV(text) {
+  const rows = parseCSV(text);
+  const warnings = [];
+  if (!rows.length) return { roles: [], warnings: ['The file has no rows.'] };
+
+  const header = rows[0].map(matchCsvHeader);
+  const recognised = header.filter(Boolean).length;
+  const useFallbackOrder = recognised === 0;
+  if (useFallbackOrder) warnings.push('No recognised header row — assuming the template\'s column order: Role name, Value stream/process area, Site, Headcount, Description.');
+  const fallbackOrder = ['role', 'valueStream', 'site', 'headcount', 'summary'];
+
+  const roles = [];
+  for (let i = 1; i < rows.length; i++) {
+    const cells = rows[i];
+    const rec = {};
+    if (useFallbackOrder) {
+      fallbackOrder.forEach((key, idx) => { rec[key] = (cells[idx] || '').trim(); });
+    } else {
+      header.forEach((key, idx) => { if (key) rec[key] = (cells[idx] || '').trim(); });
+    }
+    if (!rec.role) { warnings.push(`Row ${i + 1}: no role name, skipped.`); continue; }
+    roles.push({
+      role: rec.role, valueStream: rec.valueStream || '', site: rec.site || '',
+      headcount: rec.headcount || '', summary: rec.summary || '',
+    });
+  }
+  return { roles, warnings };
+}
+
+function ProjectPicker({ projects, onSelect, onStartNew }) {
+  return (
+    <div className="picker-page">
+      <header className="picker-head">
+        <img src="assets/brand/logo-blue.svg" alt="Aberdeen Advisors" className="brand-logo" />
+        <h1>Change Impact Assessment Tool</h1>
+        <p className="lede">
+          Pick a project to open its impact heat map, role one-pagers and costed plan. The three below are
+          worked examples — entirely synthetic — built to show the same scoring engine at a different scale,
+          in a different industry, against a different kind of change. Or start a blank project and score
+          your own roles live.
+        </p>
+      </header>
+
+      <div className="project-grid">
+        {projects.map((p) => (
+          <button key={p.id} type="button" className="project-card" onClick={() => onSelect(p)}>
+            <span className="example-badge">Example</span>
+            <span className="pc-name">{p.name}</span>
+            <span className="pc-industry">{p.industry}</span>
+            <span className="pc-meta">{p.employeeCount.toLocaleString()} employees</span>
+            <span className="pc-desc">{p.oneLiner}</span>
+          </button>
+        ))}
+      </div>
+
+      <button type="button" className="project-card project-card--new" onClick={onStartNew}>
+        <span className="pc-new-plus" aria-hidden="true">+</span>
+        <span className="pc-name">Start new project</span>
+        <span className="pc-desc">Begin with an empty portfolio and score roles live, one at a time.</span>
+      </button>
+    </div>
+  );
+}
+
+/* ===========================================================================
+   12. NEW PROJECT WIZARD — two steps: an engagement profile a client would
+   hand over at kickoff, then role and change data (CSV or one at a time),
+   with an assisted-scoring pass in front of the same six manual sliders.
+   Nothing here touches scoreRole/assignTier/THRESHOLD — every role this
+   produces is scored by the same deterministic engine as every other entry
+   path, exactly like AddRoleView's roles are.
+   =========================================================================== */
+
+function slugify(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+/* A role's "Site" text is matched against the named sites from the engagement
+   profile so its siteArchetype comes from that site's declared type; unmatched
+   text is kept as-is rather than dropped, so nothing is silently lost. */
+function resolveSiteArchetype(siteText, sites) {
+  const norm = String(siteText || '').trim().toLowerCase();
+  if (!norm) return { archetype: '', matched: false };
+  const hit = (sites || []).find((s) => s.name.trim().toLowerCase() === norm);
+  if (hit) return { archetype: hit.type, matched: true };
+  return { archetype: siteText.trim(), matched: false };
+}
+
+const BLANK_SITE_ROW = () => ({ key: 'site-' + Math.random().toString(36).slice(2, 9), name: '', type: 'HQ', headcount: '' });
+const BLANK_PROFILE = () => ({
+  companyName: '', industry: '', hqLocation: '', totalEmployees: '',
+  platform: '', goLiveDate: '', sponsorName: '', sponsorTitle: '',
+  sites: [BLANK_SITE_ROW()],
+});
+const BLANK_DRAFT_SCORES = () => ({
+  impact: { taskShare: null, frequencyVolume: null, errorConsequence: null },
+  risk: { decisionRights: null, capabilityDelta: null, localReadiness: null },
+});
+
+function EngagementProfileStep({ profile, onChange, onNext, onCancel }) {
+  const set = (patch) => onChange({ ...profile, ...patch });
+  const setSite = (key, patch) => onChange({ ...profile, sites: profile.sites.map((s) => (s.key === key ? { ...s, ...patch } : s)) });
+  const addSite = () => onChange({ ...profile, sites: [...profile.sites, BLANK_SITE_ROW()] });
+  const removeSite = (key) => onChange({ ...profile, sites: profile.sites.length > 1 ? profile.sites.filter((s) => s.key !== key) : profile.sites });
+  const canContinue = profile.companyName.trim().length > 0;
+
+  return (
+    <>
+      <div className="view-head">
+        <h2>New project — engagement profile</h2>
+        <p className="lede">
+          The details a client would hand over at kickoff. Company name is the only field required to continue —
+          everything else sharpens the picture and can be filled in later.
+        </p>
+      </div>
+
+      <div className="card">
+        <div className="card-head"><h3>About the engagement</h3></div>
+        <div className="card-body">
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="ep-company">Company name</label>
+              <input id="ep-company" type="text" value={profile.companyName} required
+                     onChange={(e) => set({ companyName: e.target.value })} placeholder="e.g. Northfield Manufacturing" />
+            </div>
+            <div className="field">
+              <label htmlFor="ep-industry">Industry</label>
+              <input id="ep-industry" type="text" value={profile.industry}
+                     onChange={(e) => set({ industry: e.target.value })} placeholder="e.g. Industrial equipment" />
+            </div>
+            <div className="field">
+              <label htmlFor="ep-hq">HQ location</label>
+              <input id="ep-hq" type="text" value={profile.hqLocation}
+                     onChange={(e) => set({ hqLocation: e.target.value })} placeholder="e.g. Columbus, OH" />
+            </div>
+            <div className="field">
+              <label htmlFor="ep-emp">Total employees in scope</label>
+              <input id="ep-emp" type="number" min="1" value={profile.totalEmployees}
+                     onChange={(e) => set({ totalEmployees: e.target.value })} placeholder="e.g. 1200" />
+            </div>
+            <div className="field">
+              <label htmlFor="ep-platform">Technology / platform being deployed</label>
+              <input id="ep-platform" type="text" value={profile.platform}
+                     onChange={(e) => set({ platform: e.target.value })} placeholder="e.g. SAP S/4HANA" />
+            </div>
+            <div className="field">
+              <label htmlFor="ep-golive">Target go-live date</label>
+              <input id="ep-golive" type="date" value={profile.goLiveDate}
+                     onChange={(e) => set({ goLiveDate: e.target.value })} />
+            </div>
+            <div className="field">
+              <label htmlFor="ep-sponsor-name">Engagement sponsor — name</label>
+              <input id="ep-sponsor-name" type="text" value={profile.sponsorName}
+                     onChange={(e) => set({ sponsorName: e.target.value })} placeholder="e.g. Dana Whitfield" />
+            </div>
+            <div className="field">
+              <label htmlFor="ep-sponsor-title">Engagement sponsor — title</label>
+              <input id="ep-sponsor-title" type="text" value={profile.sponsorTitle}
+                     onChange={(e) => set({ sponsorTitle: e.target.value })} placeholder="e.g. VP Operations" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-head">
+          <h3>Sites</h3>
+          <span className="hint">One row per physical site — name, type and headcount</span>
+        </div>
+        <div className="card-body">
+          <div className="site-rows">
+            {profile.sites.map((s, i) => (
+              <div className="site-row" key={s.key}>
+                <input type="text" aria-label={`Site ${i + 1} name`} placeholder={`Site ${i + 1} name`} value={s.name}
+                       onChange={(e) => setSite(s.key, { name: e.target.value })} />
+                <select aria-label={`Site ${i + 1} type`} value={s.type} onChange={(e) => setSite(s.key, { type: e.target.value })}>
+                  {SITE_TYPES.map((t) => <option key={t}>{t}</option>)}
+                </select>
+                <input type="number" aria-label={`Site ${i + 1} headcount`} min="0" placeholder="Headcount" value={s.headcount}
+                       onChange={(e) => setSite(s.key, { headcount: e.target.value })} />
+                <button type="button" className="btn" onClick={() => removeSite(s.key)} disabled={profile.sites.length === 1}
+                        aria-label={`Remove site ${i + 1}`}>✕</button>
+              </div>
+            ))}
+          </div>
+          <button type="button" className="btn" style={{ marginTop: 10 }} onClick={addSite}>+ Add another site</button>
+        </div>
+      </div>
+
+      <div className="btn-row" style={{ marginTop: 18 }}>
+        <button type="button" className="btn primary lg" disabled={!canContinue} onClick={onNext}>Continue to role data →</button>
+        <button type="button" className="btn" onClick={onCancel}>← Cancel, back to projects</button>
+      </div>
+    </>
+  );
+}
+
+function DraftRoleRow({ draft, onUpdate, onRemove }) {
+  const [open, setOpen] = useState(false);
+  const missing = missingFactors(draft);
+  const complete = missing.length === 0;
+  const setSub = (axis, key, v) => onUpdate({ [axis]: { ...draft[axis], [key]: v } });
+
+  let statusBadge;
+  if (draft.scoreStatus === 'loading') statusBadge = <span className="score-badge loading">Scoring…</span>;
+  else if (draft.scoreStatus === 'none') statusBadge = <span className="score-badge none">No description — set manually</span>;
+  else if (draft.scoreSource === 'anthropic') statusBadge = <span className="score-badge ai">AI-suggested — review before finalizing</span>;
+  else if (draft.scoreSource === 'fallback') statusBadge = <span className="score-badge placeholder">Placeholder — no model available</span>;
+  else statusBadge = <span className="score-badge none">Not scored yet</span>;
+
+  return (
+    <div className={'draft-row' + (complete ? '' : ' incomplete')}>
+      <button type="button" className="draft-row-head" onClick={() => setOpen((o) => !o)}>
+        <span className="drn">{draft.role || '(untitled role)'}</span>
+        <span className="drm">{draft.valueStream || '—'} · {draft.site || draft.siteArchetype || '—'} · {draft.headcount || '—'} people</span>
+        {statusBadge}
+        <span className="drx" aria-hidden="true">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="draft-row-body">
+          <div className="field full">
+            <label>Description of what changes</label>
+            <textarea value={draft.summary} onChange={(e) => onUpdate({ summary: e.target.value })} />
+          </div>
+          <div className="grid cols-2">
+            <div>
+              <h4>Impact severity</h4>
+              <div className="slider-grid">
+                {IMPACT_FACTORS.map((fa) => (
+                  <div key={fa.key}>
+                    <Slider factor={fa} weightFactors={IMPACT_FACTORS} value={draft.impact[fa.key]} onChange={(v) => setSub('impact', fa.key, v)} />
+                    {draft.rationale && draft.rationale[fa.key] && <p className="ai-rationale">{draft.rationale[fa.key]}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h4>Adoption risk</h4>
+              <div className="slider-grid">
+                {RISK_FACTORS.map((fa) => (
+                  <div key={fa.key}>
+                    <Slider factor={fa} weightFactors={RISK_FACTORS} value={draft.risk[fa.key]} onChange={(v) => setSub('risk', fa.key, v)} />
+                    {draft.rationale && draft.rationale[fa.key] && <p className="ai-rationale">{draft.rationale[fa.key]}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="btn-row">
+            <button type="button" className="btn" onClick={onRemove}>Remove this role</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemoveDraft, files, onFilesChange, onBack, onFinish }) {
+  const [manual, setManual] = useState({ role: '', valueStream: '', site: '', headcount: '', summary: '' });
+  const [csvWarnings, setCsvWarnings] = useState([]);
+  const [csvFileName, setCsvFileName] = useState('');
+  const fileInputRef = useRef(null);
+  const attachInputRef = useRef(null);
+
+  const valueStreamSuggestions = useMemo(() => [...new Set(draftRoles.map((d) => d.valueStream).filter(Boolean))], [draftRoles]);
+
+  const handleCsvChange = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ''; // let the same filename be re-picked later
+    if (!file) return;
+    setCsvFileName(file.name);
+    const text = await file.text();
+    const { roles, warnings } = rolesFromCSV(text);
+    setCsvWarnings(warnings);
+    onAddDrafts(roles);
+  };
+
+  const submitManual = (e) => {
+    e.preventDefault();
+    if (!manual.role.trim()) return;
+    onAddDrafts([manual]);
+    setManual({ role: '', valueStream: manual.valueStream, site: manual.site, headcount: '', summary: '' });
+  };
+
+  const handleAttach = (e) => {
+    const picked = [...(e.target.files || [])];
+    e.target.value = '';
+    if (!picked.length) return;
+    onFilesChange((fs) => [...fs, ...picked.map((f) => ({ name: f.name, size: f.size, type: f.type }))]);
+  };
+  const removeFile = (idx) => onFilesChange((fs) => fs.filter((_, i) => i !== idx));
+
+  const pendingCount = draftRoles.filter((d) => d.scoreStatus === 'loading').length;
+  const incompleteCount = draftRoles.filter((d) => missingFactors(d).length > 0).length;
+
+  return (
+    <>
+      <div className="view-head">
+        <h2>Role & change data</h2>
+        <p className="lede">
+          Bring roles in from a CSV, add them one at a time, or both — they land in the same review list below. Give
+          each one a free-text description of what changes and the assistant proposes the six sub-factor scores
+          against the same anchor ladders the manual sliders use. Every proposed score is editable before you finish.
+        </p>
+      </div>
+
+      <div className="grid cols-2">
+        <div className="card">
+          <div className="card-head"><h3>a) Upload a CSV</h3></div>
+          <div className="card-body">
+            <p className="sub" style={{ marginBottom: 10 }}>
+              Columns: Role name, Value stream/process area, Site, Headcount, Description of what changes.
+            </p>
+            <div className="btn-row">
+              <button type="button" className="btn" onClick={() => fileInputRef.current && fileInputRef.current.click()}>
+                Choose CSV file…
+              </button>
+              <a className="btn" href="data/role-import-template.csv" download>Download CSV template</a>
+            </div>
+            <input ref={fileInputRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={handleCsvChange} />
+            {csvFileName && <p className="sub" style={{ marginTop: 8 }}>Last imported: {csvFileName}</p>}
+            {csvWarnings.length > 0 && (
+              <div className="note warn" style={{ marginTop: 10 }}>
+                <b>{csvWarnings.length} note{csvWarnings.length === 1 ? '' : 's'} from the import</b>
+                <span className="sub">{csvWarnings.join(' ')}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-head"><h3>b) Or add one role at a time</h3></div>
+          <div className="card-body">
+            <form onSubmit={submitManual} className="form-grid">
+              <div className="field full">
+                <label htmlFor="rd-role">Role name</label>
+                <input id="rd-role" type="text" required value={manual.role}
+                       onChange={(e) => setManual((m) => ({ ...m, role: e.target.value }))} placeholder="e.g. Warehouse Supervisor" />
+              </div>
+              <div className="field">
+                <label htmlFor="rd-vs">Value stream / process area</label>
+                <input id="rd-vs" type="text" list="rd-vs-list" value={manual.valueStream}
+                       onChange={(e) => setManual((m) => ({ ...m, valueStream: e.target.value }))} placeholder="e.g. Order to Cash" />
+                <datalist id="rd-vs-list">{valueStreamSuggestions.map((v) => <option key={v} value={v} />)}</datalist>
+              </div>
+              <div className="field">
+                <label htmlFor="rd-site">Site</label>
+                <input id="rd-site" type="text" list="rd-site-list" value={manual.site}
+                       onChange={(e) => setManual((m) => ({ ...m, site: e.target.value }))} placeholder="e.g. Columbus HQ" />
+                <datalist id="rd-site-list">{profile.sites.filter((s) => s.name.trim()).map((s) => <option key={s.key} value={s.name} />)}</datalist>
+              </div>
+              <div className="field">
+                <label htmlFor="rd-hc">Headcount</label>
+                <input id="rd-hc" type="number" min="1" value={manual.headcount}
+                       onChange={(e) => setManual((m) => ({ ...m, headcount: e.target.value }))} placeholder="e.g. 12" />
+              </div>
+              <div className="field full">
+                <label htmlFor="rd-desc">Description of what changes</label>
+                <textarea id="rd-desc" value={manual.summary}
+                          onChange={(e) => setManual((m) => ({ ...m, summary: e.target.value }))}
+                          placeholder="Free text — this is what the scoring assistant reads to propose the six sub-factor scores." />
+              </div>
+              <div className="field full">
+                <button className="btn primary" type="submit" disabled={!manual.role.trim()}>+ Add role to the list below</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-head">
+          <h3>Supporting files</h3>
+          <span className="hint">To-be process docs, HRIS extracts, readiness survey results — stored as reference material, not parsed</span>
+        </div>
+        <div className="card-body">
+          <button type="button" className="btn" onClick={() => attachInputRef.current && attachInputRef.current.click()}>Attach files…</button>
+          <input ref={attachInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleAttach} />
+          {files.length > 0 && (
+            <ul className="file-list">
+              {files.map((f, i) => (
+                <li key={i}>
+                  <span className="fn">{f.name}</span>
+                  <span className="fs">{Math.max(1, Math.round(f.size / 1024))} KB</span>
+                  <button type="button" className="btn" onClick={() => removeFile(i)} aria-label={`Remove ${f.name}`}>✕</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-head">
+          <h3>Roles ({draftRoles.length})</h3>
+          {pendingCount > 0 && <span className="hint">{pendingCount} being scored…</span>}
+        </div>
+        <div className="card-body">
+          {draftRoles.length === 0 ? (
+            <p className="sub">No roles yet — upload a CSV or add one above.</p>
+          ) : (
+            <div className="draft-list">
+              {draftRoles.map((d) => (
+                <DraftRoleRow key={d.draftId} draft={d} onUpdate={(patch) => onUpdateDraft(d.draftId, patch)}
+                              onRemove={() => onRemoveDraft(d.draftId)} />
+              ))}
+            </div>
+          )}
+          {incompleteCount > 0 && (
+            <p className="footnote">
+              {incompleteCount} role{incompleteCount === 1 ? '' : 's'} {incompleteCount === 1 ? 'is' : 'are'} missing one or
+              more sub-factors and will land on the heat map as <b>incomplete</b> — no score, no tier — until finished.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="btn-row" style={{ marginTop: 18 }}>
+        <button type="button" className="btn primary lg" disabled={draftRoles.length === 0} onClick={onFinish}>
+          Finish → open the portfolio
+        </button>
+        <button type="button" className="btn" onClick={onBack}>← Back to profile</button>
+      </div>
+    </>
+  );
+}
+
+function NewProjectWizard({ onFinish, onCancel }) {
+  const [step, setStep] = useState('profile');
+  const [profile, setProfile] = useState(BLANK_PROFILE);
+  const [draftRoles, setDraftRoles] = useState([]);
+  const [files, setFiles] = useState([]);
+  const draftSeqRef = useRef(0);
+
+  const runSuggest = useCallback((draft) => {
+    setDraftRoles((ds) => ds.map((d) => (d.draftId === draft.draftId ? { ...d, scoreStatus: 'loading' } : d)));
+    suggestScoresForRole({
+      name: draft.role, valueStream: draft.valueStream, siteArchetype: draft.siteArchetype,
+      headcount: parseInt(draft.headcount, 10) || undefined, summary: draft.summary,
+    }).then((data) => {
+      setDraftRoles((ds) => ds.map((d) => (d.draftId === draft.draftId ? {
+        ...d, scoreStatus: 'done', scoreSource: data.source || 'anthropic',
+        impact: { ...data.impact }, risk: { ...data.risk }, rationale: data.rationale || {},
+      } : d)));
+    });
+  }, []);
+
+  const addDrafts = useCallback((rawList) => {
+    const made = rawList.map((raw) => {
+      draftSeqRef.current += 1;
+      const { archetype } = resolveSiteArchetype(raw.site, profile.sites);
+      return {
+        draftId: 'draft-' + draftSeqRef.current,
+        role: raw.role || '', valueStream: raw.valueStream || '', site: raw.site || '',
+        siteArchetype: archetype, headcount: raw.headcount || '', summary: raw.summary || '',
+        scoreStatus: (raw.summary || '').trim() ? 'pending' : 'none',
+        scoreSource: null, rationale: {},
+        ...BLANK_DRAFT_SCORES(),
+      };
+    });
+    setDraftRoles((ds) => [...ds, ...made]);
+    made.filter((d) => d.scoreStatus === 'pending').forEach(runSuggest);
+  }, [profile.sites, runSuggest]);
+
+  const updateDraft = useCallback((draftId, patch) => {
+    setDraftRoles((ds) => ds.map((d) => (d.draftId === draftId ? { ...d, ...patch } : d)));
+  }, []);
+  const removeDraft = useCallback((draftId) => {
+    setDraftRoles((ds) => ds.filter((d) => d.draftId !== draftId));
+  }, []);
+
+  const finish = useCallback(() => {
+    const roles = draftRoles.filter((d) => d.role.trim()).map((d, i) => {
+      const archetype = d.siteArchetype || d.site || '(unspecified)';
+      const deskless = ['Plant', 'Distribution Center', 'Field-Commercial'].includes(archetype);
+      const headcount = Math.max(1, parseInt(d.headcount, 10) || 1);
+      return {
+        id: 'wizard-' + slugify(d.role) + '-' + i + '-' + Date.now().toString(36),
+        role: d.role.trim(),
+        valueStream: d.valueStream.trim() || '(unspecified)',
+        siteArchetype: archetype,
+        siteCount: 1,
+        headcount,
+        deskless,
+        isNewRole: false,
+        summary: d.summary.trim() || 'Added via the new-project wizard; description pending.',
+        impact: { ...d.impact }, risk: { ...d.risk },
+        before: ['Current-state task list to be captured in the site workshop'],
+        after: ['To-be task list to be captured from the process design'],
+        tasksRemoved: 0, tasksChanged: 0, tasksNew: 0, fteDelta: 0,
+        constraints: deskless ? ['Deskless population'] : [],
+        addedLive: true,
+      };
+    });
+
+    const valueStreams = [...new Set(roles.map((r) => r.valueStream).filter(Boolean))];
+    const employeeCount = parseInt(profile.totalEmployees, 10) || roles.reduce((s, r) => s + r.headcount, 0);
+
+    onFinish({
+      id: 'new-' + Date.now().toString(36),
+      kind: 'new',
+      name: profile.companyName.trim() || 'New project',
+      industry: profile.industry.trim(),
+      employeeCount,
+      oneLiner: profile.platform.trim() ? `${profile.platform.trim()} rollout, scored live.` : 'Custom engagement, scored live.',
+      dataPath: null,
+      seed: roles,
+      valueStreams: valueStreams.length ? valueStreams : ['General'],
+      siteArchetypeBase: SITE_TYPES,
+      siteArchetypeCombos: [],
+      hasDeckReproduction: false,
+      engagementProfile: profile,
+      referenceFiles: files.map((f) => ({ name: f.name, size: f.size, type: f.type })),
+    });
+  }, [draftRoles, profile, files, onFinish]);
+
+  return (
+    <div className="picker-page wizard-page">
+      <header className="picker-head">
+        <img src="assets/brand/logo-blue.svg" alt="Aberdeen Advisors" className="brand-logo" />
+        <h1>Start new project</h1>
+      </header>
+      <div className="wizard-steps">
+        <span className={'wizard-step' + (step === 'profile' ? ' current' : ' done')}>1. Engagement profile</span>
+        <span className={'wizard-step' + (step === 'roles' ? ' current' : '')}>2. Role & change data</span>
+      </div>
+      {step === 'profile' && (
+        <EngagementProfileStep profile={profile} onChange={setProfile} onNext={() => setStep('roles')} onCancel={onCancel} />
+      )}
+      {step === 'roles' && (
+        <RoleDataStep profile={profile} draftRoles={draftRoles} onAddDrafts={addDrafts}
+                      onUpdateDraft={updateDraft} onRemoveDraft={removeDraft}
+                      files={files} onFilesChange={setFiles}
+                      onBack={() => setStep('profile')} onFinish={finish} />
+      )}
+    </div>
+  );
+}
 
 function App() {
-  const [raw, setRaw] = useState(SEED_ROLES);
-  const [dataSource, setDataSource] = useState('embedded seed');
+  const [project, setProject] = useState(null); // null = show the project picker
+  const [wizardActive, setWizardActive] = useState(false); // true = show NewProjectWizard instead of the picker
+  const [raw, setRaw] = useState([]);
+  const [dataSource, setDataSource] = useState('');
   const [tab, setTab] = useState('portfolio');
+  const [returnTab, setReturnTab] = useState('portfolio'); // where "← Back" on the one-pager / methodology page returns to
   const [selectedId, setSelectedId] = useState(null);
   const [gen, setGen] = useState({});      // roleId -> generated content
   const [genStatus, setGenStatus] = useState({});
   const [weights, setWeights] = useState(() => ({ ...DEFAULT_WEIGHTS }));
 
   useEffect(() => {
+    if (!project) return;
     let live = true;
-    loadRoles().then(({ roles, source }) => {
+    loadRolesForProject(project).then(({ roles, source }) => {
       if (!live) return;
       setRaw(roles); setDataSource(source);
     });
     return () => { live = false; };
-  }, []);
+  }, [project]);
 
   // The factor objects carry the live weights, so they are synced before any
   // scoring happens — every displayed weight matches the arithmetic behind it.
@@ -4073,11 +5991,16 @@ function App() {
   const setWeight = useCallback((key, v) => setWeights((w) => ({ ...w, [key]: v })), []);
   const resetWeights = useCallback(() => setWeights({ ...DEFAULT_WEIGHTS }), []);
 
-  const openRole = useCallback((id) => { setSelectedId(id); setTab('role'); }, []);
+  // The one-pager and the methodology page are reachable from any of the five
+  // primary tabs now, not just one — "back" has to return wherever the click
+  // came from, not always to Stakeholder Impact.
+  const openRole = useCallback((id) => { setReturnTab(tab); setSelectedId(id); setTab('role'); }, [tab]);
+  const openRepro = useCallback(() => { setReturnTab(tab); setTab('repro'); }, [tab]);
 
   const createRole = useCallback((role) => {
     setRaw((rs) => [...rs, role]);
     setSelectedId(role.id);
+    setReturnTab('portfolio');
     setTab('role');
   }, []);
 
@@ -4090,20 +6013,47 @@ function App() {
     setGenStatus((s) => ({ ...s, [id]: 'done' }));
   }, [selected]);
 
+  // Entering a project (from the picker, or leaving one via the header) always
+  // resets session state — a previous project's weights, selection or live-added
+  // roles must never bleed into the next one.
+  const enterProject = useCallback((p) => {
+    setProject(p);
+    setWizardActive(false);
+    setRaw([]); setDataSource('');
+    setTab('portfolio'); setReturnTab('portfolio'); setSelectedId(null);
+    setGen({}); setGenStatus({});
+    setWeights({ ...DEFAULT_WEIGHTS });
+  }, []);
+
+  const backToProjects = useCallback(() => enterProject(null), [enterProject]);
+
+  if (wizardActive) {
+    return <NewProjectWizard onFinish={enterProject} onCancel={() => setWizardActive(false)} />;
+  }
+
+  if (!project) {
+    return <ProjectPicker projects={PROJECTS} onSelect={enterProject} onStartNew={() => setWizardActive(true)} />;
+  }
+
   return (
     <div className="app">
       <header className="topbar no-print">
         <div className="topbar-row">
-          <span className="brand-mark">Aberdeen Advisors</span>
+          <img src="assets/brand/logo-white.svg" alt="Aberdeen Advisors" className="brand-logo" />
           <h1>Change Impact Assessment Tool</h1>
+          <span className="project-tag">{project.name}{project.industry ? ` · ${project.industry}` : ''}</span>
           <span className="sub">
             {all.length} roles · {all.reduce((s, r) => s + (r.headcount || 0), 0).toLocaleString()} people
             {incomplete.length ? ` · ${incomplete.length} incomplete` : ''} · {dataSource}
             {weightsAreDefault(weights) ? '' : ' · weights changed from our default'}
           </span>
+          {project.hasDeckReproduction && (
+            <button className="btn methodology-link" onClick={openRepro}>Methodology →</button>
+          )}
+          <button className="btn" onClick={backToProjects}>← All projects</button>
         </div>
         <nav className="tabs" role="tablist" aria-label="Views">
-          {TABS.map((t) => (
+          {ALL_TABS.map((t) => (
             <button key={t.id} className="tab" role="tab" aria-selected={tab === t.id}
                     onClick={() => setTab(t.id)}>{t.label}</button>
           ))}
@@ -4111,23 +6061,40 @@ function App() {
       </header>
 
       <div className="only-print" style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 10, letterSpacing: '.13em', textTransform: 'uppercase', color: '#666' }}>Aberdeen Advisors</div>
-        <div style={{ fontWeight: 600 }}>Change Impact Assessment Tool — role one-pager</div>
+        <div style={{ fontSize: 10, letterSpacing: '.13em', textTransform: 'uppercase', color: 'var(--ink-2)' }}>Aberdeen Advisors</div>
+        <div style={{ fontWeight: 500 }}>Change Impact Assessment Tool — role one-pager — {project.name}</div>
       </div>
 
       <main className="main">
         {tab === 'portfolio' && (
           <PortfolioView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
-                         onAdd={() => setTab('add')} onRepro={() => setTab('repro')}
-                         weights={weights} onWeight={setWeight} onResetWeights={resetWeights} />
+                         onAdd={() => setTab('add')} onRepro={openRepro}
+                         weights={weights} onWeight={setWeight} onResetWeights={resetWeights}
+                         valueStreams={project.valueStreams} siteArchetypeBase={project.siteArchetypeBase}
+                         siteArchetypeCombos={project.siteArchetypeCombos} showRepro={project.hasDeckReproduction} />
+        )}
+        {tab === 'redesign' && <RedesignView all={all} selectedId={selectedId} onSelect={openRole} />}
+        {tab === 'training' && (
+          <TrainingView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
+                        showDeckProvenance={project.hasDeckReproduction} />
+        )}
+        {tab === 'comms' && (
+          <CommunicationView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
+                              showDeckProvenance={project.hasDeckReproduction} />
+        )}
+        {tab === 'plan' && (
+          <PlanView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
+                    showDeckProvenance={project.hasDeckReproduction} />
         )}
         {tab === 'role' && (
           <OnePager role={selected} gen={gen[selectedId]} status={genStatus[selectedId] || 'idle'}
-                    onGenerate={generate} onBack={() => setTab('portfolio')} />
+                    onGenerate={generate} onBack={() => setTab(returnTab)} backLabel={TAB_LABELS[returnTab] || 'Stakeholder Impact'} />
         )}
-        {tab === 'add' && <AddRoleView onCreate={createRole} />}
-        {tab === 'plan' && <PlanView scored={scored} />}
-        {tab === 'repro' && <ReproducedView scored={scored} weightsDefault={weightsAreDefault(weights)} />}
+        {tab === 'add' && <AddRoleView onCreate={createRole} project={project} />}
+        {tab === 'repro' && project.hasDeckReproduction && (
+          <ReproducedView scored={scored} weightsDefault={weightsAreDefault(weights)}
+                           onBack={() => setTab(returnTab)} backLabel={TAB_LABELS[returnTab] || 'Stakeholder Impact'} />
+        )}
       </main>
     </div>
   );

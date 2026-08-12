@@ -3,9 +3,10 @@
  * Local standalone server — replaces the Vercel deployment.
  *
  * Serves index.html, styles.css, data/, vendor/ (and anything else under the
- * repo root) as static files, and reuses api/generate.js UNCHANGED as the
- * handler for POST /api/generate, so the narrative-generation logic (prompts,
- * schema, fallback templates) is never duplicated or forked.
+ * repo root) as static files, and reuses api/generate.js and
+ * api/suggest-scores.js UNCHANGED as the handlers for POST /api/generate and
+ * POST /api/suggest-scores, so neither function's prompts/schema/fallback
+ * logic is ever duplicated or forked between the Vercel and local paths.
  *
  * ANTHROPIC_API_KEY is read from .env and lives only in process.env on this
  * process. It is used server-side inside api/generate.js's call to the
@@ -52,7 +53,10 @@ function loadEnvFile(file) {
 
 loadEnvFile(path.join(ROOT, '.env'));
 
-const generateHandler = require('./api/generate.js');
+const apiHandlers = {
+  '/api/generate': require('./api/generate.js'),
+  '/api/suggest-scores': require('./api/suggest-scores.js'),
+};
 
 /* --------------------------------------------------------------- statics */
 
@@ -126,7 +130,8 @@ function readBody(req) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
-  if (url.pathname === '/api/generate') {
+  const apiHandler = apiHandlers[url.pathname];
+  if (apiHandler) {
     if (req.method === 'POST') {
       try {
         req.body = await readBody(req);
@@ -135,9 +140,9 @@ const server = http.createServer(async (req, res) => {
         res.setHeader('content-type', 'application/json');
         return res.end(JSON.stringify({ error: 'could not read request body' }));
       }
-      return generateHandler(req, res);
+      return apiHandler(req, res);
     }
-    if (req.method === 'OPTIONS') return generateHandler(req, res);
+    if (req.method === 'OPTIONS') return apiHandler(req, res);
     res.statusCode = 405;
     res.setHeader('allow', 'POST');
     return res.end('POST only');

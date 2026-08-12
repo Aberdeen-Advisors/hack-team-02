@@ -1,0 +1,336 @@
+{
+  "meta": {
+    "totalHeadcount": 150,
+    "roleCount": 10,
+    "generated": "synthetic demo data, illustrative only — example project: Ashford Mutual Underwriting AI rollout"
+  },
+  "roles": [
+    {
+      "id": "underwriter-new-business",
+      "role": "Underwriter",
+      "valueStream": "New Business Underwriting",
+      "siteArchetype": "HQ",
+      "siteCount": 1,
+      "headcount": 32,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Assesses and prices new-business submissions. An AI risk-scoring model now produces a recommended decision and price for every submission, moving the underwriter's core task from building a risk assessment from scratch to validating, adjusting or overriding a machine recommendation.",
+      "impact": { "taskShare": 4.5, "frequencyVolume": 4.6, "errorConsequence": 4.5 },
+      "risk": { "decisionRights": 4.7, "capabilityDelta": 4.2, "localReadiness": 3.6 },
+      "before": [
+        "Builds a risk assessment from the submission, external data pulls and personal judgement",
+        "Prices the policy manually against the rate manual",
+        "Documents the rationale for the decision in free-text underwriting notes",
+        "Refers borderline risks up to a senior underwriter by email"
+      ],
+      "after": [
+        "Reviews an AI-generated risk score and recommended decision alongside the submission",
+        "Adjusts or overrides the recommended price with a required reason code",
+        "Rationale is partly pre-populated from the model's key risk factors, edited rather than written from scratch",
+        "Borderline risks are flagged automatically and routed to the senior underwriter's queue"
+      ],
+      "tasksRemoved": 3,
+      "tasksChanged": 10,
+      "tasksNew": 3,
+      "fteDelta": -0.3,
+      "constraints": [
+        "Override rate is being watched closely by compliance in the first two quarters — this is not a rubber-stamp expectation",
+        "Underwriters need to understand the model's key factors well enough to explain a decision to a broker or regulator"
+      ]
+    },
+    {
+      "id": "senior-lead-underwriter",
+      "role": "Senior / Lead Underwriter",
+      "valueStream": "Risk Assessment & Pricing",
+      "siteArchetype": "HQ",
+      "siteCount": 1,
+      "headcount": 10,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Owns escalations and the largest or most complex risks, and sets underwriting authority limits for the team. The AI model changes which cases actually reach this desk, since routine cases the model handles with high confidence used to still cross a senior underwriter's desk for sign-off.",
+      "impact": { "taskShare": 4.0, "frequencyVolume": 3.8, "errorConsequence": 4.6 },
+      "risk": { "decisionRights": 4.5, "capabilityDelta": 3.8, "localReadiness": 3.2 },
+      "before": [
+        "Reviews and signs off on every risk above a fixed premium threshold",
+        "Sets underwriting authority limits for the team annually",
+        "Handles broker escalations personally",
+        "Mentors underwriters informally through shadowing"
+      ],
+      "after": [
+        "Reviews only the risks the model flags as low-confidence or high-severity, not every large case by default",
+        "Recalibrates authority limits against model performance, not just premium size",
+        "Broker escalations increasingly concern model-driven pricing, not just risk judgement",
+        "Mentors underwriters on how to read and challenge model output, not only on risk judgement"
+      ],
+      "tasksRemoved": 2,
+      "tasksChanged": 7,
+      "tasksNew": 2,
+      "fteDelta": -0.1,
+      "constraints": [
+        "Authority-limit redesign has to be signed off by Compliance before go-live",
+        "This desk is the escalation point of last resort — it cannot go down during the cutover"
+      ]
+    },
+    {
+      "id": "underwriting-assistant",
+      "role": "Underwriting Assistant / Processor",
+      "valueStream": "New Business Underwriting",
+      "siteArchetype": "HQ",
+      "siteCount": 1,
+      "headcount": 24,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Prepares submissions for underwriting review: data entry, document collection and file assembly. Much of this preparation is now done automatically by the intake system that feeds the AI model, shrinking the role's core task without touching underwriting judgement, which this role never held.",
+      "impact": { "taskShare": 3.9, "frequencyVolume": 4.2, "errorConsequence": 2.8 },
+      "risk": { "decisionRights": 1.8, "capabilityDelta": 3.4, "localReadiness": 3.0 },
+      "before": [
+        "Keys submission data from broker documents into the underwriting system",
+        "Chases missing documents by phone or email",
+        "Assembles the file into the format the underwriter expects",
+        "Logs file status manually in a shared tracker"
+      ],
+      "after": [
+        "Most submission data is extracted automatically from broker documents at intake",
+        "Missing-document requests are triggered and tracked by the system",
+        "File assembly is largely automatic; the role reviews for completeness rather than building it",
+        "File status is visible in the underwriting queue without manual tracking"
+      ],
+      "tasksRemoved": 5,
+      "tasksChanged": 6,
+      "tasksNew": 1,
+      "fteDelta": -0.6,
+      "constraints": [
+        "Reduced task volume affects headcount planning for this role and needs a direct, honest conversation, not a vague one",
+        "Remaining staff take on file-quality review, which is a different skill from data entry"
+      ]
+    },
+    {
+      "id": "actuarial-analyst",
+      "role": "Actuarial Analyst",
+      "valueStream": "Risk Assessment & Pricing",
+      "siteArchetype": "HQ",
+      "siteCount": 1,
+      "headcount": 12,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Builds and monitors the pricing models that sit alongside the new AI risk-scoring engine. The analyst's own daily tasks shift moderately toward validating model output against actuarial assumptions rather than building pricing tables from first principles.",
+      "impact": { "taskShare": 3.6, "frequencyVolume": 3.5, "errorConsequence": 3.8 },
+      "risk": { "decisionRights": 2.2, "capabilityDelta": 3.6, "localReadiness": 2.4 },
+      "before": [
+        "Builds pricing tables and rate factors from loss experience",
+        "Tests rate changes manually against a sample of historical policies",
+        "Documents pricing assumptions in a static actuarial memo",
+        "Reviews pricing adequacy on a fixed quarterly cycle"
+      ],
+      "after": [
+        "Validates the AI model's risk factors and pricing output against actuarial assumptions",
+        "Tests rate and model changes together against a shared holdout sample",
+        "Pricing assumptions and model factors are documented in a shared, versioned record",
+        "Reviews pricing adequacy continuously as model drift is flagged"
+      ],
+      "tasksRemoved": 1,
+      "tasksChanged": 6,
+      "tasksNew": 3,
+      "fteDelta": 0,
+      "constraints": [
+        "Needs visibility into model training data and feature importance, which is currently held by the vendor",
+        "Quarterly review cadence has to change to match a continuously-updating model, which is a governance decision, not just a workflow one"
+      ]
+    },
+    {
+      "id": "policy-servicing-rep",
+      "role": "Policy Servicing Representative",
+      "valueStream": "Policy Servicing",
+      "siteArchetype": "HQ",
+      "siteCount": 1,
+      "headcount": 28,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Handles endorsements, renewals administration and policyholder service requests after a policy is bound. This work sits downstream of underwriting and is only lightly touched by the new AI-assisted workflow — mainly a few updated document templates.",
+      "impact": { "taskShare": 2.0, "frequencyVolume": 3.0, "errorConsequence": 2.0 },
+      "risk": { "decisionRights": 1.2, "capabilityDelta": 1.8, "localReadiness": 2.0 },
+      "before": [
+        "Processes endorsements and mid-term changes against the original policy file",
+        "Generates renewal documents from a standard template set",
+        "Answers policyholder service calls",
+        "Updates billing records for policy changes"
+      ],
+      "after": [
+        "Processes endorsements against the same file, now with data validated at underwriting rather than re-checked here",
+        "Generates renewal documents from an updated template referencing the new risk factors",
+        "Answers policyholder service calls, largely unchanged",
+        "Updates billing records for policy changes, largely unchanged"
+      ],
+      "tasksRemoved": 0,
+      "tasksChanged": 3,
+      "tasksNew": 1,
+      "fteDelta": 0,
+      "constraints": [
+        "No new training burden should be added to this team beyond the template changes",
+        "Team should be the calm, unaffected reference point for staff anxious about the rollout"
+      ]
+    },
+    {
+      "id": "compliance-audit-officer",
+      "role": "Compliance & Audit Officer",
+      "valueStream": "Compliance & Audit",
+      "siteArchetype": "HQ",
+      "siteCount": 1,
+      "headcount": 8,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Oversees regulatory compliance and internal audit for underwriting decisions. The officer's own day-to-day tasks change only modestly, but the introduction of an algorithmic underwriting model creates real anxiety about explainability, bias testing and regulatory exposure that the current process was never built to answer.",
+      "impact": { "taskShare": 2.4, "frequencyVolume": 2.8, "errorConsequence": 3.6 },
+      "risk": { "decisionRights": 2.0, "capabilityDelta": 4.3, "localReadiness": 4.6 },
+      "before": [
+        "Audits a sample of underwriting files against documented policy each quarter",
+        "Reviews complaint and appeal files for fair-treatment concerns",
+        "Reports underwriting quality metrics to the board",
+        "Maintains the underwriting procedures manual"
+      ],
+      "after": [
+        "Audits now also review model override patterns and reason codes, not just human decisions",
+        "Complaint and appeal review has to consider whether a model recommendation contributed to the outcome",
+        "Board reporting adds model-performance and bias-testing metrics alongside underwriting quality",
+        "Procedures manual now has to document model governance, not only human process"
+      ],
+      "tasksRemoved": 0,
+      "tasksChanged": 4,
+      "tasksNew": 4,
+      "fteDelta": 0.2,
+      "constraints": [
+        "No internal precedent exists yet for auditing an algorithmic underwriting decision — this is being built, not adopted from elsewhere",
+        "Regulatory guidance on AI use in underwriting is still evolving, so the process has to be revisable, not fixed at go-live"
+      ]
+    },
+    {
+      "id": "renewal-underwriter",
+      "role": "Renewal Underwriter",
+      "valueStream": "Renewal Underwriting",
+      "siteArchetype": "HQ",
+      "siteCount": 1,
+      "headcount": 22,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Re-underwrites the existing book at renewal. The same AI risk-scoring model now runs against renewal submissions, flagging risks that have drifted enough to need a fresh look instead of a rollover, which is the same authority shift as new-business underwriting applied to an existing book.",
+      "impact": { "taskShare": 4.3, "frequencyVolume": 4.4, "errorConsequence": 4.2 },
+      "risk": { "decisionRights": 4.4, "capabilityDelta": 4.0, "localReadiness": 3.6 },
+      "before": [
+        "Reviews the renewal file and prior-year loss history to decide on rollover, adjustment or non-renewal",
+        "Manually flags accounts that need a fresh underwriting look",
+        "Prices the renewal against the rate manual and personal judgement",
+        "Documents the renewal rationale in free-text notes"
+      ],
+      "after": [
+        "Reviews an AI-generated drift score alongside the renewal file to decide on rollover, adjustment or non-renewal",
+        "Accounts needing a fresh look are flagged automatically by the model",
+        "Prices the renewal starting from a model-recommended adjustment, adjustable with a reason code",
+        "Rationale is partly pre-populated from the model's flagged drift factors"
+      ],
+      "tasksRemoved": 2,
+      "tasksChanged": 9,
+      "tasksNew": 3,
+      "fteDelta": -0.3,
+      "constraints": [
+        "Renewal cycle timing is fixed by policy expiry dates and cannot slip while the team learns the new workflow",
+        "Existing broker relationships mean explanation of any price change has to be clear and immediate"
+      ]
+    },
+    {
+      "id": "data-mlops-analyst",
+      "role": "Data / MLOps Analyst",
+      "valueStream": "Cross-cutting",
+      "siteArchetype": "HQ",
+      "siteCount": 1,
+      "headcount": 4,
+      "deskless": false,
+      "isNewRole": true,
+      "summary": "A net-new role created to run and monitor the underwriting AI model in production: tracking accuracy and drift, managing retraining, and being the technical point of contact for underwriters and compliance questioning a specific model output.",
+      "impact": { "taskShare": 4.0, "frequencyVolume": 3.6, "errorConsequence": 3.4 },
+      "risk": { "decisionRights": 2.4, "capabilityDelta": 3.8, "localReadiness": 2.2 },
+      "before": [
+        "Role does not exist prior to the AI-assisted underwriting rollout"
+      ],
+      "after": [
+        "Monitors model accuracy, drift and override rates on an ongoing basis",
+        "Manages model retraining and validation cycles with the vendor",
+        "Investigates specific flagged decisions when an underwriter or compliance officer questions the model's output",
+        "Maintains the technical documentation of model versions and changes"
+      ],
+      "tasksRemoved": 0,
+      "tasksChanged": 0,
+      "tasksNew": 4,
+      "fteDelta": 4,
+      "constraints": [
+        "Needs both the technical skill to interrogate the model and enough underwriting literacy to explain findings to non-technical staff",
+        "Reports jointly to underwriting leadership and compliance, which needs to be an explicit, not implied, reporting line"
+      ]
+    },
+    {
+      "id": "vp-underwriting",
+      "role": "VP / Head of Underwriting",
+      "valueStream": "Cross-cutting",
+      "siteArchetype": "HQ",
+      "siteCount": 1,
+      "headcount": 6,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Sets underwriting strategy, authority limits and escalation policy for the firm. The AI rollout redraws where human sign-off sits in the authority matrix and puts model-governance decisions on this desk for the first time.",
+      "impact": { "taskShare": 3.9, "frequencyVolume": 3.5, "errorConsequence": 4.4 },
+      "risk": { "decisionRights": 4.2, "capabilityDelta": 3.4, "localReadiness": 3.2 },
+      "before": [
+        "Sets underwriting authority limits by role and premium size",
+        "Owns escalation policy for large or unusual risks",
+        "Reports underwriting performance to the executive committee",
+        "Approves changes to underwriting guidelines"
+      ],
+      "after": [
+        "Sets authority limits by role, premium size and model confidence together",
+        "Owns escalation policy for both unusual risks and low-confidence model recommendations",
+        "Reports underwriting performance and model governance metrics to the executive committee",
+        "Approves changes to underwriting guidelines and to the model's decision thresholds"
+      ],
+      "tasksRemoved": 0,
+      "tasksChanged": 5,
+      "tasksNew": 3,
+      "fteDelta": 0,
+      "constraints": [
+        "Model-governance accountability has to be explicit at this level or it defaults to no one",
+        "Executive committee reporting cadence needs new metrics defined before the first post-go-live report is due"
+      ]
+    },
+    {
+      "id": "it-systems-support",
+      "role": "IT / Systems Support",
+      "valueStream": "Cross-cutting",
+      "siteArchetype": "HQ",
+      "siteCount": 1,
+      "headcount": 4,
+      "deskless": false,
+      "isNewRole": false,
+      "summary": "Supports the firm's core systems and end users. The underwriting AI model is a vendor-hosted addition to the policy administration system this team already supports, a modest incremental load rather than a new discipline.",
+      "impact": { "taskShare": 2.2, "frequencyVolume": 2.6, "errorConsequence": 2.4 },
+      "risk": { "decisionRights": 1.0, "capabilityDelta": 2.2, "localReadiness": 1.8 },
+      "before": [
+        "Supports the policy administration system and desktop environment",
+        "Manages user access requests and password resets",
+        "Coordinates with the policy admin vendor on defects and outages",
+        "Runs scheduled system backups and patching"
+      ],
+      "after": [
+        "Supports the policy administration system plus its new AI-scoring integration",
+        "Manages user access requests, now including model-output visibility permissions",
+        "Coordinates with both the policy admin and AI-model vendors on defects and outages",
+        "Runs scheduled backups and patching across one more integrated system"
+      ],
+      "tasksRemoved": 0,
+      "tasksChanged": 3,
+      "tasksNew": 1,
+      "fteDelta": 0,
+      "constraints": [
+        "Two vendors now need a clear escalation path when an issue could be either system's fault",
+        "Team is only 4 people supporting the whole firm — no slack for a second full rollout in parallel"
+      ]
+    }
+  ]
+}
