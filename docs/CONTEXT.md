@@ -139,13 +139,33 @@ Five screens, all in `index.html`:
 
 **The dataset** is `data/roles.json`: **38 roles, 5,000 people, entirely synthetic**. It carries five
 ERP value streams plus a `Cross-cutting` label used by four roles the deck treats as spanning all
-streams, and four site archetypes (HQ, Plant, DC, Field/Commercial). Nine roles are flagged deskless;
+streams, and four base site archetypes (HQ, Plant, DC, Field/Commercial) plus three combined values for
+roles that span more than one (`HQ + Plant`, `HQ + DC`, `Plant + DC`). Nine roles are flagged deskless;
 one (Master Data Steward) is net-new.
 
-One inconsistency to know about before someone else finds it: Warehouse Team Lead is recorded with site
-archetype `DC` and a site count of 8, which does not reconcile with the deck's site model of six plants
-and two DCs. That site count is load-bearing — it is what produces the engine's 8 site change coaches —
-so describe it as 8 sites rather than 8 DCs, or correct the archetype on that row.
+**Decided: roles that span archetypes now say so.** The site estate is one HQ, six plants and two DCs,
+so a row could claim more sites than its declared archetype can hold. Four rows did. All four were
+audited against slide 10's own Sites column, and in every case the *count* was right and the
+*archetype* was too narrow — the deck itself writes `HQ+6` for Master Data Steward and `HQ+2` for
+Customer Service, so spanning roles are the deck's own model, not our invention. No site count was
+changed:
+
+| Role | Was | Now | Why the count was already right |
+|---|---|---|---|
+| Warehouse Team Lead | `DC`, 8 sites | `Plant + DC` | shifts run in the six plant warehouses and both DCs: 6 + 2 = 8. The row's own summary already said so |
+| Master Data Steward | `HQ`, 7 sites | `HQ + Plant` | slide 10 prints `HQ+6`: HQ plus the six plants = 7 |
+| Customer Service — Order Entry | `HQ`, 3 sites | `HQ + DC` | slide 10 prints `HQ+2`: the three service centres are one at HQ and one at each DC |
+| Customer Service — Claims & Returns | `HQ`, 3 sites | `HQ + DC` | same three service centres as Order Entry; not in the deck, but modelled on the row that is |
+
+The 8 on Warehouse Team Lead stays load-bearing — it is still what produces the engine's 8 site change
+coaches — but it is now defensible on its face instead of needing a verbal patch. The divergence
+against the deck's 6 is unchanged and still stated as a divergence on the Reproduced tab and in the
+README: the deck counts plants, the engine counts every site carrying a Rebuild role, and this role
+spans plants and DCs.
+
+Filtering is component-aware to match: picking `Plant` returns the plant-only roles *and* the roles
+that span plants, because a filter that hid Warehouse Team Lead from the plant view would be lying
+about where those people work. Picking a combined value narrows to the spanning rows exactly.
 
 **It reproduces the deck's published figures by computation, not by hardcoding.** On a clean load the
 Reproduced tab runs **24 comparisons: 18 exact, 6 near misses**. The exact matches include slide 9's

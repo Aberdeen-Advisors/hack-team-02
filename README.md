@@ -304,7 +304,7 @@ and again on the Reproduced tab:
 | Role-based curricula | 18 | **14** | 1 per Rebuild role + 1 shared per value stream in Enable |
 | Manager cascade scripts | 11 | **13** | 1 per Rebuild role + 1 per non-Rebuild role with decision rights ≥ 4 |
 | Supervisors briefed | 340 | **314** | 1 per 10 people in Rebuild, Enable or Reassure roles |
-| Site change coaches | 6 | **8** | one per site carrying a Rebuild role. In the shipped dataset Warehouse Team Lead has the widest site spread of any Rebuild role — 8 sites — and that is what drives the count. It does not reconcile with the deck, whose site model is six plants and two DCs and whose figure is 6; state the divergence rather than the site type. |
+| Site change coaches | 6 | **8** | one per site carrying a Rebuild role. The deck's 6 is the plant count — it counts plants. The engine counts every site that carries a Rebuild role, and the widest Rebuild spread in the dataset is Warehouse Team Lead, which spans both archetypes: the six plant warehouses and the two DCs, so 6 + 2 = 8. The two figures answer different questions and **do not reconcile** — the deck's 6 leaves the DC shifts uncoached. State it as a divergence, not a match. |
 | Plant Controller adoption risk | 3.6 | **3.4** | slide 10 contradicts itself: 3.6 is above our inclusive 3.5 line and would tier Rebuild, but the slide tiers the role Enable. The dataset resolves it in favour of the tier the deck assigns. |
 | Budget share | 55 · 27 · 13 · 5 | **54 · 27 · 14 · 5** | not a deck-derived figure at all — it falls out of our own per-head cost weighting, which the deck does not state. Lands within one rounding point. |
 
