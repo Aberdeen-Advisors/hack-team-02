@@ -1,0 +1,14 @@
+# Local environment files — never commit a real API key.
+# .env.example is the only env file that belongs in git.
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# OS cruft
+.DS_Store
+
+# Logs
+*.log

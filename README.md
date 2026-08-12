@@ -186,6 +186,12 @@ python3 -m http.server 8000
 Opening `index.html` straight off the filesystem also works — the role data is embedded in the page
 as a fallback for exactly that case.
 
+For local development against the live model path, copy `.env.example` to `.env` and add your
+`ANTHROPIC_API_KEY` there — `.env` is gitignored and must never be committed. Note that
+`/api/generate` is a serverless function: it only runs behind a dev server that executes it (e.g.
+`vercel dev`) or in a deployment. Opening `index.html` directly serves the built-in fallback content
+regardless of what is in `.env`.
+
 ### Deploying
 
 Vercel, framework preset **Other / none**. `vercel.json` sets `cleanUrls`, rewrites everything that
