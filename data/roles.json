@@ -8,7 +8,6 @@
     {
       "id": "plant-scheduler",
       "role": "Plant Scheduler",
-      "valueStream": "Plan-to-Produce",
       "siteArchetype": "Plant",
       "siteCount": 6,
       "headcount": 42,
@@ -51,7 +50,6 @@
     {
       "id": "warehouse-team-lead",
       "role": "Warehouse Team Lead",
-      "valueStream": "Plan-to-Produce",
       "siteArchetype": "Plant + DC",
       "siteCount": 8,
       "headcount": 96,
@@ -95,7 +93,6 @@
     {
       "id": "ap-specialist",
       "role": "AP Specialist",
-      "valueStream": "Procure-to-Pay",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 64,
@@ -139,13 +136,12 @@
     {
       "id": "master-data-steward",
       "role": "Master Data Steward",
-      "valueStream": "Cross-cutting",
       "siteArchetype": "HQ + Plant",
       "siteCount": 7,
       "headcount": 18,
       "deskless": false,
       "isNewRole": true,
-      "summary": "A role that does not exist today: material, customer, vendor and BOM records are currently maintained by whoever needs them, in whichever system. The stewards become the single gate for creating and changing master data across all five value streams, which means designing governance while learning the tooling that enforces it.",
+      "summary": "A role that does not exist today: material, customer, vendor and BOM records are currently maintained by whoever needs them, in whichever system. The stewards become the single gate for creating and changing master data company-wide, which means designing governance while learning the tooling that enforces it.",
       "impact": {
         "taskShare": 5.0,
         "frequencyVolume": 4.6,
@@ -167,7 +163,7 @@
         "Runs the governed workflow with mandatory field and duplicate checks",
         "Publishes and enforces naming and classification standards",
         "Monitors data-quality dashboards and drives correction at source",
-        "Trains and audits requesters across the five value streams"
+        "Trains and audits requesters company-wide"
       ],
       "tasksRemoved": 2,
       "tasksChanged": 5,
@@ -175,14 +171,13 @@
       "fteDelta": 1.6,
       "constraints": [
         "Net new headcount - 18 people to recruit or redeploy before go-live",
-        "Blocking role: every other value stream depends on it from day one",
+        "Blocking role: every downstream process depends on it from day one",
         "No incumbent knowledge to build training on"
       ]
     },
     {
       "id": "customer-service-order-entry",
       "role": "Customer Service - Order Entry",
-      "valueStream": "Order-to-Cash",
       "siteArchetype": "HQ + DC",
       "siteCount": 3,
       "headcount": 240,
@@ -227,7 +222,6 @@
     {
       "id": "plant-controller",
       "role": "Plant Controller",
-      "valueStream": "Record-to-Report",
       "siteArchetype": "Plant",
       "siteCount": 6,
       "headcount": 24,
@@ -271,7 +265,6 @@
     {
       "id": "plant-buyer",
       "role": "Plant Buyer",
-      "valueStream": "Procure-to-Pay",
       "siteArchetype": "Plant",
       "siteCount": 6,
       "headcount": 58,
@@ -315,7 +308,6 @@
     {
       "id": "credit-collections-analyst",
       "role": "Credit & Collections Analyst",
-      "valueStream": "Order-to-Cash",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 26,
@@ -358,7 +350,6 @@
     {
       "id": "demand-planner",
       "role": "Demand Planner",
-      "valueStream": "Plan-to-Produce",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 34,
@@ -401,7 +392,6 @@
     {
       "id": "plant-hr-coordinator",
       "role": "Plant HR Coordinator",
-      "valueStream": "Hire-to-Retire",
       "siteArchetype": "Plant",
       "siteCount": 6,
       "headcount": 42,
@@ -445,7 +435,6 @@
     {
       "id": "field-sales-representative",
       "role": "Field Sales Representative",
-      "valueStream": "Order-to-Cash",
       "siteArchetype": "Field/Commercial",
       "siteCount": 4,
       "headcount": 560,
@@ -489,7 +478,6 @@
     {
       "id": "customer-service-claims-returns",
       "role": "Customer Service - Claims & Returns",
-      "valueStream": "Order-to-Cash",
       "siteArchetype": "HQ + DC",
       "siteCount": 3,
       "headcount": 150,
@@ -532,7 +520,6 @@
     {
       "id": "accounts-receivable-specialist",
       "role": "Accounts Receivable Specialist",
-      "valueStream": "Order-to-Cash",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 44,
@@ -575,7 +562,6 @@
     {
       "id": "trade-pricing-analyst",
       "role": "Trade & Pricing Analyst",
-      "valueStream": "Order-to-Cash",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 24,
@@ -618,7 +604,6 @@
     {
       "id": "procurement-category-manager",
       "role": "Procurement Category Manager",
-      "valueStream": "Procure-to-Pay",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 36,
@@ -661,7 +646,6 @@
     {
       "id": "indirect-procurement-buyer",
       "role": "Indirect Procurement Buyer",
-      "valueStream": "Procure-to-Pay",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 28,
@@ -704,7 +688,6 @@
     {
       "id": "supply-planner",
       "role": "Supply Planner",
-      "valueStream": "Plan-to-Produce",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 32,
@@ -747,7 +730,6 @@
     {
       "id": "inventory-controller",
       "role": "Inventory Controller",
-      "valueStream": "Plan-to-Produce",
       "siteArchetype": "Plant",
       "siteCount": 6,
       "headcount": 88,
@@ -790,7 +772,6 @@
     {
       "id": "maintenance-planner",
       "role": "Maintenance Planner",
-      "valueStream": "Plan-to-Produce",
       "siteArchetype": "Plant",
       "siteCount": 6,
       "headcount": 52,
@@ -833,7 +814,6 @@
     {
       "id": "general-ledger-accountant",
       "role": "General Ledger Accountant",
-      "valueStream": "Record-to-Report",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 46,
@@ -876,7 +856,6 @@
     {
       "id": "fpa-analyst",
       "role": "FP&A Analyst",
-      "valueStream": "Record-to-Report",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 34,
@@ -919,7 +898,6 @@
     {
       "id": "hr-operations-specialist",
       "role": "HR Operations Specialist",
-      "valueStream": "Hire-to-Retire",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 40,
@@ -962,7 +940,6 @@
     {
       "id": "payroll-administrator",
       "role": "Payroll Administrator",
-      "valueStream": "Hire-to-Retire",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 22,
@@ -1005,7 +982,6 @@
     {
       "id": "warehouse-operative",
       "role": "Warehouse Operative",
-      "valueStream": "Plan-to-Produce",
       "siteArchetype": "DC",
       "siteCount": 2,
       "headcount": 300,
@@ -1050,7 +1026,6 @@
     {
       "id": "maintenance-technician",
       "role": "Maintenance Technician",
-      "valueStream": "Plan-to-Produce",
       "siteArchetype": "Plant",
       "siteCount": 6,
       "headcount": 260,
@@ -1094,7 +1069,6 @@
     {
       "id": "material-handler",
       "role": "Material Handler / Forklift Operator",
-      "valueStream": "Plan-to-Produce",
       "siteArchetype": "Plant",
       "siteCount": 6,
       "headcount": 200,
@@ -1138,7 +1112,6 @@
     {
       "id": "production-shift-supervisor",
       "role": "Production Shift Supervisor",
-      "valueStream": "Hire-to-Retire",
       "siteArchetype": "Plant",
       "siteCount": 6,
       "headcount": 132,
@@ -1184,7 +1157,6 @@
     {
       "id": "quality-assurance-technician",
       "role": "Quality Assurance Technician",
-      "valueStream": "Plan-to-Produce",
       "siteArchetype": "Plant",
       "siteCount": 6,
       "headcount": 106,
@@ -1226,7 +1198,6 @@
     {
       "id": "key-account-manager",
       "role": "Key Account Manager",
-      "valueStream": "Order-to-Cash",
       "siteArchetype": "Field/Commercial",
       "siteCount": 4,
       "headcount": 150,
@@ -1268,7 +1239,6 @@
     {
       "id": "regional-sales-manager",
       "role": "Regional Sales Manager",
-      "valueStream": "Order-to-Cash",
       "siteArchetype": "Field/Commercial",
       "siteCount": 4,
       "headcount": 60,
@@ -1309,7 +1279,6 @@
     {
       "id": "goods-receipt-clerk",
       "role": "Goods Receipt Clerk",
-      "valueStream": "Procure-to-Pay",
       "siteArchetype": "Plant",
       "siteCount": 6,
       "headcount": 54,
@@ -1352,7 +1321,6 @@
     {
       "id": "shipping-dispatch-coordinator",
       "role": "Shipping & Dispatch Coordinator",
-      "valueStream": "Order-to-Cash",
       "siteArchetype": "DC",
       "siteCount": 2,
       "headcount": 42,
@@ -1393,7 +1361,6 @@
     {
       "id": "site-hr-business-partner",
       "role": "Site HR Business Partner",
-      "valueStream": "Hire-to-Retire",
       "siteArchetype": "Plant",
       "siteCount": 6,
       "headcount": 24,
@@ -1435,7 +1402,6 @@
     {
       "id": "plant-operations-manager",
       "role": "Plant Operations Manager",
-      "valueStream": "Cross-cutting",
       "siteArchetype": "Plant",
       "siteCount": 6,
       "headcount": 12,
@@ -1476,7 +1442,6 @@
     {
       "id": "production-operator",
       "role": "Production Operator",
-      "valueStream": "Plan-to-Produce",
       "siteArchetype": "Plant",
       "siteCount": 6,
       "headcount": 1240,
@@ -1520,7 +1485,6 @@
     {
       "id": "retail-merchandiser",
       "role": "Retail Merchandiser",
-      "valueStream": "Order-to-Cash",
       "siteArchetype": "Field/Commercial",
       "siteCount": 4,
       "headcount": 300,
@@ -1563,7 +1527,6 @@
     {
       "id": "marketing-brand-manager",
       "role": "Marketing & Brand Manager",
-      "valueStream": "Cross-cutting",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 180,
@@ -1603,7 +1566,6 @@
     {
       "id": "rd-product-developer",
       "role": "R&D Product Developer",
-      "valueStream": "Cross-cutting",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 140,

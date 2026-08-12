@@ -2,13 +2,12 @@
   "meta": {
     "totalHeadcount": 150,
     "roleCount": 10,
-    "generated": "synthetic demo data, illustrative only — example project: Ashford Mutual Underwriting AI rollout"
+    "generated": "synthetic demo data, illustrative only. Example project: Ashford Mutual Underwriting AI rollout"
   },
   "roles": [
     {
       "id": "underwriter-new-business",
       "role": "Underwriter",
-      "valueStream": "New Business Underwriting",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 32,
@@ -34,14 +33,13 @@
       "tasksNew": 3,
       "fteDelta": -0.3,
       "constraints": [
-        "Override rate is being watched closely by compliance in the first two quarters — this is not a rubber-stamp expectation",
+        "Override rate is being watched closely by compliance in the first two quarters. This is not a rubber-stamp expectation",
         "Underwriters need to understand the model's key factors well enough to explain a decision to a broker or regulator"
       ]
     },
     {
       "id": "senior-lead-underwriter",
       "role": "Senior / Lead Underwriter",
-      "valueStream": "Risk Assessment & Pricing",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 10,
@@ -68,13 +66,12 @@
       "fteDelta": -0.1,
       "constraints": [
         "Authority-limit redesign has to be signed off by Compliance before go-live",
-        "This desk is the escalation point of last resort — it cannot go down during the cutover"
+        "This desk is the escalation point of last resort. It cannot go down during the cutover"
       ]
     },
     {
       "id": "underwriting-assistant",
       "role": "Underwriting Assistant / Processor",
-      "valueStream": "New Business Underwriting",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 24,
@@ -107,7 +104,6 @@
     {
       "id": "actuarial-analyst",
       "role": "Actuarial Analyst",
-      "valueStream": "Risk Assessment & Pricing",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 12,
@@ -140,13 +136,12 @@
     {
       "id": "policy-servicing-rep",
       "role": "Policy Servicing Representative",
-      "valueStream": "Policy Servicing",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 28,
       "deskless": false,
       "isNewRole": false,
-      "summary": "Handles endorsements, renewals administration and policyholder service requests after a policy is bound. This work sits downstream of underwriting and is only lightly touched by the new AI-assisted workflow — mainly a few updated document templates.",
+      "summary": "Handles endorsements, renewals administration and policyholder service requests after a policy is bound. This work sits downstream of underwriting and is only lightly touched by the new AI-assisted workflow: mainly a few updated document templates.",
       "impact": { "taskShare": 2.0, "frequencyVolume": 3.0, "errorConsequence": 2.0 },
       "risk": { "decisionRights": 1.2, "capabilityDelta": 1.8, "localReadiness": 2.0 },
       "before": [
@@ -173,7 +168,6 @@
     {
       "id": "compliance-audit-officer",
       "role": "Compliance & Audit Officer",
-      "valueStream": "Compliance & Audit",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 8,
@@ -199,14 +193,13 @@
       "tasksNew": 4,
       "fteDelta": 0.2,
       "constraints": [
-        "No internal precedent exists yet for auditing an algorithmic underwriting decision — this is being built, not adopted from elsewhere",
+        "No internal precedent exists yet for auditing an algorithmic underwriting decision. This is being built, not adopted from elsewhere",
         "Regulatory guidance on AI use in underwriting is still evolving, so the process has to be revisable, not fixed at go-live"
       ]
     },
     {
       "id": "renewal-underwriter",
       "role": "Renewal Underwriter",
-      "valueStream": "Renewal Underwriting",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 22,
@@ -239,7 +232,6 @@
     {
       "id": "data-mlops-analyst",
       "role": "Data / MLOps Analyst",
-      "valueStream": "Cross-cutting",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 4,
@@ -269,7 +261,6 @@
     {
       "id": "vp-underwriting",
       "role": "VP / Head of Underwriting",
-      "valueStream": "Cross-cutting",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 6,
@@ -302,7 +293,6 @@
     {
       "id": "it-systems-support",
       "role": "IT / Systems Support",
-      "valueStream": "Cross-cutting",
       "siteArchetype": "HQ",
       "siteCount": 1,
       "headcount": 4,
@@ -329,7 +319,7 @@
       "fteDelta": 0,
       "constraints": [
         "Two vendors now need a clear escalation path when an issue could be either system's fault",
-        "Team is only 4 people supporting the whole firm — no slack for a second full rollout in parallel"
+        "Team is only 4 people supporting the whole firm: no slack for a second full rollout in parallel"
       ]
     }
   ]

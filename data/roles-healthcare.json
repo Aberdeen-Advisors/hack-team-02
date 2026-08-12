@@ -2,13 +2,12 @@
   "meta": {
     "totalHeadcount": 800,
     "roleCount": 12,
-    "generated": "synthetic demo data, illustrative only — example project: Bellcrest Health System EHR rollout"
+    "generated": "synthetic demo data, illustrative only. Example project: Bellcrest Health System EHR rollout"
   },
   "roles": [
     {
       "id": "rn-inpatient",
-      "role": "Registered Nurse — Inpatient",
-      "valueStream": "Clinical Documentation",
+      "role": "Registered Nurse - Inpatient",
       "siteArchetype": "Inpatient Unit",
       "siteCount": 3,
       "headcount": 326,
@@ -40,8 +39,7 @@
     },
     {
       "id": "rn-emergency-department",
-      "role": "Registered Nurse — Emergency Department",
-      "valueStream": "Clinical Documentation",
+      "role": "Registered Nurse - Emergency Department",
       "siteArchetype": "Emergency Department",
       "siteCount": 3,
       "headcount": 110,
@@ -74,7 +72,6 @@
     {
       "id": "hospitalist-attending",
       "role": "Hospitalist / Attending Physician",
-      "valueStream": "Order Entry (CPOE)",
       "siteArchetype": "Inpatient Unit",
       "siteCount": 3,
       "headcount": 55,
@@ -107,7 +104,6 @@
     {
       "id": "unit-clerk",
       "role": "Unit Clerk / Ward Clerk",
-      "valueStream": "Patient Registration & Scheduling",
       "siteArchetype": "Inpatient Unit",
       "siteCount": 3,
       "headcount": 40,
@@ -134,13 +130,12 @@
       "fteDelta": -0.4,
       "constraints": [
         "Some unit clerks are the only non-clinical staff on the floor overnight and need a fallback for system downtime",
-        "Role is being partly redefined, not eliminated — messaging on this needs to be explicit"
+        "Role is being partly redefined, not eliminated. Messaging on this needs to be explicit"
       ]
     },
     {
       "id": "pharmacist",
       "role": "Pharmacist",
-      "valueStream": "Medication Administration (eMAR)",
       "siteArchetype": "Ancillary (Lab/Pharmacy/Imaging)",
       "siteCount": 3,
       "headcount": 26,
@@ -166,14 +161,13 @@
       "tasksNew": 4,
       "fteDelta": -0.1,
       "constraints": [
-        "Verification turnaround time cannot regress during the transition — it is a patient-safety metric",
+        "Verification turnaround time cannot regress during the transition. It is a patient-safety metric",
         "Alert volume must be tuned pre-go-live or override fatigue defeats the safety benefit"
       ]
     },
     {
       "id": "pharmacy-technician",
       "role": "Pharmacy Technician",
-      "valueStream": "Medication Administration (eMAR)",
       "siteArchetype": "Ancillary (Lab/Pharmacy/Imaging)",
       "siteCount": 3,
       "headcount": 34,
@@ -199,14 +193,13 @@
       "tasksNew": 2,
       "fteDelta": 0,
       "constraints": [
-        "Fill accuracy cannot dip during the changeover — this role has no independent verification authority to catch its own errors",
+        "Fill accuracy cannot dip during the changeover. This role has no independent verification authority to catch its own errors",
         "Cabinet hardware integration with the new EHR needs to be tested per site before go-live"
       ]
     },
     {
       "id": "medical-assistant-ambulatory",
-      "role": "Medical Assistant — Ambulatory Clinic",
-      "valueStream": "Clinical Documentation",
+      "role": "Medical Assistant - Ambulatory Clinic",
       "siteArchetype": "Ambulatory Clinic",
       "siteCount": 3,
       "headcount": 60,
@@ -232,14 +225,13 @@
       "tasksNew": 2,
       "fteDelta": 0,
       "constraints": [
-        "Rooming time budget per patient cannot increase — clinic schedules are already full",
+        "Rooming time budget per patient cannot increase. Clinic schedules are already full",
         "Several clinics share float staff across sites, so training has to be site-agnostic"
       ]
     },
     {
       "id": "registration-scheduling-clerk",
-      "role": "Registration / Scheduling Clerk — Ambulatory Clinic",
-      "valueStream": "Patient Registration & Scheduling",
+      "role": "Registration / Scheduling Clerk - Ambulatory Clinic",
       "siteArchetype": "Ambulatory Clinic",
       "siteCount": 3,
       "headcount": 46,
@@ -272,7 +264,6 @@
     {
       "id": "medical-coder-biller",
       "role": "Medical Coder / Biller",
-      "valueStream": "Billing & Revenue Cycle",
       "siteArchetype": "Corporate/Admin",
       "siteCount": 1,
       "headcount": 32,
@@ -305,7 +296,6 @@
     {
       "id": "lab-technician",
       "role": "Laboratory Technician",
-      "valueStream": "Order Entry (CPOE)",
       "siteArchetype": "Ancillary (Lab/Pharmacy/Imaging)",
       "siteCount": 3,
       "headcount": 38,
@@ -338,7 +328,6 @@
     {
       "id": "clinical-informatics-analyst",
       "role": "Clinical Informatics Analyst",
-      "valueStream": "Cross-cutting",
       "siteArchetype": "Corporate/Admin",
       "siteCount": 1,
       "headcount": 9,
@@ -368,7 +357,6 @@
     {
       "id": "nurse-manager-charge-nurse",
       "role": "Nurse Manager / Charge Nurse",
-      "valueStream": "Cross-cutting",
       "siteArchetype": "Inpatient Unit",
       "siteCount": 3,
       "headcount": 24,
@@ -394,7 +382,7 @@
       "tasksNew": 3,
       "fteDelta": 0,
       "constraints": [
-        "The recommendation engine has to be tunable per unit — a medical floor and an ICU do not staff the same way",
+        "The recommendation engine has to be tunable per unit. A medical floor and an ICU do not staff the same way",
         "Charge nurses need explicit authority to override the recommendation, or the tool will be worked around"
       ]
     }

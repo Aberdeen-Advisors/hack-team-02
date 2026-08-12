@@ -1,34 +1,34 @@
 /* ==========================================================================
-   Change Impact Assessment Tool — Aberdeen Advisors
+   Change Impact Assessment Tool: Aberdeen Advisors
    Brand design tokens. Exactly four brand colours, used everywhere outside
-   charts — Aberdeen Blue, Verdigris, White, Onyx — plus a four-colour
+   charts, Aberdeen Blue, Verdigris, White, Onyx, plus a four-colour
    chart-only secondary palette (Deep Sky Blue, Jasper, Jade, Gold) reserved
    for the heat map, tier badges and chart series. Neutral greys (--page,
    --surface-sunk, --hairline*, --ink-2/-3) are tints/shades of Onyx and White
-   for structural UI (borders, subtle surface steps) — not additional brand
+   for structural UI (borders, subtle surface steps), not additional brand
    colours. Verdigris is an accent only: background/border/icon use, never
-   text — at ~2.6:1 on white it fails WCAG AA as a foreground colour.
+   text. At ~2.6:1 on white it fails WCAG AA as a foreground colour.
    Tier order (fixed): Rebuild -> Jasper, Enable -> Gold,
    Reassure -> Deep Sky Blue, Inform -> Jade. This mapping has not been
    independently re-validated for CVD deltaE the way the previous custom
-   tier palette was — every tier is still labelled with text, never colour
+   tier palette was. Every tier is still labelled with text, never colour
    alone, which is the load-bearing accessibility guarantee here.
    ========================================================================== */
 
 :root {
-  /* Brand — exactly these four outside chart contexts */
-  --brand:      #09375F; /* Aberdeen Blue — primary background/headers, dominant */
-  --verdigris:  #44B0B1; /* accent/highlight only — never body or label text */
+  /* Brand: exactly these four outside chart contexts */
+  --brand:      #09375F; /* Aberdeen Blue: primary background/headers, dominant */
+  --verdigris:  #44B0B1; /* accent/highlight only, never body or label text */
   --white:      #FFFFFF;
   --onyx:       #404040; /* body text on light backgrounds */
 
-  /* Chart-only secondary palette — heat map + chart visualisations ONLY */
+  /* Chart-only secondary palette: heat map + chart visualisations ONLY */
   --chart-sky:  #5CC8FF; /* Deep Sky Blue */
   --chart-red:  #DB504A; /* Jasper */
   --chart-jade: #00A676; /* Jade */
   --chart-gold: #F7D002; /* Gold */
 
-  /* Surfaces + text hierarchy — neutral tints of Onyx/White */
+  /* Surfaces + text hierarchy: neutral tints of Onyx/White */
   --page:            #F6F6F6;
   --surface:         var(--white);
   --surface-sunk:    #FAFAFA;
@@ -40,20 +40,20 @@
   --brand-wash:      color-mix(in srgb, var(--brand) 8%, white);
   --brand-line:      color-mix(in srgb, var(--brand) 16%, white);
 
-  /* "Ours / review this" accent family — Verdigris background+border, Onyx
+  /* "Ours / review this" accent family: Verdigris background+border, Onyx
      text (Verdigris itself is never text). Used for provenance flags, near
      misses, placeholders and other "read the caveat" markers. */
   --flag:            var(--onyx);
   --flag-line:       color-mix(in srgb, var(--verdigris) 55%, white);
   --flag-wash:       color-mix(in srgb, var(--verdigris) 14%, white);
 
-  /* "Confirmed / live" accent family — Aberdeen Blue, for genuine model
+  /* "Confirmed / live" accent family: Aberdeen Blue, for genuine model
      output and other "this really happened" states. */
   --live:            var(--brand);
   --live-line:       var(--brand-line);
   --live-wash:       var(--brand-wash);
 
-  /* Tier palette — the brand's chart-only secondary colours, fixed order */
+  /* Tier palette: the brand's chart-only secondary colours, fixed order */
   --t-rebuild:       var(--chart-red);
   --t-enable:        var(--chart-gold);
   --t-reassure:      var(--chart-sky);
@@ -63,7 +63,7 @@
   --t-reassure-wash: color-mix(in srgb, var(--chart-sky) 14%, white);
   --t-inform-wash:   color-mix(in srgb, var(--chart-jade) 10%, white);
 
-  /* Chart series (ROI view) — same chart-only palette */
+  /* Chart series (ROI view): same chart-only palette */
   --series-targeted:   var(--chart-jade);
   --series-untargeted: var(--chart-red);
 
@@ -71,8 +71,8 @@
   --radius-s: 6px;
   --shadow:   0 1px 2px rgba(64, 64, 64, .05), 0 8px 24px -16px rgba(64, 64, 64, .18);
 
-  /* Poppins per the brand system — ExtraLight headings, Medium subheadings,
-     Regular body — with Arial as the plain fallback if the Google Fonts
+  /* Poppins per the brand system: ExtraLight headings, Medium subheadings,
+     Regular body, with Arial as the plain fallback if the Google Fonts
      request fails (offline, blocked network). */
   --sans: 'Poppins', Arial, sans-serif;
 }
@@ -90,7 +90,7 @@ body {
 }
 
 /* Poppins weight system: ExtraLight for headings, Medium for subheadings,
-   Regular (the body default) everywhere else — no other weight is used. */
+   Regular (the body default) everywhere else, no other weight is used. */
 h1, h2 { margin: 0; font-weight: 200; letter-spacing: -.011em; }
 h3, h4 { margin: 0; font-weight: 500; letter-spacing: -.011em; }
 p { margin: 0 0 .7em; }
@@ -239,6 +239,7 @@ a { color: var(--brand); }
 .view-head .lede { color: var(--ink-2); font-size: 14.5px; max-width: 78ch; margin-top: 4px; }
 
 .footnote { color: var(--ink-3); font-size: 12px; margin-top: 10px; }
+.formula { color: var(--ink); font-size: 13px; font-variant-numeric: tabular-nums; margin: 0 0 4px; }
 
 /* ------------------------------------------------------------------- cards */
 
@@ -255,6 +256,9 @@ a { color: var(--brand); }
 .card-head h3 { font-size: 14px; letter-spacing: .005em; }
 .card-head .hint { font-size: 12.5px; color: var(--ink-3); margin-left: auto; }
 .card-body { padding: 18px; }
+
+.score-detail.collapsed { display: none; }
+@media print { .score-detail.collapsed { display: block; } }
 
 .grid { display: grid; gap: 16px; }
 .cols-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
@@ -273,6 +277,7 @@ a { color: var(--brand); }
 
 .tier-tile { border-top: 3px solid var(--tier-color, var(--ink-3)); }
 .tier-tile .tier-name { display: flex; align-items: center; gap: 7px; font-weight: 500; font-size: 14px; }
+.tier-tile .tier-desc { margin-top: 4px; font-size: 12px; color: var(--ink-2); line-height: 1.4; }
 .tier-tile .rows { margin-top: 10px; display: grid; gap: 3px; }
 .tier-tile .row { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-2); }
 .tier-tile .row b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -312,8 +317,6 @@ textarea { min-height: 84px; resize: vertical; width: 100%; }
 select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-visible {
   outline: 2px solid var(--brand); outline-offset: 1px;
 }
-.filters .spacer { margin-left: auto; }
-
 .btn {
   appearance: none; cursor: pointer; border-radius: var(--radius-s);
   border: 1px solid var(--hairline-strong); background: var(--surface);
@@ -351,7 +354,7 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
   position: absolute; pointer-events: none; z-index: 20;
   background: var(--brand); color: #fff; border-radius: 7px;
   padding: 8px 11px; font-size: 12.5px; line-height: 1.45;
-  box-shadow: 0 6px 20px -6px rgba(0,0,0,.5); max-width: 260px;
+  box-shadow: 0 6px 20px -6px rgba(0,0,0,.5); max-width: 300px;
 }
 .tip b { font-weight: 500; }
 .tip .r { color: rgba(255,255,255,.72); }
@@ -414,7 +417,10 @@ table.data td .newflag {
 .sf .v { font-variant-numeric: tabular-nums; text-align: right; font-weight: 500; }
 .sf .bar { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: var(--surface-sunk); border: 1px solid var(--hairline); overflow: hidden; margin-top: -3px; }
 .sf .bar i { display: block; height: 100%; background: color-mix(in srgb, var(--brand) 45%, white); }
-/* The anchor line under each sub-factor bar — what that score actually means. */
+
+.bar { height: 6px; border-radius: 3px; background: var(--surface-sunk); border: 1px solid var(--hairline); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--brand); }
+/* The anchor line under each sub-factor bar: what that score actually means. */
 .sf .sf-an {
   grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 7px;
   align-items: baseline; font-size: 11.5px; line-height: 1.45; margin-top: 3px;
@@ -553,7 +559,7 @@ table.data td .incflag {
 .form-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .form-grid .full { grid-column: 1 / -1; }
 /* Non-blocking guidance on the add-a-role form: the site count has outgrown the
-   chosen site scope. Deliberately NOT styled as an error — no red, no icon, no
+   chosen site scope. Deliberately NOT styled as an error: no red, no icon, no
    heavy border. It informs and gets out of the way. */
 .scope-hint {
   margin: 0; padding: 10px 12px;
@@ -654,77 +660,6 @@ table.data td .incflag {
 .empty h3 { font-size: 17px; margin-bottom: 6px; }
 
 /* ----------------------------------------------------------------- utility */
-/* --------------------------------------------------------------------------
-   "Reproduced, not hardcoded". Sized for a projector: the two numbers a judge
-   compares sit in adjacent columns at the same size, and a near miss is marked
-   by colour AND by the word "near miss", never by colour alone.
-   -------------------------------------------------------------------------- */
-
-.repro-strip {
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  background: var(--brand-wash); border: 1px solid var(--brand-line); border-left: 3px solid var(--brand);
-  border-radius: var(--radius-s); padding: 13px 16px; margin-bottom: 16px;
-}
-.repro-strip .rs-n {
-  flex: none; font-size: 25px; font-weight: 500; color: var(--brand);
-  font-variant-numeric: tabular-nums; letter-spacing: -.02em;
-}
-.repro-strip .rs-t { flex: 1 1 420px; font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
-.repro-strip .rs-t b { color: var(--ink); }
-.repro-strip .btn { flex: none; }
-
-.repro-summary {
-  display: grid; gap: 12px; margin-bottom: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-}
-.rs-tile {
-  background: var(--surface); border: 1px solid var(--hairline); border-top: 3px solid var(--hairline-strong);
-  border-radius: var(--radius-s); padding: 13px 15px; box-shadow: var(--shadow);
-}
-.rs-tile.ok   { border-top-color: var(--brand); }
-.rs-tile.miss { border-top-color: var(--verdigris); }
-.rs-tile .n { font-size: 30px; font-weight: 500; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.rs-tile.ok .n   { color: var(--brand); }
-.rs-tile.miss .n { color: var(--flag); }
-.rs-tile .l { font-size: 12.5px; color: var(--ink-2); line-height: 1.4; margin-top: 2px; }
-
-.repro-card { margin-bottom: 16px; }
-.repro-table { display: grid; gap: 0; }
-.rt-head, .rt-row {
-  display: grid; gap: 10px 14px;
-  grid-template-columns: minmax(180px, 2.1fr) minmax(90px, 1fr) minmax(90px, 1fr) 84px;
-}
-.rt-head {
-  font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
-  font-weight: 500; padding-bottom: 7px; border-bottom: 1px solid var(--hairline-strong);
-}
-.rt-row { padding: 11px 0; border-bottom: 1px solid var(--hairline); align-items: baseline; }
-.rt-row:last-child { border-bottom: 0; }
-.rt-row .f { font-size: 13.5px; font-weight: 500; }
-.rt-row .d, .rt-row .e { font-size: 14.5px; font-variant-numeric: tabular-nums; }
-.rt-row .d { color: var(--ink-3); }
-.rt-row .e { color: var(--ink); font-weight: 500; }
-.rt-row .v {
-  font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; font-weight: 500;
-  color: var(--brand); text-align: right;
-}
-.rt-row .r { grid-column: 1 / -1; font-size: 12px; color: var(--ink-3); line-height: 1.5; margin-top: -3px; }
-.rt-row .r b { color: var(--flag); font-weight: 500; }
-.rt-row.miss { background: var(--flag-wash); box-shadow: inset 3px 0 0 var(--verdigris); padding-left: 11px; }
-.rt-row.miss .v { color: var(--flag); }
-.rt-row.miss .e { color: var(--flag); }
-
-.caveats { margin: 0; padding-left: 18px; display: grid; gap: 10px; }
-.caveats li { font-size: 13.5px; color: var(--ink-2); line-height: 1.55; }
-.caveats li b { color: var(--ink); }
-
-@media (max-width: 900px) {
-  .rt-head { display: none; }
-  .rt-row { grid-template-columns: 1fr auto; }
-  .rt-row .f { grid-column: 1 / -1; }
-  .rt-row .d::before { content: "deck: "; color: var(--ink-3); font-size: 11.5px; }
-  .rt-row .e::before { content: "engine: "; color: var(--ink-3); font-size: 11.5px; font-weight: 400; }
-}
 
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .only-print { display: none; }
@@ -743,7 +678,7 @@ table.data td .incflag {
   .only-print { display: block; }
   .card { border: 1px solid var(--hairline-strong); box-shadow: none; break-inside: avoid; }
   .gen-grid, .cols-2 { display: block; }
-  /* keep the metric tiles four-across on paper — they are small */
+  /* keep the metric tiles four-across on paper, they are small */
   .cols-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6pt; }
   .tile .value { font-size: 18pt; }
   .ba { display: grid; grid-template-columns: 1fr 1fr; }

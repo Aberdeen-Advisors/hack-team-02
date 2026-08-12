@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Change Impact Assessment Tool — Aberdeen Advisors</title>
-<meta name="description" content="Scores every Role x Value Stream x Site, assigns an intervention tier, and generates the training, comms and adoption package per role. Synthetic data.">
+<title>Change Impact Assessment Tool: Aberdeen Advisors</title>
+<meta name="description" content="Scores every Role x Site, assigns an intervention tier, and generates the training, comms and adoption package per role. Synthetic data.">
 
 <!-- Favicon: the blue icon reads on the light tab chrome most browsers use;
      the white icon takes over automatically for a dark browser theme. -->
@@ -14,7 +14,7 @@
 
 <!-- Poppins, per the Aberdeen brand system (ExtraLight headings, Medium
      subheadings, Regular body). Arial is the plain CSS fallback in
-     styles.css if this request fails — no local vendoring, same as the
+     styles.css if this request fails, no local vendoring, same as the
      other CDN-first, fallback-covered assets on this page. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -45,22 +45,22 @@
 const { useState, useMemo, useEffect, useRef, useCallback } = React;
 
 /* ===========================================================================
-   1. SCORING ENGINE  — deterministic JavaScript. Never an LLM call.
+   1. SCORING ENGINE: deterministic JavaScript. Never an LLM call.
    Runs instantly and identically every time.
 
-   UNIT OF ANALYSIS — one row is one role in one value stream at one site scope:
-   role × process × site. A site scope is either a single archetype (HQ, Plant,
-   DC, Field/Commercial) or a named combination of them (Plant + DC), because
-   some roles genuinely work across more than one. That scope is the level a
-   curriculum, a comms message and a named accountable manager can actually be
-   attached to, which is why we score and tier there. Our choice, made explicit
-   because the source deck is ambiguous (slides 5 and 13 say role × process ×
-   site; slides 9 and 10 tier at role level). We tier at the row level.
+   UNIT OF ANALYSIS: one row is one role at one site scope: role × site. A site
+   scope is either a single archetype (HQ, Plant, DC, Field/Commercial) or a
+   named combination of them (Plant + DC), because some roles genuinely work
+   across more than one. That scope is the level a curriculum, a comms message
+   and a named accountable manager can actually be attached to, which is why we
+   score and tier there. Our choice, made explicit because the source deck is
+   ambiguous (slides 5 and 13 say role × process × site; slides 9 and 10 tier
+   at role level). We tier at the row level.
 
-   WEIGHTS — ours. The source deck states no weights and no aggregation method.
+   WEIGHTS: ours. The source deck states no weights and no aggregation method.
    The six numbers below are our default and are tunable on the Portfolio tab.
 
-   THRESHOLD — 3.5 on both axes, inclusive: exactly 3.5 counts as above.
+   THRESHOLD: 3.5 on both axes, inclusive: exactly 3.5 counts as above.
    =========================================================================== */
 
 const THRESHOLD = 3.5;
@@ -68,23 +68,23 @@ const THRESHOLD = 3.5;
 /* Short, honest provenance strings. Used verbatim on screen so the claims the
    tool makes on stage are the claims it can defend. */
 const NOTE = {
-  unit: 'Unit of analysis: one row = one role in one value stream at one site scope — role × process × site. A site scope is either a single archetype or a named combination of them, like Plant + DC, because some roles genuinely work across both. '
+  unit: 'Unit of analysis: one row = one role at one site scope: role × site. A site scope is either a single archetype or a named combination of them, like Plant + DC, because some roles genuinely work across both. '
       + 'That scope is the level a curriculum, a comms message and a named accountable manager can actually be attached to, which is why we score and tier there. '
       + 'Our choice, stated because the source deck is ambiguous: slides 5 and 13 say role × process × site, slides 9 and 10 tier at role level. We tier at row level.',
-  weights: 'The six sub-factor weights are ours — our default, and tunable. The source deck states no weights and no aggregation method, so nothing here is inherited from it.',
-  threshold: 'Threshold 3.5 on both axes, inclusive — a score of exactly 3.5 counts as above the line. '
+  weights: 'The six sub-factor weights are ours: our default, and tunable. The source deck states no weights and no aggregation method, so nothing here is inherited from it.',
+  threshold: 'Threshold 3.5 on both axes, inclusive: a score of exactly 3.5 counts as above the line. '
       + '3.5 is the “good” floor used in the sponsor competency assessment we work from (70 of 100), not the midpoint of the 1–5 scale.',
   mapping: 'Provenance: the tier → tactic mapping is OURS. Aberdeen’s OCM delivery material supplies the training method table, job-aid ranges, '
-      + 'communications milestones, four-layer support escalation and cadences — it contains no tier-to-tactic mapping, so the mapping is our extension of it, not something inherited.',
+      + 'communications milestones, four-layer support escalation and cadences. It contains no tier-to-tactic mapping, so the mapping is our extension of it, not something inherited.',
   ratio: 'The 1:15 super-user ratio comes from Team 2’s own deck (slide 13). Aberdeen’s material states no ratio.',
   hypercare: 'Hypercare is the floor deliverable, not a top-tier extra. Aberdeen’s lowest-ambition delivery tier is defined as training, '
-      + 'go-live communications and hypercare — so every tier here carries hypercare and only the duration scales. The 8 weeks at the top of the '
+      + 'go-live communications and hypercare, so every tier here carries hypercare and only the duration scales. The 8 weeks at the top of the '
       + 'range is our own deck’s number (slide 13); how it steps down across the other three tiers is ours.',
   dataset: 'The deck names 7 of the 38 roles and gives no 1–5 anchors per sub-factor. The other 31 roles and every sub-factor value are our synthetic illustration.',
-  incomplete: 'A role scores only when all six sub-factors are set. Anything less shows as incomplete — never as a score or a tier.',
+  incomplete: 'A role scores only when all six sub-factors are set. Anything less shows as incomplete, never as a score or a tier.',
   anchors: 'Every sub-factor carries a 1–5 anchor, so a score reads as a description rather than a number. The source deck states the '
       + '1–5 scale and never defines a single point on it, so these ladders are ours to own: where Aberdeen’s or the client plan’s band text '
-      + 'exists we use it and say so, and where it does not the wording is ours. They are not equally well grounded, and each one says which it is — '
+      + 'exists we use it and say so, and where it does not the wording is ours. They are not equally well grounded, and each one says which it is: '
       + 'capability delta is Aberdeen’s own wording at 1, 3 and 5; frequency and volume is ours end to end, because no source in the evidence base measures it.',
 };
 
@@ -101,7 +101,7 @@ const RISK_FACTORS = [
 ];
 
 /* ---------------------------------------------------------------------------
-   1-5 ANCHORS PER SUB-FACTOR — what a score actually means.
+   1-5 ANCHORS PER SUB-FACTOR: what a score actually means.
 
    The source deck states the 1-5 scale twice and never defines a single point
    on it, for any sub-factor or either axis (docs/source-synthesis.md §2). These
@@ -128,10 +128,10 @@ const ANCHORS = {
         + 'Organization & Roles band text, quotable to Aberdeen rather than to us; the observable content at 2 and 4 is ours, '
         + 'over a “small / medium / large” gap gauge.',
     bands: [
-      'Minor changes to skills or knowledge required — no specific training need; capabilities already present in the role',
-      'Existing skills transfer; navigation-level familiarisation only — a “small” gap',
+      'Minor changes to skills or knowledge required: no specific training need; capabilities already present in the role',
+      'Existing skills transfer; navigation-level familiarisation only, a “small” gap',
       'Some development of skills and knowledge in specialist areas; some new capabilities required for the role',
-      'Substantial new skills in a core part of the role, built on a recognisable base — a “large” gap',
+      'Substantial new skills in a core part of the role, built on a recognisable base, a “large” gap',
       'Employees do not possess the skills and knowledge required to perform their daily role; a significant number of new capabilities',
     ],
   },
@@ -139,7 +139,7 @@ const ANCHORS = {
     origin: 'Openlink’s four named bands · safety limb ours',
     note: 'Bands follow the Openlink client plan, the only source that bands consequence on named levels with written '
         + 'descriptors (operational impact, data integrity, legal and compliance). Two authored moves: it has four bands and we need five, '
-        + 'so 3 is our interpolation — and no source in the set scores safety consequence at all, so the safety limb at 5 is ours. '
+        + 'so 3 is our interpolation, and no source in the set scores safety consequence at all, so the safety limb at 5 is ours. '
         + 'Say so before a plant manager asks.',
     bands: [
       'An error is self-correcting within the shift and never leaves the team',
@@ -152,39 +152,39 @@ const ANCHORS = {
   taskShare: {
     origin: 'Aberdeen band wording · percentage cut-offs ours',
     note: 'The observable wording is Aberdeen’s own process-change band text, on a generic low-to-high magnitude ladder of the kind '
-        + 'published assessments use — none of their item wording is reproduced here. The percentage bands are '
-        + 'entirely ours — no source expresses task share as a percentage. They are here because a deterministic scorer needs a '
+        + 'published assessments use. None of their item wording is reproduced here. The percentage bands are '
+        + 'entirely ours. No source expresses task share as a percentage. They are here because a deterministic scorer needs a '
         + 'countable rule, and the to-be process designs make the numerator and denominator available.',
     bands: [
-      'Under 10% of the role’s daily tasks change — limited process change, minimal hand-off change',
+      'Under 10% of the role’s daily tasks change: limited process change, minimal hand-off change',
       'Roughly 10–25% of daily tasks change; the shape of the day is still recognisable',
-      'Roughly 25–50% change — noticeable process change, noticeable change to the number of steps',
+      'Roughly 25–50% change: noticeable process change, noticeable change to the number of steps',
       'Roughly 50–75% change; large-scale process change, and hand-offs in and out of the role move',
       'Over 75% of daily tasks change, or the role is net-new',
     ],
   },
   decisionRights: {
     origin: 'Our ladder · Aberdeen driver vocabulary at 1 · 2 · 4',
-    note: 'The ladder is ours. No instrument in the evidence base scores decision rights as its own dimension — not one of '
-        + 'Prosci’s 28 risk items and none of its 10 impact aspects — which is precisely why it is in our model. The vocabulary at '
+    note: 'The ladder is ours. No instrument in the evidence base scores decision rights as its own dimension, not one of '
+        + 'Prosci’s 28 risk items and none of its 10 impact aspects, which is precisely why it is in our model. The vocabulary at '
         + '1, 2 and 4 is Aberdeen’s driver wording; the anchor at 5 is our own deck’s sentence.',
     bands: [
       'No change to what the role may approve, release or override',
-      'The same approvals, but new evidence or an audit trail is required — a reason code, a second signature',
+      'The same approvals, but new evidence or an audit trail is required: a reason code, a second signature',
       'Approval limits or thresholds change, or an approval moves one level up or down. The role still decides',
       'A decision the role used to make is now system-determined and the role validates it, or it moves to another role',
-      'Discretionary authority removed, replaced by rules-based exception handling — “I used to approve this, and now the system does”',
+      'Discretionary authority removed, replaced by rules-based exception handling: “I used to approve this, and now the system does”',
     ],
   },
   localReadiness: {
     origin: 'Construct from our own deck · all five bands our wording',
     note: 'Four limbs, one score: site-leadership capacity, change fatigue and the history of change at the site, digital maturity, '
         + 'and deskless access. The four limbs are our own source deck’s definition of local readiness (slide 7); every word of the five '
-        + 'band descriptions below is ours, written against the construct rather than lifted from an instrument — licensed assessment '
+        + 'band descriptions below is ours, written against the construct rather than lifted from an instrument. Licensed assessment '
         + 'wording is not reproduced anywhere in this tool (docs/source-synthesis.md §8.8). Worth knowing how unevenly the limbs are '
         + 'evidenced: leadership capacity and change fatigue are measured by published instruments, digital maturity is scored by no '
         + 'source at all, and deskless access rests on a single Aberdeen sentence about site staff with no computer access. Our '
-        + 'recommendation, not a source position: score each limb and take the highest, not the mean — a site where nobody has a screen '
+        + 'recommendation, not a source position: score each limb and take the highest, not the mean. A site where nobody has a screen '
         + 'is not a moderate-risk site.',
     bands: [
       'Nothing else is competing for the site’s attention and the roster has slack; the site lead has taken earlier rollouts through to landing; everyone has an individual screen and already self-serves in systems',
@@ -195,18 +195,18 @@ const ANCHORS = {
     ],
   },
   frequencyVolume: {
-    origin: 'OURS end to end — no source measures this',
+    origin: 'OURS end to end: no source measures this',
     note: 'This ladder is ours, every word of it. This is the least grounded of the six sub-factors: no source in the evidence base '
         + 'scores task frequency or volume. The nearest items measure the frequency of communications and the size of the '
         + 'population, which are different things and are not offered as equivalents. Team 2 added this sub-factor. The honest defence '
-        + 'is that it is directly countable from the system transaction lists our own deck already names as an input — and it is the '
+        + 'is that it is directly countable from the system transaction lists our own deck already names as an input, and it is the '
         + 'sub-factor most likely to be challenged.',
     bands: [
       'The changed task runs less than monthly for a given post-holder',
       'Monthly',
       'Weekly',
-      'Daily, at low volume — a handful of transactions per shift',
-      'Continuous — the changed task is the role’s core throughput, many transactions per shift',
+      'Daily, at low volume: a handful of transactions per shift',
+      'Continuous: the changed task is the role’s core throughput, many transactions per shift',
     ],
   },
 };
@@ -247,6 +247,15 @@ function axisScore(factors, values) {
 function impactSeverity(f) { return axisScore(IMPACT_FACTORS, f); }
 function adoptionRisk(f)   { return axisScore(RISK_FACTORS, f); }
 
+/* The live weighted-sum breakdown for one role's axis score, as hover detail
+   wherever a bare impact/risk number is shown without room for the full
+   AxisBreakdown component (e.g. a table cell or a map tooltip). */
+function axisFormula(factors, values, score) {
+  const v = values || {};
+  const terms = factors.map((f) => `${effWeight(factors, f).toFixed(2)}×${isScore(v[f.key]) ? v[f.key].toFixed(1) : '0.0'}`).join(' + ');
+  return `${terms} = ${score.toFixed(1)}`;
+}
+
 /* Live weight tuning: the factor objects are the single source of truth, so
    every read of f.weight on screen and in the copied text agrees with the
    arithmetic that produced the score. */
@@ -284,7 +293,7 @@ function scoreRole(role) {
    Tier package wording is verbatim from deck slide 8.
    Rebuild doses are the deck's own resourced-plan numbers (slides 11-13).
    Enable / Reassure / Inform doses are sensible, clearly smaller inventions.
-   >>> EVERY DOSE THE TOOL PRESCRIBES IS IN THIS ONE OBJECT — tune it here. <<<
+   >>> EVERY DOSE THE TOOL PRESCRIBES IS IN THIS ONE OBJECT. TUNE IT HERE. <<<
 
    PROVENANCE, and it matters: the delivery content below (training method
    table and durations, job-aid ranges, the five communications milestones and
@@ -359,7 +368,7 @@ const DOSES = {
 };
 
 /* ---------------------------------------------------------------------------
-   ABERDEEN OCM DELIVERY MATERIAL — the raw inputs the packages are built from.
+   ABERDEEN OCM DELIVERY MATERIAL: the raw inputs the packages are built from.
    Methods, durations, ranges, milestones, escalation layers, cadences and
    metrics are Aberdeen's. Which tier gets which of them is ours.
    --------------------------------------------------------------------------- */
@@ -392,12 +401,12 @@ const COMMS_MILESTONES = [
 ];
 const OBJECTIVE_LADDER = ['awareness', 'understanding', 'acceptance', 'commitment'];
 
-/* Support after go-live — four-layer escalation, in order. */
+/* Support after go-live: four-layer escalation, in order. */
 const SUPPORT_LAYERS = [
   'Job aids at the point of work',
   'Project team',
   'Trainers and implementation leads',
-  'Leadership — final escalation',
+  'Leadership: final escalation',
 ];
 
 /* What adoption is measured on, over the six-month window after go-live. */
@@ -421,7 +430,7 @@ const CADENCE = {
 /* Ours: above this headcount a centralised classroom cannot reach the population. */
 const LARGE_AUDIENCE = 200;
 
-/* Complexity band read off impact severity — ours. */
+/* Complexity band read off impact severity, ours. */
 function complexityBand(impact) {
   if (impact >= 4.0) return 'high';
   if (impact >= 3.0) return 'medium';
@@ -443,9 +452,9 @@ function trainingDesign(role) {
   const large = role.headcount >= LARGE_AUDIENCE;
   let key, why;
   if (role.tier === 'Inform') {
-    key = 'nano'; why = 'Inform tier — reinforcement only, no course';
+    key = 'nano'; why = 'Inform tier: reinforcement only, no course';
   } else if (deskless) {
-    key = 'nano'; why = 'deskless population — delivered on shift at the line, so no classroom and no e-learning';
+    key = 'nano'; why = 'deskless population: delivered on shift at the line, so no classroom and no e-learning';
   } else if (complexity === 'high') {
     key = 'instructorLed'; why = `high complexity (impact severity ${impact.toFixed(1)})`;
   } else if (complexity === 'medium') {
@@ -463,13 +472,68 @@ function trainingDesign(role) {
   };
 }
 
+/* The channel each of the five milestones actually reaches a role on, split by
+   whether the population is deskless. Shared by the per-role plan below and by
+   the tier-level communication timeline, so both use the same split. */
+const COMMS_CHANNELS_DESKLESS = ['Shift huddle brief', 'Huddle board + QR code', 'Line-side poster, local language', 'Shift-start stand-up', 'Super-user on the floor'];
+const COMMS_CHANNELS_DESK     = ['Town hall + manager cascade', 'Email + intranet', 'Email + training portal', 'Manager cascade + email', 'Manager cascade + drop-in clinic'];
+
 /* The five milestones, with the channel this role actually reaches on. */
 function commsPlan(role) {
-  const deskless = role.deskless === true;
-  const chan = deskless
-    ? ['Shift huddle brief', 'Huddle board + QR code', 'Line-side poster, local language', 'Shift-start stand-up', 'Super-user on the floor']
-    : ['Town hall + manager cascade', 'Email + intranet', 'Email + training portal', 'Manager cascade + email', 'Manager cascade + drop-in clinic'];
+  const chan = role.deskless === true ? COMMS_CHANNELS_DESKLESS : COMMS_CHANNELS_DESK;
   return COMMS_MILESTONES.map((m, i) => ({ ...m, channel: chan[i] }));
+}
+
+/* One tier's communication timeline, anchored to go-live and working backward.
+   Lead time before go-live mirrors that tier's own hypercare tail after it
+   (DOSES[tier].hypercareWeeks), so higher-touch tiers get a longer runway.
+   Inform collapses to its broadcast count instead of the five milestones,
+   clustered in the week(s) before go-live: there is no curriculum to build
+   toward for a tier where nothing meaningfully changes. Ours: the Aberdeen
+   material is the five milestones, their objectives and the broadcast count;
+   the schedule, lead time and tier grouping are ours. */
+function tierCommsTimeline(tier, deskCount, desklessCount) {
+  const d = DOSES[tier];
+  const leadWeeks = d.hypercareWeeks || 1;
+  const channelAt = (i) => {
+    const bits = [];
+    if (deskCount > 0) bits.push(`${COMMS_CHANNELS_DESK[i]} (${deskCount} desk-based role${deskCount === 1 ? '' : 's'})`);
+    if (desklessCount > 0) bits.push(`${COMMS_CHANNELS_DESKLESS[i]} (${desklessCount} deskless role${desklessCount === 1 ? '' : 's'})`);
+    return bits.join('  +  ');
+  };
+
+  if (tier === 'Inform') {
+    const n = Math.max(1, d.broadcasts || 1);
+    return Array.from({ length: n }, (_, k) => ({
+      label: `Broadcast ${k + 1} of ${n}`,
+      weeksFromGoLive: n > 1 ? -leadWeeks + (leadWeeks * k) / (n - 1) : 0,
+      channel: channelAt(1),
+    }));
+  }
+
+  return [
+    { label: 'Kick-Off',             weeksFromGoLive: -leadWeeks },
+    { label: 'Cutover News',         weeksFromGoLive: -leadWeeks * 2 / 3 },
+    { label: 'Training Awareness',   weeksFromGoLive: -leadWeeks / 3 },
+    { label: 'Go-Live',              weeksFromGoLive: 0 },
+    { label: 'Post Go-Live Support', weeksFromGoLive: leadWeeks },
+  ].map((s, i) => ({ ...s, channel: channelAt(i) }));
+}
+
+function dateFromGoLive(goLiveDate, weeks) {
+  if (!goLiveDate) return null;
+  const d = new Date(goLiveDate + 'T00:00:00');
+  if (isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() + Math.round(weeks * 7));
+  return d;
+}
+function fmtShortDate(d) {
+  return d ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+}
+function fmtWeeksFromGoLive(weeks) {
+  const r = Math.round(weeks * 10) / 10;
+  if (r === 0) return 'Go-live';
+  return r > 0 ? `Go-live +${r}w` : `Go-live ${r}w`;
 }
 
 /* Programme-level planning + costing assumptions. All visible on screen.
@@ -487,7 +551,7 @@ const ASSUMPTIONS = {
 
 const TIER_ORDER = ['Rebuild', 'Enable', 'Reassure', 'Inform'];
 
-/* Literal hex, not var(--t-*) — these feed SVG fill attributes, and must
+/* Literal hex, not var(--t-*), these feed SVG fill attributes, and must
    mirror the --t-* custom properties in styles.css exactly. Aberdeen brand's
    chart-only secondary palette, fixed order: Rebuild -> Jasper, Enable ->
    Gold, Reassure -> Deep Sky Blue, Inform -> Jade. */
@@ -549,7 +613,7 @@ function modifiersFor(role) {
       trigger: 'deskless = true',
       title: 'Deskless delivery override',
       items: [
-        'On-shift micro-training at the line — not a classroom, not e-learning',
+        'On-shift micro-training at the line, not a classroom, not e-learning',
         'Laminated job aids in local language, held at the point of work',
         'Email channel dropped from this role’s comms plan entirely',
         'QR code on the shift huddle board carries every message instead',
@@ -574,13 +638,12 @@ function modifiersFor(role) {
    Every number below is computed from the scored population.
    =========================================================================== */
 
-const VALUE_STREAMS = ['Order-to-Cash', 'Procure-to-Pay', 'Plan-to-Produce', 'Record-to-Report', 'Hire-to-Retire', 'Cross-cutting'];
 /* The four base archetypes. The estate behind them is one HQ, six plants and two
    DCs, so those three have a hard ceiling on how many sites a row can claim;
    the field estate has no fixed site list and so has no ceiling. */
 const SITE_ARCHETYPE_BASE = ['HQ', 'Plant', 'DC', 'Field/Commercial'];
 
-/* Some roles genuinely work at more than one archetype — a Warehouse Team Lead
+/* Some roles genuinely work at more than one archetype, a Warehouse Team Lead
    runs shifts in the six plant warehouses AND in both DCs, which is 8 sites, not
    8 DCs. Those rows carry a combined value rather than being forced into one
    archetype they overflow. The deck does this too: slide 10's Sites column
@@ -589,7 +652,7 @@ const SITE_ARCHETYPE_COMBOS = ['HQ + Plant', 'HQ + DC', 'Plant + DC'];
 const SITE_ARCHETYPES = [...SITE_ARCHETYPE_BASE, ...SITE_ARCHETYPE_COMBOS];
 
 /* 'Plant + DC' -> ['Plant', 'DC']. 'Field/Commercial' has no '+', so it is
-   returned whole — the slash is part of the name, not a separator. */
+   returned whole, the slash is part of the name, not a separator. */
 function archetypeParts(value) {
   return String(value || '').split('+').map((s) => s.trim()).filter(Boolean);
 }
@@ -606,7 +669,7 @@ function archetypeMatches(value, filter) {
 /* How many real sites each base archetype can hold: the estate is one HQ, six
    plants and two DCs. Field/Commercial has no fixed site list, so it has no
    ceiling. A combination holds the sum of its parts, which is why 'Plant + DC'
-   holds 8 — exactly the Warehouse Team Lead's estate. */
+   holds 8, exactly the Warehouse Team Lead's estate. */
 const SITE_CAPACITY = { HQ: 1, Plant: 6, DC: 2, 'Field/Commercial': Infinity };
 
 function archetypeCapacity(value) {
@@ -615,7 +678,7 @@ function archetypeCapacity(value) {
   return parts.reduce((sum, p) => sum + (p in SITE_CAPACITY ? SITE_CAPACITY[p] : Infinity), 0);
 }
 
-/* GUIDANCE ONLY — never a validation, never an input to a score. Used by the
+/* GUIDANCE ONLY: never a validation, never an input to a score. Used by the
    add-a-role form to notice that a site count has outgrown the chosen scope and
    to name the combined scope that would hold it, so the row does not end up
    claiming eight DCs. Returns null when the count fits.
@@ -655,14 +718,14 @@ function aggregate(scored) {
   return { byTier, totalPeople: people, totalRoles: scored.length };
 }
 
-/* Chart.js paints to a canvas, which cannot read CSS custom properties —
+/* Chart.js paints to a canvas, which cannot read CSS custom properties,
    these must stay literal. They mirror --series-* in styles.css. */
-/* Literal hex, mirrors --series-* in styles.css — a canvas context cannot
+/* Literal hex, mirrors --series-* in styles.css, a canvas context cannot
    resolve CSS custom properties. Aberdeen brand's chart-only palette:
    untargeted (worse) -> Jasper, targeted (better) -> Jade. */
 const SERIES = { untargeted: '#DB504A', targeted: '#00A676', band: 'rgba(0,166,118,.13)' };
 
-/* Slide 14 — illustrative productivity curves, values from the deck workbook. */
+/* Slide 14: illustrative productivity curves, values from the deck workbook. */
 const ROI_WEEKS      = [0, 2, 4, 6, 8, 10, 12, 14, 16];
 const ROI_UNTARGETED = [100, 86, 79, 78, 81, 86, 90, 94, 98];
 const ROI_TARGETED   = [100, 91, 89, 94, 99, 99, 99, 99, 99];
@@ -703,14 +766,87 @@ function roiModel(scored) {
   };
 }
 
+/* Whole days between an ISO date string and today; null if no date is set. */
+function daysSince(isoDate) {
+  if (!isoDate) return null;
+  const then = new Date(isoDate + 'T00:00:00');
+  if (isNaN(then.getTime())) return null;
+  return Math.round((new Date() - then) / 86400000);
+}
+
+/* Re-score status for one tier, derived purely from days-since-go-live and
+   that tier's own re-score cadence (DOSES[tier].rescoreDays), nothing else.
+   Green: well inside the current cycle. Yellow: approaching the next
+   re-score. Red: past the point where this tier is due again. Ours. */
+function rescoreStatus(tier, daysLive) {
+  const cadence = DOSES[tier].rescoreDays;
+  if (daysLive === null) return { status: 'pending', cadence };
+  if (daysLive < 0) return { status: 'upcoming', cadence, daysToGoLive: -daysLive };
+  const cyclesCompleted = Math.floor(daysLive / cadence);
+  const daysIntoCycle = daysLive - cyclesCompleted * cadence;
+  const frac = daysIntoCycle / cadence;
+  const status = frac < 0.6 ? 'green' : frac < 0.85 ? 'yellow' : 'red';
+  return { status, cadence, daysIntoCycle, daysToNext: Math.round(cadence - daysIntoCycle), cyclesCompleted };
+}
+const RESCORE_STATUS_COLOR = { green: '#00A676', yellow: '#F7D002', red: '#DB504A', upcoming: 'var(--ink-3)', pending: 'var(--ink-3)' };
+
+/* Simulated (not measured) training-completion percentage for one tier, a
+   starting point for the demo, not a claim: it ramps with days live relative
+   to that tier's own re-score cadence, and is editable on screen. Ours. */
+function simulatedTrainingCompletion(tier, daysLive) {
+  const cadence = DOSES[tier].rescoreDays;
+  if (daysLive === null || daysLive < 0) return 0;
+  return Math.max(0, Math.min(100, Math.round(15 + (daysLive / cadence) * 40)));
+}
+
+/* Simulated readings for Aberdeen's ADOPTION_METRICS list, for the demo. Each
+   moves with headcount and days live over the CADENCE.adoptionWindowMonths
+   window, rather than being fixed numbers standing in for real telemetry.
+   Ours; the metric labels and the six-month window are Aberdeen's. */
+function simulatedAdoptionMetrics(agg, daysLive) {
+  const windowDays = CADENCE.adoptionWindowMonths * 30;
+  const liveFrac = daysLive === null || daysLive < 0 ? 0 : Math.min(1, daysLive / windowDays);
+  const total = agg.totalPeople || 0;
+  const rebuildEnable = (agg.byTier.Rebuild.people + agg.byTier.Enable.people) || 0;
+  const signOnRate = Math.round(Math.min(97, 25 + liveFrac * 70));
+  const processesCompleted = Math.round(total * 3.2 * liveFrac);
+  const jobAidAccessRate = Math.round(Math.min(95, 30 + liveFrac * 60));
+  const commsClickRate = Math.round(Math.min(80, 35 + liveFrac * 35));
+  const hrCaseVolume = Math.round((rebuildEnable / 100) * 6 * Math.max(0.15, 1 - liveFrac));
+  const qualitative = daysLive === null || daysLive < 0
+    ? 'Not yet live: no feedback collected.'
+    : liveFrac < 0.34
+      ? 'Early and mixed: exception-handling volume is the most common complaint.'
+      : liveFrac < 0.7
+        ? 'Improving: initial friction easing, job aids cited as the most-used support.'
+        : 'Mostly positive: the new system is now the default way of working for most of the affected population.';
+  return { liveFrac, signOnRate, processesCompleted, jobAidAccessRate, commsClickRate, hrCaseVolume, qualitative };
+}
+
+/* Cumulative dollars of avoided productivity loss realized as of each ROI_WEEKS
+   checkpoint, integrating the same untargeted/targeted gap curves used for the
+   headline total, just truncated at each week instead of run to week 16. Ours. */
+function roiTrend(scored) {
+  const roi = roiModel(scored);
+  const points = ROI_WEEKS.map((wk, i) => {
+    const areaU = lossArea(ROI_UNTARGETED.slice(0, i + 1));
+    const areaT = lossArea(ROI_TARGETED.slice(0, i + 1));
+    const avoidedWeeksPerHead = (areaU - areaT) / 100;
+    return { week: wk, dollars: roi.affectedHeads * avoidedWeeksPerHead * roi.weeklyCost };
+  });
+  return { ...roi, points };
+}
+
 function resourcedPlan(scored) {
   const rebuild = scored.filter((r) => r.tier === 'Rebuild');
   const enable = scored.filter((r) => r.tier === 'Enable');
   const reassure = scored.filter((r) => r.tier === 'Reassure');
   const heads = (list) => list.reduce((s, r) => s + r.headcount, 0);
   const rebuildHeads = heads(rebuild);
-  const enableStreams = new Set(enable.map((r) => r.valueStream));
-  // Any deskless role needs a deskless format, whatever its tier — an Inform-tier
+  // A shared curriculum in Enable is scoped to one site archetype at a time,
+  // since that is the grouping the role scope itself carries.
+  const enableArchetypes = new Set(enable.map((r) => r.siteArchetype));
+  // Any deskless role needs a deskless format, whatever its tier, an Inform-tier
   // deskless population still has no inbox to send the broadcast to.
   const desklessFormats = scored.filter((r) => r.deskless).length;
   const cascadeScripts = rebuild.length + scored.filter((r) => r.tier !== 'Rebuild' && r.risk.decisionRights >= 4).length;
@@ -721,12 +857,12 @@ function resourcedPlan(scored) {
     {
       group: 'Training',
       rows: [
-        { n: rebuild.length + enableStreams.size, txt: 'role-based curricula',
-          rule: `1 per Rebuild role (${rebuild.length}) + 1 shared per value stream in Enable (${enableStreams.size})` },
+        { n: rebuild.length + enableArchetypes.size, txt: 'role-based curricula',
+          rule: `1 per Rebuild role (${rebuild.length}) + 1 shared per site archetype in Enable (${enableArchetypes.size})` },
         { n: Math.ceil(rebuildHeads / ASSUMPTIONS.sandboxSeatRatio), txt: 'sandbox seats',
           rule: `1 seat per ${ASSUMPTIONS.sandboxSeatRatio} people in Rebuild roles (${rebuildHeads.toLocaleString()})` },
         { n: desklessFormats, txt: 'deskless on-shift formats',
-          rule: 'one per deskless role — no inbox, so no channel that assumes one' },
+          rule: 'one per deskless role: no inbox, so no channel that assumes one' },
       ],
     },
     {
@@ -755,130 +891,7 @@ function resourcedPlan(scored) {
 }
 
 /* ===========================================================================
-   3b. "REPRODUCED, NOT HARDCODED"
-
-   The strongest claim this tool can make is that our own deck's published
-   figures fall OUT of the engine instead of being typed into it. This section
-   states that claim in a form a sceptic can check: the deck's number, the
-   engine's number, and — where they differ — the rule that produced the
-   difference.
-
-   Two rules for this panel, and they are the whole point of it:
-
-   1. The verdict is COMPUTED, never asserted. Every row compares a live engine
-      value against a frozen deck value and decides "match" or "near miss" on
-      the spot. Nothing here can claim a match it does not have, and if a
-      presenter tunes a weight the matches will start failing on screen — which
-      is correct, not a bug.
-   2. Near misses are shown as near misses, with their derivation rule. There
-      are six, not the three the plan tab is best known for: site change coaches
-      and Plant Controller's adoption risk also diverge, and the budget share
-      differs by a rounding point. All six are in the table below and all six are
-      in the README. Hiding any of them would make the panel a worse argument,
-      not a better one.
-   =========================================================================== */
-
-/* The deck's own published figures, frozen. These are the ONLY hardcoded
-   numbers in this file that the engine is measured against — they are the
-   claim being tested, not an input to anything. */
-const DECK_FIGURES = {
-  tiers: { Rebuild: { roles: 9, people: 620 }, Enable: { roles: 14, people: 1180 },
-           Reassure: { roles: 11, people: 1340 }, Inform: { roles: 4, people: 1860 } },
-  budgetShare: { Rebuild: '55%', Enable: '27%', Reassure: '13%', Inform: '5%' },
-  roles: [
-    { match: 'Plant Scheduler',              impact: '4.6', risk: '4.4', tier: 'Rebuild' },
-    { match: 'Warehouse Team Lead',          impact: '4.1', risk: '4.7', tier: 'Rebuild' },
-    { match: 'AP Specialist',                impact: '4.4', risk: '4.5', tier: 'Rebuild' },
-    { match: 'Master Data Steward',          impact: '4.8', risk: '4.1', tier: 'Rebuild' },
-    { match: 'Customer Service - Order Entry', impact: '4.5', risk: '3.9', tier: 'Rebuild' },
-    { match: 'Plant Controller',             impact: '4.3', risk: '3.6', tier: 'Enable' },
-    { match: 'Plant Buyer',                  impact: '3.8', risk: '4.2', tier: 'Rebuild' },
-  ],
-  plan: {
-    'role-based curricula': 18, 'sandbox seats': 62, 'deskless on-shift formats': 9,
-    'message tracks': 4, 'manager cascade scripts': 11, 'supervisors briefed on decision rights': 340,
-    'super-users': 42, 'site change coaches': 6, 'weeks hypercare': 8,
-  },
-  roi: { lossAvoided: '$5.3M', dip: '22% → 11%', recovery: '14 → 6 weeks' },
-};
-
-/* Why each near miss is a near miss. Keyed to the row it explains. */
-const DIVERGENCE = {
-  'role-based curricula': 'The deck asserts 18. The engine derives one curriculum per Rebuild role plus one shared per value stream in '
-      + 'Enable, which is 14 on this population. Change the population and it moves — that is the point.',
-  'manager cascade scripts': 'The deck asserts 11. The engine derives one per Rebuild role plus one per non-Rebuild role whose '
-      + 'decision-rights score is 4 or higher, which finds 13 — two roles the deck’s figure misses.',
-  'supervisors briefed on decision rights': 'The deck asserts 340. The engine derives one per 10 people across Rebuild, Enable and '
-      + 'Reassure, which is 314 on the shipped headcounts.',
-  'site change coaches': 'The deck asserts 6, and 6 is the plant count — the deck is counting plants. The engine counts every site that '
-      + 'carries a Rebuild role, which is a different question. The widest Rebuild spread in this dataset is Warehouse Team Lead, and that '
-      + 'role spans both archetypes: the six plant warehouses and the two distribution centres, so 6 + 2 = 8 sites, and the engine returns '
-      + '8. Both numbers are right about their own rule; they diverge because the deck stops at the plants and the engine has to staff the '
-      + 'DCs too. This is a divergence, not a match — the deck’s 6 does not cover the DC shifts.',
-  'Plant Controller': 'The deck’s slide 10 prints an adoption risk of 3.6 but tiers the role Enable — and 3.6 is above our inclusive '
-      + '3.5 line, which would make it Rebuild. The deck contradicts itself. The dataset resolves it in favour of the tier the deck '
-      + 'assigns: 3.4, which lands in Enable. Impact matches exactly.',
-  budgetShare: 'Budget share is not a deck-derived figure at all — it falls out of our own per-head cost weighting, which the deck does '
-      + 'not state. It lands within one rounding point of the deck’s split.',
-};
-
-/* Build the whole report. Every `ok` below is decided here, live, by comparison. */
-function reproductionReport(scored) {
-  const agg = aggregate(scored);
-  const plan = resourcedPlan(scored);
-  const roi = roiModel(scored);
-  const row = (label, deck, engine, rule) => ({ label, deck: String(deck), engine: String(engine), ok: String(deck) === String(engine), rule });
-
-  const tierRows = TIER_ORDER.map((t) => {
-    const d = DECK_FIGURES.tiers[t];
-    const b = agg.byTier[t];
-    return row(`${t} — roles / people`, `${d.roles} / ${d.people.toLocaleString()}`,
-      `${b.roles} / ${b.people.toLocaleString()}`, 'counted from the scored rows, then summed by tier');
-  });
-  tierRows.push(row('Budget share — all four tiers',
-    TIER_ORDER.map((t) => DECK_FIGURES.budgetShare[t]).join(' · '),
-    TIER_ORDER.map((t) => pct(agg.byTier[t].budgetShare)).join(' · '),
-    DIVERGENCE.budgetShare));
-
-  const roleRows = [];
-  DECK_FIGURES.roles.forEach((d) => {
-    const r = scored.find((x) => x.role.startsWith(d.match));
-    if (!r) return;
-    const rule = d.match === 'Plant Controller' ? DIVERGENCE['Plant Controller']
-      : 'weighted sum of the six sub-factor scores, then the inclusive 3.5 threshold on both axes';
-    roleRows.push(row(`${d.match} — impact / risk / tier`,
-      `${d.impact} / ${d.risk} / ${d.tier}`,
-      `${r.scores.impact.toFixed(1)} / ${r.scores.risk.toFixed(1)} / ${r.tier}`, rule));
-  });
-
-  const planRows = [];
-  plan.forEach((g) => g.rows.forEach((pr) => {
-    if (!(pr.txt in DECK_FIGURES.plan)) return;
-    planRows.push(row(pr.txt, DECK_FIGURES.plan[pr.txt], pr.n, DIVERGENCE[pr.txt] || pr.rule));
-  }));
-
-  const roiRows = [
-    row('Productivity loss avoided', DECK_FIGURES.roi.lossAvoided, money(roi.lossAvoided),
-      `${roi.affectedHeads.toLocaleString()} people in Rebuild + Enable × ${roi.avoidedWeeksPerHead.toFixed(2)} productive weeks recovered `
-      + `× $${Math.round(roi.weeklyCost).toLocaleString()}/week — the weeks come from the area between the two productivity curves`),
-    row('Dip depth', DECK_FIGURES.roi.dip, `${Math.round(roi.dipUntargeted)}% → ${Math.round(roi.dipTargeted)}%`,
-      'deepest point below baseline on each curve'),
-    row('Recovery', DECK_FIGURES.roi.recovery, `${roi.recoveryUntargeted} → ${roi.recoveryTargeted} weeks`,
-      `first week each curve is back within ${100 - ASSUMPTIONS.recoveryThresholdPct}% of baseline`),
-  ];
-
-  const groups = [
-    { group: 'Slide 9 — the tier table', rows: tierRows },
-    { group: 'Slide 10 — axis scores, the seven roles the deck names', rows: roleRows },
-    { group: 'Slide 13 — the resourced plan', rows: planRows },
-    { group: 'Slide 14 — the money', rows: roiRows },
-  ];
-  const all = groups.flatMap((g) => g.rows);
-  return { groups, matched: all.filter((r) => r.ok).length, total: all.length };
-}
-
-/* ===========================================================================
-   4. DATA — fetched at startup, with the parsed object embedded as a hard
+   4. DATA. Fetched at startup, with the parsed object embedded as a hard
    fallback so the app also runs from file:// or with no network at all.
    All data is synthetic.
    =========================================================================== */
@@ -887,7 +900,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "plant-scheduler",
     "role": "Plant Scheduler",
-    "valueStream": "Plan-to-Produce",
     "siteArchetype": "Plant",
     "siteCount": 6,
     "headcount": 42,
@@ -930,7 +942,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "warehouse-team-lead",
     "role": "Warehouse Team Lead",
-    "valueStream": "Plan-to-Produce",
     "siteArchetype": "Plant + DC",
     "siteCount": 8,
     "headcount": 96,
@@ -974,7 +985,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "ap-specialist",
     "role": "AP Specialist",
-    "valueStream": "Procure-to-Pay",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 64,
@@ -1018,13 +1028,12 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "master-data-steward",
     "role": "Master Data Steward",
-    "valueStream": "Cross-cutting",
     "siteArchetype": "HQ + Plant",
     "siteCount": 7,
     "headcount": 18,
     "deskless": false,
     "isNewRole": true,
-    "summary": "A role that does not exist today: material, customer, vendor and BOM records are currently maintained by whoever needs them, in whichever system. The stewards become the single gate for creating and changing master data across all five value streams, which means designing governance while learning the tooling that enforces it.",
+    "summary": "A role that does not exist today: material, customer, vendor and BOM records are currently maintained by whoever needs them, in whichever system. The stewards become the single gate for creating and changing master data company-wide, which means designing governance while learning the tooling that enforces it.",
     "impact": {
       "taskShare": 5,
       "frequencyVolume": 4.6,
@@ -1046,7 +1055,7 @@ const SEED_ROLES = /*__SEED__*/[
       "Runs the governed workflow with mandatory field and duplicate checks",
       "Publishes and enforces naming and classification standards",
       "Monitors data-quality dashboards and drives correction at source",
-      "Trains and audits requesters across the five value streams"
+      "Trains and audits requesters company-wide"
     ],
     "tasksRemoved": 2,
     "tasksChanged": 5,
@@ -1054,14 +1063,13 @@ const SEED_ROLES = /*__SEED__*/[
     "fteDelta": 1.6,
     "constraints": [
       "Net new headcount - 18 people to recruit or redeploy before go-live",
-      "Blocking role: every other value stream depends on it from day one",
+      "Blocking role: every downstream process depends on it from day one",
       "No incumbent knowledge to build training on"
     ]
   },
   {
     "id": "customer-service-order-entry",
     "role": "Customer Service - Order Entry",
-    "valueStream": "Order-to-Cash",
     "siteArchetype": "HQ + DC",
     "siteCount": 3,
     "headcount": 240,
@@ -1106,7 +1114,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "plant-controller",
     "role": "Plant Controller",
-    "valueStream": "Record-to-Report",
     "siteArchetype": "Plant",
     "siteCount": 6,
     "headcount": 24,
@@ -1150,7 +1157,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "plant-buyer",
     "role": "Plant Buyer",
-    "valueStream": "Procure-to-Pay",
     "siteArchetype": "Plant",
     "siteCount": 6,
     "headcount": 58,
@@ -1194,7 +1200,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "credit-collections-analyst",
     "role": "Credit & Collections Analyst",
-    "valueStream": "Order-to-Cash",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 26,
@@ -1237,7 +1242,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "demand-planner",
     "role": "Demand Planner",
-    "valueStream": "Plan-to-Produce",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 34,
@@ -1280,7 +1284,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "plant-hr-coordinator",
     "role": "Plant HR Coordinator",
-    "valueStream": "Hire-to-Retire",
     "siteArchetype": "Plant",
     "siteCount": 6,
     "headcount": 42,
@@ -1324,7 +1327,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "field-sales-representative",
     "role": "Field Sales Representative",
-    "valueStream": "Order-to-Cash",
     "siteArchetype": "Field/Commercial",
     "siteCount": 4,
     "headcount": 560,
@@ -1368,7 +1370,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "customer-service-claims-returns",
     "role": "Customer Service - Claims & Returns",
-    "valueStream": "Order-to-Cash",
     "siteArchetype": "HQ + DC",
     "siteCount": 3,
     "headcount": 150,
@@ -1411,7 +1412,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "accounts-receivable-specialist",
     "role": "Accounts Receivable Specialist",
-    "valueStream": "Order-to-Cash",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 44,
@@ -1454,7 +1454,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "trade-pricing-analyst",
     "role": "Trade & Pricing Analyst",
-    "valueStream": "Order-to-Cash",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 24,
@@ -1497,7 +1496,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "procurement-category-manager",
     "role": "Procurement Category Manager",
-    "valueStream": "Procure-to-Pay",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 36,
@@ -1540,7 +1538,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "indirect-procurement-buyer",
     "role": "Indirect Procurement Buyer",
-    "valueStream": "Procure-to-Pay",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 28,
@@ -1583,7 +1580,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "supply-planner",
     "role": "Supply Planner",
-    "valueStream": "Plan-to-Produce",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 32,
@@ -1626,7 +1622,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "inventory-controller",
     "role": "Inventory Controller",
-    "valueStream": "Plan-to-Produce",
     "siteArchetype": "Plant",
     "siteCount": 6,
     "headcount": 88,
@@ -1669,7 +1664,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "maintenance-planner",
     "role": "Maintenance Planner",
-    "valueStream": "Plan-to-Produce",
     "siteArchetype": "Plant",
     "siteCount": 6,
     "headcount": 52,
@@ -1712,7 +1706,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "general-ledger-accountant",
     "role": "General Ledger Accountant",
-    "valueStream": "Record-to-Report",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 46,
@@ -1755,7 +1748,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "fpa-analyst",
     "role": "FP&A Analyst",
-    "valueStream": "Record-to-Report",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 34,
@@ -1798,7 +1790,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "hr-operations-specialist",
     "role": "HR Operations Specialist",
-    "valueStream": "Hire-to-Retire",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 40,
@@ -1841,7 +1832,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "payroll-administrator",
     "role": "Payroll Administrator",
-    "valueStream": "Hire-to-Retire",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 22,
@@ -1884,7 +1874,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "warehouse-operative",
     "role": "Warehouse Operative",
-    "valueStream": "Plan-to-Produce",
     "siteArchetype": "DC",
     "siteCount": 2,
     "headcount": 300,
@@ -1929,7 +1918,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "maintenance-technician",
     "role": "Maintenance Technician",
-    "valueStream": "Plan-to-Produce",
     "siteArchetype": "Plant",
     "siteCount": 6,
     "headcount": 260,
@@ -1973,7 +1961,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "material-handler",
     "role": "Material Handler / Forklift Operator",
-    "valueStream": "Plan-to-Produce",
     "siteArchetype": "Plant",
     "siteCount": 6,
     "headcount": 200,
@@ -2017,7 +2004,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "production-shift-supervisor",
     "role": "Production Shift Supervisor",
-    "valueStream": "Hire-to-Retire",
     "siteArchetype": "Plant",
     "siteCount": 6,
     "headcount": 132,
@@ -2063,7 +2049,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "quality-assurance-technician",
     "role": "Quality Assurance Technician",
-    "valueStream": "Plan-to-Produce",
     "siteArchetype": "Plant",
     "siteCount": 6,
     "headcount": 106,
@@ -2105,7 +2090,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "key-account-manager",
     "role": "Key Account Manager",
-    "valueStream": "Order-to-Cash",
     "siteArchetype": "Field/Commercial",
     "siteCount": 4,
     "headcount": 150,
@@ -2147,7 +2131,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "regional-sales-manager",
     "role": "Regional Sales Manager",
-    "valueStream": "Order-to-Cash",
     "siteArchetype": "Field/Commercial",
     "siteCount": 4,
     "headcount": 60,
@@ -2188,7 +2171,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "goods-receipt-clerk",
     "role": "Goods Receipt Clerk",
-    "valueStream": "Procure-to-Pay",
     "siteArchetype": "Plant",
     "siteCount": 6,
     "headcount": 54,
@@ -2231,7 +2213,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "shipping-dispatch-coordinator",
     "role": "Shipping & Dispatch Coordinator",
-    "valueStream": "Order-to-Cash",
     "siteArchetype": "DC",
     "siteCount": 2,
     "headcount": 42,
@@ -2272,7 +2253,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "site-hr-business-partner",
     "role": "Site HR Business Partner",
-    "valueStream": "Hire-to-Retire",
     "siteArchetype": "Plant",
     "siteCount": 6,
     "headcount": 24,
@@ -2314,7 +2294,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "plant-operations-manager",
     "role": "Plant Operations Manager",
-    "valueStream": "Cross-cutting",
     "siteArchetype": "Plant",
     "siteCount": 6,
     "headcount": 12,
@@ -2355,7 +2334,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "production-operator",
     "role": "Production Operator",
-    "valueStream": "Plan-to-Produce",
     "siteArchetype": "Plant",
     "siteCount": 6,
     "headcount": 1240,
@@ -2399,7 +2377,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "retail-merchandiser",
     "role": "Retail Merchandiser",
-    "valueStream": "Order-to-Cash",
     "siteArchetype": "Field/Commercial",
     "siteCount": 4,
     "headcount": 300,
@@ -2442,7 +2419,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "marketing-brand-manager",
     "role": "Marketing & Brand Manager",
-    "valueStream": "Cross-cutting",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 180,
@@ -2482,7 +2458,6 @@ const SEED_ROLES = /*__SEED__*/[
   {
     "id": "rd-product-developer",
     "role": "R&D Product Developer",
-    "valueStream": "Cross-cutting",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 140,
@@ -2524,8 +2499,7 @@ const SEED_ROLES = /*__SEED__*/[
 const SEED_ROLES_HEALTHCARE = [
   {
     "id": "rn-inpatient",
-    "role": "Registered Nurse — Inpatient",
-    "valueStream": "Clinical Documentation",
+    "role": "Registered Nurse - Inpatient",
     "siteArchetype": "Inpatient Unit",
     "siteCount": 3,
     "headcount": 326,
@@ -2565,8 +2539,7 @@ const SEED_ROLES_HEALTHCARE = [
   },
   {
     "id": "rn-emergency-department",
-    "role": "Registered Nurse — Emergency Department",
-    "valueStream": "Clinical Documentation",
+    "role": "Registered Nurse - Emergency Department",
     "siteArchetype": "Emergency Department",
     "siteCount": 3,
     "headcount": 110,
@@ -2607,7 +2580,6 @@ const SEED_ROLES_HEALTHCARE = [
   {
     "id": "hospitalist-attending",
     "role": "Hospitalist / Attending Physician",
-    "valueStream": "Order Entry (CPOE)",
     "siteArchetype": "Inpatient Unit",
     "siteCount": 3,
     "headcount": 55,
@@ -2648,7 +2620,6 @@ const SEED_ROLES_HEALTHCARE = [
   {
     "id": "unit-clerk",
     "role": "Unit Clerk / Ward Clerk",
-    "valueStream": "Patient Registration & Scheduling",
     "siteArchetype": "Inpatient Unit",
     "siteCount": 3,
     "headcount": 40,
@@ -2683,13 +2654,12 @@ const SEED_ROLES_HEALTHCARE = [
     "fteDelta": -0.4,
     "constraints": [
       "Some unit clerks are the only non-clinical staff on the floor overnight and need a fallback for system downtime",
-      "Role is being partly redefined, not eliminated — messaging on this needs to be explicit"
+      "Role is being partly redefined, not eliminated. Messaging on this needs to be explicit"
     ]
   },
   {
     "id": "pharmacist",
     "role": "Pharmacist",
-    "valueStream": "Medication Administration (eMAR)",
     "siteArchetype": "Ancillary (Lab/Pharmacy/Imaging)",
     "siteCount": 3,
     "headcount": 26,
@@ -2723,14 +2693,13 @@ const SEED_ROLES_HEALTHCARE = [
     "tasksNew": 4,
     "fteDelta": -0.1,
     "constraints": [
-      "Verification turnaround time cannot regress during the transition — it is a patient-safety metric",
+      "Verification turnaround time cannot regress during the transition. It is a patient-safety metric",
       "Alert volume must be tuned pre-go-live or override fatigue defeats the safety benefit"
     ]
   },
   {
     "id": "pharmacy-technician",
     "role": "Pharmacy Technician",
-    "valueStream": "Medication Administration (eMAR)",
     "siteArchetype": "Ancillary (Lab/Pharmacy/Imaging)",
     "siteCount": 3,
     "headcount": 34,
@@ -2764,14 +2733,13 @@ const SEED_ROLES_HEALTHCARE = [
     "tasksNew": 2,
     "fteDelta": 0,
     "constraints": [
-      "Fill accuracy cannot dip during the changeover — this role has no independent verification authority to catch its own errors",
+      "Fill accuracy cannot dip during the changeover. This role has no independent verification authority to catch its own errors",
       "Cabinet hardware integration with the new EHR needs to be tested per site before go-live"
     ]
   },
   {
     "id": "medical-assistant-ambulatory",
-    "role": "Medical Assistant — Ambulatory Clinic",
-    "valueStream": "Clinical Documentation",
+    "role": "Medical Assistant - Ambulatory Clinic",
     "siteArchetype": "Ambulatory Clinic",
     "siteCount": 3,
     "headcount": 60,
@@ -2805,14 +2773,13 @@ const SEED_ROLES_HEALTHCARE = [
     "tasksNew": 2,
     "fteDelta": 0,
     "constraints": [
-      "Rooming time budget per patient cannot increase — clinic schedules are already full",
+      "Rooming time budget per patient cannot increase. Clinic schedules are already full",
       "Several clinics share float staff across sites, so training has to be site-agnostic"
     ]
   },
   {
     "id": "registration-scheduling-clerk",
-    "role": "Registration / Scheduling Clerk — Ambulatory Clinic",
-    "valueStream": "Patient Registration & Scheduling",
+    "role": "Registration / Scheduling Clerk - Ambulatory Clinic",
     "siteArchetype": "Ambulatory Clinic",
     "siteCount": 3,
     "headcount": 46,
@@ -2853,7 +2820,6 @@ const SEED_ROLES_HEALTHCARE = [
   {
     "id": "medical-coder-biller",
     "role": "Medical Coder / Biller",
-    "valueStream": "Billing & Revenue Cycle",
     "siteArchetype": "Corporate/Admin",
     "siteCount": 1,
     "headcount": 32,
@@ -2894,7 +2860,6 @@ const SEED_ROLES_HEALTHCARE = [
   {
     "id": "lab-technician",
     "role": "Laboratory Technician",
-    "valueStream": "Order Entry (CPOE)",
     "siteArchetype": "Ancillary (Lab/Pharmacy/Imaging)",
     "siteCount": 3,
     "headcount": 38,
@@ -2935,7 +2900,6 @@ const SEED_ROLES_HEALTHCARE = [
   {
     "id": "clinical-informatics-analyst",
     "role": "Clinical Informatics Analyst",
-    "valueStream": "Cross-cutting",
     "siteArchetype": "Corporate/Admin",
     "siteCount": 1,
     "headcount": 9,
@@ -2973,7 +2937,6 @@ const SEED_ROLES_HEALTHCARE = [
   {
     "id": "nurse-manager-charge-nurse",
     "role": "Nurse Manager / Charge Nurse",
-    "valueStream": "Cross-cutting",
     "siteArchetype": "Inpatient Unit",
     "siteCount": 3,
     "headcount": 24,
@@ -3007,7 +2970,7 @@ const SEED_ROLES_HEALTHCARE = [
     "tasksNew": 3,
     "fteDelta": 0,
     "constraints": [
-      "The recommendation engine has to be tunable per unit — a medical floor and an ICU do not staff the same way",
+      "The recommendation engine has to be tunable per unit. A medical floor and an ICU do not staff the same way",
       "Charge nurses need explicit authority to override the recommendation, or the tool will be worked around"
     ]
   }
@@ -3017,7 +2980,6 @@ const SEED_ROLES_FINANCIAL = [
   {
     "id": "underwriter-new-business",
     "role": "Underwriter",
-    "valueStream": "New Business Underwriting",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 32,
@@ -3051,14 +3013,13 @@ const SEED_ROLES_FINANCIAL = [
     "tasksNew": 3,
     "fteDelta": -0.3,
     "constraints": [
-      "Override rate is being watched closely by compliance in the first two quarters — this is not a rubber-stamp expectation",
+      "Override rate is being watched closely by compliance in the first two quarters. This is not a rubber-stamp expectation",
       "Underwriters need to understand the model's key factors well enough to explain a decision to a broker or regulator"
     ]
   },
   {
     "id": "senior-lead-underwriter",
     "role": "Senior / Lead Underwriter",
-    "valueStream": "Risk Assessment & Pricing",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 10,
@@ -3093,13 +3054,12 @@ const SEED_ROLES_FINANCIAL = [
     "fteDelta": -0.1,
     "constraints": [
       "Authority-limit redesign has to be signed off by Compliance before go-live",
-      "This desk is the escalation point of last resort — it cannot go down during the cutover"
+      "This desk is the escalation point of last resort. It cannot go down during the cutover"
     ]
   },
   {
     "id": "underwriting-assistant",
     "role": "Underwriting Assistant / Processor",
-    "valueStream": "New Business Underwriting",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 24,
@@ -3140,7 +3100,6 @@ const SEED_ROLES_FINANCIAL = [
   {
     "id": "actuarial-analyst",
     "role": "Actuarial Analyst",
-    "valueStream": "Risk Assessment & Pricing",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 12,
@@ -3181,13 +3140,12 @@ const SEED_ROLES_FINANCIAL = [
   {
     "id": "policy-servicing-rep",
     "role": "Policy Servicing Representative",
-    "valueStream": "Policy Servicing",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 28,
     "deskless": false,
     "isNewRole": false,
-    "summary": "Handles endorsements, renewals administration and policyholder service requests after a policy is bound. This work sits downstream of underwriting and is only lightly touched by the new AI-assisted workflow — mainly a few updated document templates.",
+    "summary": "Handles endorsements, renewals administration and policyholder service requests after a policy is bound. This work sits downstream of underwriting and is only lightly touched by the new AI-assisted workflow: mainly a few updated document templates.",
     "impact": {
       "taskShare": 2,
       "frequencyVolume": 3,
@@ -3222,7 +3180,6 @@ const SEED_ROLES_FINANCIAL = [
   {
     "id": "compliance-audit-officer",
     "role": "Compliance & Audit Officer",
-    "valueStream": "Compliance & Audit",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 8,
@@ -3256,14 +3213,13 @@ const SEED_ROLES_FINANCIAL = [
     "tasksNew": 4,
     "fteDelta": 0.2,
     "constraints": [
-      "No internal precedent exists yet for auditing an algorithmic underwriting decision — this is being built, not adopted from elsewhere",
+      "No internal precedent exists yet for auditing an algorithmic underwriting decision. This is being built, not adopted from elsewhere",
       "Regulatory guidance on AI use in underwriting is still evolving, so the process has to be revisable, not fixed at go-live"
     ]
   },
   {
     "id": "renewal-underwriter",
     "role": "Renewal Underwriter",
-    "valueStream": "Renewal Underwriting",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 22,
@@ -3304,7 +3260,6 @@ const SEED_ROLES_FINANCIAL = [
   {
     "id": "data-mlops-analyst",
     "role": "Data / MLOps Analyst",
-    "valueStream": "Cross-cutting",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 4,
@@ -3342,7 +3297,6 @@ const SEED_ROLES_FINANCIAL = [
   {
     "id": "vp-underwriting",
     "role": "VP / Head of Underwriting",
-    "valueStream": "Cross-cutting",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 6,
@@ -3383,7 +3337,6 @@ const SEED_ROLES_FINANCIAL = [
   {
     "id": "it-systems-support",
     "role": "IT / Systems Support",
-    "valueStream": "Cross-cutting",
     "siteArchetype": "HQ",
     "siteCount": 1,
     "headcount": 4,
@@ -3418,20 +3371,20 @@ const SEED_ROLES_FINANCIAL = [
     "fteDelta": 0,
     "constraints": [
       "Two vendors now need a clear escalation path when an issue could be either system's fault",
-      "Team is only 4 people supporting the whole firm — no slack for a second full rollout in parallel"
+      "Team is only 4 people supporting the whole firm: no slack for a second full rollout in parallel"
     ]
   }
 ];
 
 /* Loads the dataset for whichever project is selected. Identical to the
    original loadRoles() when called on the consumer-products project (same
-   fetch path, same embedded fallback) — this only generalises the source. */
+   fetch path, same embedded fallback), this only generalises the source. */
 async function loadRolesForProject(project) {
   if (!project.dataPath) {
     // Every project reaching this branch came through the new-project wizard
     // and carries its finalized roles as its seed.
     const roles = project.seed || [];
-    return { roles, source: 'new project — from the engagement wizard' };
+    return { roles, source: 'new project: from the engagement wizard' };
   }
   try {
     const res = await fetch(project.dataPath, { cache: 'no-store' });
@@ -3447,12 +3400,13 @@ async function loadRolesForProject(project) {
 }
 
 /* ===========================================================================
-   4b. PROJECTS — the picker's registry. Three worked examples plus a blank
+   4b. PROJECTS. The picker's registry. Three worked examples plus a blank
    starting point. Each entry carries its own dataset, vocabulary (value
-   streams / site archetypes) and whether the "Reproduced, not hardcoded"
-   comparison applies — that tab is specific to the original deck's published
-   figures and would be misleading against a dataset with no corresponding
-   deck, so it only shows for the consumer-products example.
+   streams / site archetypes) and hasDeckReproduction, which controls whether
+   the deck-specific provenance notes on the Training, Communication and
+   Adoption tabs are shown. Those notes cite the original deck's own figures
+   and would be misleading for a dataset with no corresponding deck, so they
+   only show for the consumer-products example.
    =========================================================================== */
 
 const PROJECTS = [
@@ -3465,41 +3419,39 @@ const PROJECTS = [
     oneLiner: 'New operating model and ERP platform rollout across corporate and manufacturing sites.',
     dataPath: 'data/roles.json',
     seed: SEED_ROLES,
-    valueStreams: VALUE_STREAMS,
     siteArchetypeBase: SITE_ARCHETYPE_BASE,
     siteArchetypeCombos: SITE_ARCHETYPE_COMBOS,
     hasDeckReproduction: true,
+    goLiveDate: '2026-06-28',
   },
   {
     id: 'healthcare-ehr',
     kind: 'example',
     name: 'Bellcrest Health System',
-    industry: 'Healthcare — hospital system',
+    industry: 'Healthcare, hospital system',
     employeeCount: 800,
     oneLiner: 'New EHR clinical module (CPOE, eMAR) rollout across 3 hospital sites.',
     dataPath: 'data/roles-healthcare.json',
     seed: SEED_ROLES_HEALTHCARE,
-    valueStreams: ['Patient Registration & Scheduling', 'Clinical Documentation', 'Order Entry (CPOE)',
-                   'Medication Administration (eMAR)', 'Billing & Revenue Cycle', 'Cross-cutting'],
     siteArchetypeBase: ['Inpatient Unit', 'Emergency Department', 'Ambulatory Clinic',
                          'Ancillary (Lab/Pharmacy/Imaging)', 'Corporate/Admin'],
     siteArchetypeCombos: [],
     hasDeckReproduction: false,
+    goLiveDate: '2026-07-23',
   },
   {
     id: 'fs-underwriting',
     kind: 'example',
     name: 'Ashford Mutual Underwriting',
-    industry: 'Financial services — insurance underwriting',
+    industry: 'Financial services, insurance underwriting',
     employeeCount: 150,
     oneLiner: 'AI-assisted underwriting workflow across new-business and renewal underwriting, one site.',
     dataPath: 'data/roles-financial.json',
     seed: SEED_ROLES_FINANCIAL,
-    valueStreams: ['New Business Underwriting', 'Renewal Underwriting', 'Risk Assessment & Pricing',
-                   'Policy Servicing', 'Compliance & Audit', 'Cross-cutting'],
     siteArchetypeBase: ['HQ'],
     siteArchetypeCombos: [],
     hasDeckReproduction: false,
+    goLiveDate: '2026-08-07',
   },
 ];
 
@@ -3507,7 +3459,7 @@ const PROJECTS = [
    5. LLM-GENERATED QUALITATIVE CONTENT
    The API is used ONLY for the four narrative sections. If it is unreachable
    or unauthenticated the client falls back to a deterministic local template
-   generator — the stage demo never shows an error.
+   generator, the stage demo never shows an error.
    =========================================================================== */
 
 function localTemplate(role) {
@@ -3519,15 +3471,15 @@ function localTemplate(role) {
   const site = role.siteCount > 1 ? `${role.siteCount} sites` : 'a single site';
 
   const narrative = [
-    `${role.role} sits in ${role.valueStream} across ${site}, covering ${role.headcount.toLocaleString()} people. `
+    `${role.role} covers ${site}, ${role.headcount.toLocaleString()} people. `
     + `The assessment scores it ${role.scores.impact.toFixed(1)} on impact severity and ${role.scores.risk.toFixed(1)} on adoption risk, `
-    + `placing it in ${role.tier} — ${TIERS[role.tier].quadrant.toLowerCase()}. `
+    + `placing it in ${role.tier}, ${TIERS[role.tier].quadrant.toLowerCase()}. `
     + `${removed} tasks leave the role, ${changed} change shape and ${added} are new, an FTE delta of ${role.fteDelta > 0 ? '+' : ''}${role.fteDelta} per site.`,
     drShift
       ? `The load-bearing change is not the screen. Decision rights score ${role.risk.decisionRights.toFixed(1)}: authority this role exercised on judgement now sits with configured system rules, and the role's contribution moves from deciding to validating and clearing exceptions. That is where the resistance will come from, and it is a management conversation before it is a training one.`
       : `Decision rights move only modestly (${role.risk.decisionRights.toFixed(1)}), so the redesign is a change of method rather than of authority. The role keeps what it approves; the mechanism it approves through is what changes.`,
     role.isNewRole
-      ? `This is a new role. There is no incumbent population, no existing curriculum and no current-state habit to unlearn — the work is to build the role, staff it and give it standing with the functions that will depend on it.`
+      ? `This is a new role. There is no incumbent population, no existing curriculum and no current-state habit to unlearn. The work is to build the role, staff it and give it standing with the functions that will depend on it.`
       : deskless
         ? `The population is deskless. Capability delta is ${role.risk.capabilityDelta.toFixed(1)} and local readiness ${role.risk.localReadiness.toFixed(1)}, so the constraint on this role is reach, not aptitude: any intervention that assumes a desk, a screen or an inbox will not land.`
         : `Capability delta is ${role.risk.capabilityDelta.toFixed(1)} against local readiness ${role.risk.localReadiness.toFixed(1)}. The population can absorb the change; the plan has to give it the time and the sequence to do so.`,
@@ -3537,7 +3489,7 @@ function localTemplate(role) {
   if (role.tier === 'Rebuild' || role.tier === 'Enable') {
     curriculum.push({
       module: `${role.role}: the work after go-live`,
-      format: `${t.primary.method}${deskless ? ' — on-shift, at the line' : `, role cohort`} · ${t.complexity} complexity · ${t.trainTheTrainer ? 'train-the-trainer delivered' : 'self-driven'}`,
+      format: `${t.primary.method}${deskless ? ', on-shift, at the line' : `, role cohort`} · ${t.complexity} complexity · ${t.trainTheTrainer ? 'train-the-trainer delivered' : 'self-driven'}`,
       duration: t.primary.duration,
       objective: `Walk the ${changed} changed and ${added} new tasks end to end, and name the ${removed} that disappear.`,
     });
@@ -3558,8 +3510,8 @@ function localTemplate(role) {
   }
   if (role.tier === 'Reassure' || role.tier === 'Inform') {
     curriculum.push({
-      module: `What changes for ${role.role} — and what does not`,
-      format: `${t.primary.method}${deskless ? ' — shift huddle, 1 page + QR' : ''} · selected for ${t.why}`,
+      module: `What changes for ${role.role}, and what does not`,
+      format: `${t.primary.method}${deskless ? ', shift huddle, 1 page + QR' : ''} · selected for ${t.why}`,
       duration: t.primary.duration,
       objective: 'Set an accurate expectation of the day-one experience so the change is not over-read.',
     });
@@ -3567,7 +3519,7 @@ function localTemplate(role) {
   if (t.aids.count > 0) {
     curriculum.push({
       module: `${t.aids.count} job aids at the point of work`,
-      format: `${t.jobAidMethod.method}${deskless ? ' — laminated, local language, at the line' : ' — one-page desk aids'} · ${t.aids.band} band (${t.aids.range})`,
+      format: `${t.jobAidMethod.method}${deskless ? ', laminated, local language, at the line' : ', one-page desk aids'} · ${t.aids.band} band (${t.aids.range})`,
       duration: t.jobAidMethod.duration,
       objective: 'Carry the transactions the role performs least often, where recall will fail first.',
     });
@@ -3583,10 +3535,10 @@ function localTemplate(role) {
         ? `${role.role}: less changes for you than you have been told`
         : `${role.role}: what your day looks like after go-live`,
     message: drShift
-      ? `From go-live, ${role.role.toLowerCase()}s stop making this call one item at a time. The system applies the rule and holds anything it cannot clear; your job is the exception queue and the judgement calls that reach it. You are not losing the decision — you are being handed the ones that actually need a person. Your manager will walk you through what the system now releases automatically and what still comes to you, before go-live and not on the day.`
+      ? `From go-live, ${role.role.toLowerCase()}s stop making this call one item at a time. The system applies the rule and holds anything it cannot clear; your job is the exception queue and the judgement calls that reach it. You are not losing the decision, you are being handed the ones that actually need a person. Your manager will walk you through what the system now releases automatically and what still comes to you, before go-live and not on the day.`
       : role.tier === 'Inform'
-        ? `The platform behind your day changes at go-live. Your tasks, your cadence and your authority do not. You will see a different screen in places and the same work behind it. If something looks wrong, raise it the way you raise anything else — there is nothing new to learn here.`
-        : `${changed} parts of your day change, ${removed} disappear and ${added} are new. Training is ${t.primary.method.toLowerCase()}, ${t.primary.duration}, built from that list and not from a menu of system modules, with ${t.aids.count} job aids at the point of work. ${deskless ? 'Everything reaches you at the line, on shift — there is nothing to log in to from home.' : 'Your manager will confirm your dates.'}`,
+        ? `The platform behind your day changes at go-live. Your tasks, your cadence and your authority do not. You will see a different screen in places and the same work behind it. If something looks wrong, raise it the way you raise anything else: there is nothing new to learn here.`
+        : `${changed} parts of your day change, ${removed} disappear and ${added} are new. Training is ${t.primary.method.toLowerCase()}, ${t.primary.duration}, built from that list and not from a menu of system modules, with ${t.aids.count} job aids at the point of work. ${deskless ? 'Everything reaches you at the line, on shift: there is nothing to log in to from home.' : 'Your manager will confirm your dates.'}`,
     milestones: commsPlan(role),
     channels,
   };
@@ -3594,13 +3546,13 @@ function localTemplate(role) {
   const adoptionActions = [];
   if (role.tier === 'Rebuild') {
     adoptionActions.push({ action: `Name ${d.superUsersPerSite} super-user per site (${role.siteCount}) from the role itself, not from IT`, owner: 'Site lead', timing: 'Go-live minus 6 weeks' });
-    adoptionActions.push({ action: `Validate the redesigned task list with site leadership — 90 minutes per site`, owner: 'Change lead', timing: 'Go-live minus 5 weeks' });
+    adoptionActions.push({ action: `Validate the redesigned task list with site leadership: 90 minutes per site`, owner: 'Change lead', timing: 'Go-live minus 5 weeks' });
     adoptionActions.push({ action: `${d.floorCoachingWeeks} weeks of floor coaching, present on the shift the role actually works`, owner: 'Site change coach', timing: `Go-live to +${d.floorCoachingWeeks} weeks` });
   } else if (role.tier === 'Enable') {
     adoptionActions.push({ action: `Recruit ${Math.max(1, Math.ceil(role.headcount / d.superUserRatio))} champions from the strongest performers and give them the sandbox first`, owner: 'Function lead', timing: 'Go-live minus 4 weeks' });
     adoptionActions.push({ action: 'Hold a peer-led drop-in clinic in the first two weeks after go-live', owner: 'Champions', timing: 'Go-live +1 to +2 weeks' });
   } else if (role.tier === 'Reassure') {
-    adoptionActions.push({ action: `Run the manager cascade with ${d.cascadeScripts} scripts — address the fear, not the skill`, owner: 'Line manager', timing: 'Go-live minus 3 weeks' });
+    adoptionActions.push({ action: `Run the manager cascade with ${d.cascadeScripts} scripts: address the fear, not the skill`, owner: 'Line manager', timing: 'Go-live minus 3 weeks' });
     adoptionActions.push({ action: 'Publish a plain answer to "why is this different from the last attempt"', owner: 'Change lead', timing: 'Go-live minus 3 weeks' });
   } else {
     adoptionActions.push({ action: `Include in the ${d.broadcasts} programme broadcasts; no role-specific effort`, owner: 'Comms lead', timing: 'Go-live minus 4, minus 1, plus 1 weeks' });
@@ -3609,12 +3561,12 @@ function localTemplate(role) {
     adoptionActions.push({ action: 'Brief the accountable supervisor line on the decision-rights shift, using the cascade script', owner: 'Line manager', timing: 'Go-live minus 2 weeks' });
   }
   if (deskless) {
-    adoptionActions.push({ action: 'Confirm every shift pattern is covered by an on-shift session — including nights', owner: 'Site lead', timing: 'Go-live minus 2 weeks' });
+    adoptionActions.push({ action: 'Confirm every shift pattern is covered by an on-shift session, including nights', owner: 'Site lead', timing: 'Go-live minus 2 weeks' });
   }
-  adoptionActions.push({ action: `Publish the four-layer support escalation for this role — ${SUPPORT_LAYERS.join(' → ').toLowerCase()}`, owner: 'Change lead', timing: 'Go-live minus 1 week' });
+  adoptionActions.push({ action: `Publish the four-layer support escalation for this role: ${SUPPORT_LAYERS.join(' → ').toLowerCase()}`, owner: 'Change lead', timing: 'Go-live minus 1 week' });
   // Hypercare is the floor deliverable, not a Rebuild extra: Aberdeen's lowest-ambition
   // tier is training, go-live comms and hypercare. Every tier gets it; only the length scales.
-  adoptionActions.push({ action: `Staff ${d.hypercareWeeks} week${d.hypercareWeeks === 1 ? '' : 's'} of hypercare for this role — the floor every tier gets, scaled to this one`, owner: 'Change lead', timing: `Go-live to +${d.hypercareWeeks} week${d.hypercareWeeks === 1 ? '' : 's'}` });
+  adoptionActions.push({ action: `Staff ${d.hypercareWeeks} week${d.hypercareWeeks === 1 ? '' : 's'} of hypercare for this role, the floor every tier gets, scaled to this one`, owner: 'Change lead', timing: `Go-live to +${d.hypercareWeeks} week${d.hypercareWeeks === 1 ? '' : 's'}` });
   adoptionActions.push({ action: `Re-score this role at ${d.rescoreDays}-day intervals; the dashboard is the go-live gate`, owner: 'Change lead', timing: `Every ${d.rescoreDays} days` });
   adoptionActions.push({ action: `Reassess site readiness for this role on the standing cadence`, owner: 'Site lead', timing: `Every ${CADENCE.readinessReassessMonths} months` });
   adoptionActions.push({ action: `Measure adoption on ${ADOPTION_METRICS.join(', ')}`, owner: 'Change lead', timing: `Across the ${CADENCE.adoptionWindowMonths}-month window after go-live` });
@@ -3625,7 +3577,7 @@ function localTemplate(role) {
 async function generateForRole(role) {
   const payload = {
     role: {
-      name: role.role, valueStream: role.valueStream, siteArchetype: role.siteArchetype,
+      name: role.role, siteArchetype: role.siteArchetype,
       siteCount: role.siteCount, headcount: role.headcount, deskless: !!role.deskless,
       isNewRole: !!role.isNewRole, summary: role.summary,
       tasksRemoved: role.tasksRemoved, tasksChanged: role.tasksChanged,
@@ -3675,18 +3627,18 @@ async function generateForRole(role) {
 /* Assisted-input scoring for the "Start new project" wizard. Sends the SAME
    six anchor ladders the manual sliders show, so an AI-suggested score and a
    hand-set one are always calibrated against identical band text. This never
-   touches scoreRole/assignTier — it only proposes numbers to pre-fill the same
+   touches scoreRole/assignTier, it only proposes numbers to pre-fill the same
    six sliders a human would otherwise set, and the caller marks every value
    editable and labelled "AI-suggested" (or "placeholder" on the no-key/error
    fallback) before it can be added to the portfolio. */
-async function suggestScoresForRole({ name, valueStream, siteArchetype, headcount, summary }) {
+async function suggestScoresForRole({ name, siteArchetype, headcount, summary }) {
   const anchors = {};
   ALL_FACTORS.forEach((f) => { anchors[f.key] = { label: f.label, hint: f.hint, bands: ANCHORS[f.key].bands }; });
-  const payload = { role: { name, valueStream, siteArchetype, headcount, summary }, anchors };
+  const payload = { role: { name, siteArchetype, headcount, summary }, anchors };
   const localFallback = () => ({
     impact: { taskShare: 3, frequencyVolume: 3, errorConsequence: 3 },
     risk: { decisionRights: 3, capabilityDelta: 3, localReadiness: 3 },
-    rationale: ALL_FACTORS.reduce((o, f) => { o[f.key] = 'Could not reach the scoring assistant — placeholder value, review and adjust.'; return o; }, {}),
+    rationale: ALL_FACTORS.reduce((o, f) => { o[f.key] = 'Could not reach the scoring assistant. Placeholder value, review and adjust.'; return o; }, {}),
     source: 'fallback',
   });
   try {
@@ -3801,8 +3753,8 @@ function HeatMap({ roles, selectedId, onSelect }) {
         <line x1={x0} y1={y0} x2={x1} y2={y0} stroke="var(--hairline-strong)" strokeWidth="1" />
         <line x1={x0} y1={y1} x2={x0} y2={y0} stroke="var(--hairline-strong)" strokeWidth="1" />
 
-        <text className="axis-title" x={(x0 + x1) / 2} y={MAP.h - 14} textAnchor="middle">Impact severity — how much the work changes</text>
-        <text className="axis-title" transform={`rotate(-90 16 ${(y0 + y1) / 2})`} x="16" y={(y0 + y1) / 2} textAnchor="middle">Adoption risk — how likely it is to fail</text>
+        <text className="axis-title" x={(x0 + x1) / 2} y={MAP.h - 14} textAnchor="middle">Impact severity: how much the work changes</text>
+        <text className="axis-title" transform={`rotate(-90 16 ${(y0 + y1) / 2})`} x="16" y={(y0 + y1) / 2} textAnchor="middle">Adoption risk: how likely it is to fail</text>
 
         {ordered.map((r) => (
           <g key={r.id} className={'pt' + (selectedId === r.id ? ' sel' : '')}
@@ -3819,8 +3771,10 @@ function HeatMap({ roles, selectedId, onSelect }) {
       {tip && (
         <div className="tip" style={{ left: Math.min(tip.x + 14, MAP.w - 40), top: Math.max(tip.y - 12, 4) }}>
           <b>{tip.r.role}</b><br />
-          <span className="r">{tip.r.valueStream} · {tip.r.siteArchetype} · {tip.r.headcount.toLocaleString()} people</span><br />
-          impact {tip.r.scores.impact.toFixed(1)} · risk {tip.r.scores.risk.toFixed(1)} · <b>{tip.r.tier}</b>
+          <span className="r">{tip.r.siteArchetype} · {tip.r.headcount.toLocaleString()} people</span><br />
+          impact {axisFormula(IMPACT_FACTORS, tip.r.impact, tip.r.scores.impact)}<br />
+          risk {axisFormula(RISK_FACTORS, tip.r.risk, tip.r.scores.risk)}<br />
+          <b>{tip.r.tier}</b>
         </div>
       )}
 
@@ -3843,12 +3797,11 @@ function HeatMap({ roles, selectedId, onSelect }) {
 
 const COLUMNS = [
   { key: 'role', label: 'Role' },
-  { key: 'valueStream', label: 'Value stream' },
   { key: 'siteArchetype', label: 'Sites' },
   { key: 'headcount', label: 'People', n: true },
   { key: 'siteCount', label: '#', n: true },
-  { key: 'impact', label: 'Impact', n: true },
-  { key: 'risk', label: 'Risk', n: true },
+  { key: 'impact', label: 'Impact', n: true, title: 'Impact severity: hover a value to see its weighted breakdown' },
+  { key: 'risk', label: 'Risk', n: true, title: 'Adoption risk: hover a value to see its weighted breakdown' },
   { key: 'tier', label: 'Tier' },
 ];
 
@@ -3864,7 +3817,7 @@ function RoleTable({ roles, incomplete, selectedId, onSelect }) {
     });
   }, [roles, sort]);
 
-  const click = (k) => setSort((s) => (s.key === k ? { key: k, dir: -s.dir } : { key: k, dir: k === 'role' || k === 'valueStream' || k === 'siteArchetype' ? 1 : -1 }));
+  const click = (k) => setSort((s) => (s.key === k ? { key: k, dir: -s.dir } : { key: k, dir: k === 'role' || k === 'siteArchetype' ? 1 : -1 }));
 
   return (
     <div className="table-scroll">
@@ -3872,7 +3825,7 @@ function RoleTable({ roles, incomplete, selectedId, onSelect }) {
         <thead>
           <tr>
             {COLUMNS.map((c) => (
-              <th key={c.key} className={'sortable' + (c.n ? ' n' : '')} onClick={() => click(c.key)}
+              <th key={c.key} className={'sortable' + (c.n ? ' n' : '')} onClick={() => click(c.key)} title={c.title}
                   aria-sort={sort.key === c.key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
                 {c.label}{sort.key === c.key && <span className="arrow"> {sort.dir === 1 ? '▲' : '▼'}</span>}
               </th>
@@ -3883,12 +3836,11 @@ function RoleTable({ roles, incomplete, selectedId, onSelect }) {
           {sorted.map((r) => (
             <tr key={r.id} className={selectedId === r.id ? 'sel' : ''} onClick={() => onSelect(r.id)}>
               <td><span className="rolename">{r.role}</span>{r.isNewRole && <span className="newflag">new role</span>}</td>
-              <td>{r.valueStream}</td>
               <td>{r.siteArchetype}{r.deskless ? ' · deskless' : ''}</td>
               <td className="n">{r.headcount.toLocaleString()}</td>
               <td className="n">{r.siteCount}</td>
-              <td className="n">{r.scores.impact.toFixed(1)}</td>
-              <td className="n">{r.scores.risk.toFixed(1)}</td>
+              <td className="n" title={axisFormula(IMPACT_FACTORS, r.impact, r.scores.impact)}>{r.scores.impact.toFixed(1)}</td>
+              <td className="n" title={axisFormula(RISK_FACTORS, r.risk, r.scores.risk)}>{r.scores.risk.toFixed(1)}</td>
               <td><TierBadge tier={r.tier} /></td>
             </tr>
           ))}
@@ -3896,12 +3848,11 @@ function RoleTable({ roles, incomplete, selectedId, onSelect }) {
             <tr key={r.id} className={'inc' + (selectedId === r.id ? ' sel' : '')} onClick={() => onSelect(r.id)}
                 title={`${r.missing.length} of 6 sub-factors missing: ${r.missing.join(', ')}`}>
               <td><span className="rolename">{r.role}</span></td>
-              <td>{r.valueStream}</td>
               <td>{r.siteArchetype}{r.deskless ? ' · deskless' : ''}</td>
               <td className="n">{(r.headcount || 0).toLocaleString()}</td>
               <td className="n">{r.siteCount}</td>
-              <td className="n">—</td>
-              <td className="n">—</td>
+              <td className="n">N/A</td>
+              <td className="n">N/A</td>
               <td><span className="incflag">incomplete</span></td>
             </tr>
           ))}
@@ -3912,7 +3863,7 @@ function RoleTable({ roles, incomplete, selectedId, onSelect }) {
   );
 }
 
-/* Weight tuning. The weights are ours, so they are ours to move — and the demo
+/* Weight tuning. The weights are ours, so they are ours to move, and the demo
    is stronger for showing that the line is a choice, not a fact. Weights are
    normalised per axis, so scores stay on the 1-5 scale at any setting. */
 function WeightTuner({ weights, onChange, onReset }) {
@@ -3938,11 +3889,11 @@ function WeightTuner({ weights, onChange, onReset }) {
   return (
     <details className="tuner no-print">
       <summary>
-        <span className="lbl">Weighting — <b>ours</b>, and tunable</span>
+        <span className="lbl">Weighting: <b>ours</b>, and tunable</span>
         <span className="state">{isDefault ? 'our default: 0.45 / 0.25 / 0.30 and 0.40 / 0.35 / 0.25' : 'changed from our default'}</span>
       </summary>
       <div className="tuner-body">
-        <p className="sub">{NOTE.weights} Weights are normalised per axis, so every score stays on the 1–5 scale — and the tiering moves in front of the room.</p>
+        <p className="sub">{NOTE.weights} Weights are normalised per axis, so every score stays on the 1–5 scale, and the tiering moves in front of the room.</p>
         <div className="wt-grid">
           {axis('Impact severity', IMPACT_FACTORS)}
           {axis('Adoption risk', RISK_FACTORS)}
@@ -3956,18 +3907,13 @@ function WeightTuner({ weights, onChange, onReset }) {
   );
 }
 
-function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepro, weights, onWeight, onResetWeights,
-                          valueStreams, siteArchetypeBase, siteArchetypeCombos, showRepro }) {
-  const [vs, setVs] = useState('All');
+function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights,
+                          siteArchetypeBase, siteArchetypeCombos }) {
   const [sa, setSa] = useState('All');
-  // Deliberately the whole population, not the filtered view: the claim is about
-  // the deck's published figures, which are portfolio-wide. Only meaningful for
-  // the project that has a deck to reproduce against — see showRepro.
-  const repro = useMemo(() => (showRepro ? reproductionReport(scored) : null), [scored, showRepro]);
 
-  const match = (r) => (vs === 'All' || r.valueStream === vs) && archetypeMatches(r.siteArchetype, sa);
-  const filtered = useMemo(() => scored.filter(match), [scored, vs, sa]);
-  const filteredIncomplete = useMemo(() => incomplete.filter(match), [incomplete, vs, sa]);
+  const match = (r) => archetypeMatches(r.siteArchetype, sa);
+  const filtered = useMemo(() => scored.filter(match), [scored, sa]);
+  const filteredIncomplete = useMemo(() => incomplete.filter(match), [incomplete, sa]);
 
   const agg = useMemo(() => aggregate(filtered), [filtered]);
   const reb = agg.byTier.Rebuild;
@@ -3977,11 +3923,11 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepr
       <div className="view-head">
         <h2>Impact heat map</h2>
         <p className="lede">
-          Every role scored on two axes and placed in a quadrant. The quadrant does not label the role —
-          it prescribes the intervention package, and its dose. Click any point or row to open the role one-pager.
+          Every role scored on two axes and placed in a quadrant. The quadrant does not label the role.
+          It prescribes the intervention package, and its dose. Click any point or row to open the role one-pager.
         </p>
         <p className="lede unit">
-          <b>One row = one role in one value stream at one site scope — role × process × site.</b>{' '}
+          <b>One row = one role at one site scope: role × site.</b>{' '}
           A site scope is either a single archetype or a named combination of them, like <b>Plant + DC</b>, because some roles
           genuinely work across both. That scope is the level a curriculum, a comms message and a named accountable manager can
           actually be attached to, which is why we score and tier there.
@@ -3990,28 +3936,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepr
         </p>
       </div>
 
-      {/* The claim a judge should be handed first: these figures are outputs, not inputs.
-          Only shown for the project that has a deck to reproduce against. */}
-      {showRepro && repro && (
-        <div className="repro-strip no-print">
-          <span className="rs-n">{repro.matched}/{repro.total}</span>
-          <span className="rs-t">
-            <b>Reproduced, not hardcoded.</b> {repro.matched} of the {repro.total} figures our deck published fall out of this engine —
-            the tier table, the seven named roles' axis scores, the resourced plan and the {money(roiModel(scored).lossAvoided)}.
-            The other {repro.total - repro.matched} are near misses and are shown as near misses, with the rule that produced them.
-          </span>
-          <button className="btn" onClick={onRepro}>See the comparison →</button>
-        </div>
-      )}
-
       <div className="filters no-print">
-        <div className="field">
-          <label htmlFor="f-vs">Value stream</label>
-          <select id="f-vs" value={vs} onChange={(e) => setVs(e.target.value)}>
-            <option value="All">All value streams</option>
-            {valueStreams.map((v) => <option key={v} value={v}>{v}</option>)}
-          </select>
-        </div>
         <div className="field">
           <label htmlFor="f-sa">Site archetype</label>
           <select id="f-sa" value={sa} onChange={(e) => setSa(e.target.value)}>
@@ -4026,15 +3951,13 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepr
             )}
           </select>
         </div>
-        <div className="spacer" />
-        <button className="btn primary" onClick={onAdd}>+ Add a role</button>
       </div>
 
       <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} />
 
       {filteredIncomplete.length > 0 && (
         <div className="note warn" style={{ marginBottom: 16 }}>
-          <b>{filteredIncomplete.length} row{filteredIncomplete.length === 1 ? '' : 's'} incomplete — not scored, not tiered, not plotted.</b>
+          <b>{filteredIncomplete.length} row{filteredIncomplete.length === 1 ? '' : 's'} incomplete: not scored, not tiered, not plotted.</b>
           <span className="sub">
             {filteredIncomplete.map((r) => `${r.role} (${r.missing.length} of 6 sub-factors missing)`).join(' · ')}. {NOTE.incomplete}
           </span>
@@ -4044,8 +3967,8 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepr
       <div className="banner" style={{ marginBottom: 16 }}>
         <b>{pct(reb.popShare)} of the population absorbs {pct(reb.budgetShare)} of the effort.</b> That concentration is the deliverable.
         <span className="src">
-          {reb.roles} Rebuild {reb.roles === 1 ? 'role' : 'roles'} · {reb.people.toLocaleString()} of {agg.totalPeople.toLocaleString()} people ·
-          {' '}budget share derived from our own per-head cost assumption, printed on the Adoption tab{showRepro ? ' · deck slide 9 states 12% → 55%' : ''}.
+          {reb.roles} Rebuild {reb.roles === 1 ? 'role' : 'roles'} · {reb.people.toLocaleString()} of {agg.totalPeople.toLocaleString()} people.
+          {' '}Budget share is headcount weighted by the per-tier cost weights on the Adoption tab, not a flat headcount split.
         </span>
       </div>
 
@@ -4055,6 +3978,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepr
           return (
             <div className="tile tier-tile" key={t} style={{ '--tier-color': TIERS[t].hex }}>
               <div className="tier-name"><i className="dot" style={{ '--dot': TIERS[t].hex }} />{t}</div>
+              <div className="tier-desc">{TIERS[t].quadrant}: {TIERS[t].package.join(', ')}.</div>
               <div className="rows">
                 <div className="row"><span>Roles</span><b>{b.roles}</b></div>
                 <div className="row"><span>People</span><b>{b.people.toLocaleString()}</b></div>
@@ -4073,15 +3997,21 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, onAdd, onRepr
         </div>
         <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
         <div className="card-body" style={{ borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
-          <p className="footnote" style={{ marginTop: 0 }}>{NOTE.threshold}</p>
+          <p className="formula" style={{ marginTop: 0 }}>
+            Impact severity = {IMPACT_FACTORS.map((f) => `${effWeight(IMPACT_FACTORS, f).toFixed(2)}×${f.label.toLowerCase()}`).join(' + ')}
+          </p>
+          <p className="formula">
+            Adoption risk = {RISK_FACTORS.map((f) => `${effWeight(RISK_FACTORS, f).toFixed(2)}×${f.label.toLowerCase()}`).join(' + ')}
+          </p>
+          <p className="footnote">{NOTE.threshold}</p>
           <p className="footnote">{NOTE.weights}</p>
         </div>
       </div>
 
       <div className="card">
         <div className="card-head">
-          <h3>Role × value stream × site</h3>
-          <span className="hint">One row per role × process × site. Sort any column. Click a row for the one-pager.</span>
+          <h3>Role × site</h3>
+          <span className="hint">One row per role × site. Sort any column. Click a row for the one-pager.</span>
         </div>
         <RoleTable roles={filtered} incomplete={filteredIncomplete} selectedId={selectedId} onSelect={onSelect} />
       </div>
@@ -4136,10 +4066,6 @@ function GeneratedBlock({ data }) {
   return (
     <div className="gen-grid">
       <div className="gen-sec">
-        <h4>Role redesign narrative</h4>
-        {String(data.narrative).split(/\n\n+/).map((p, i) => <p key={i}>{p}</p>)}
-      </div>
-      <div className="gen-sec">
         <h4>Training curriculum</h4>
         <ol>
           {data.curriculum.map((c, i) => (
@@ -4190,8 +4116,8 @@ function GeneratedBlock({ data }) {
 
 function onePagerText(role, gen) {
   const L = [];
-  L.push(`${role.role} — ${role.tier}`);
-  L.push(`${role.valueStream} · ${role.siteArchetype} · ${role.siteCount} site(s) · ${role.headcount} people${role.deskless ? ' · deskless' : ''}`);
+  L.push(`${role.role}: ${role.tier}`);
+  L.push(`${role.siteArchetype} · ${role.siteCount} site(s) · ${role.headcount} people${role.deskless ? ' · deskless' : ''}`);
   L.push('');
   L.push(role.summary || '');
   L.push('');
@@ -4204,13 +4130,13 @@ function onePagerText(role, gen) {
     const v = (IMPACT_FACTORS.includes(f) ? role.impact : role.risk)[f.key];
     const a = anchorFor(f.key, v);
     if (!a) return;
-    L.push(`  ${f.label} ${v.toFixed(1)} — anchor ${a.n}${a.exact ? '' : ' (nearest)'}: ${a.text}`);
+    L.push(`  ${f.label} ${v.toFixed(1)}: anchor ${a.n}${a.exact ? '' : ' (nearest)'}: ${a.text}`);
     L.push(`    provenance: ${a.origin}`);
   });
   L.push(`  The source deck defines no point on the 1-5 scale. Frequency and volume is ours end to end - no source measures it.`);
   L.push('');
   L.push(`Weights are ours: our default, and tunable. The source deck states no weights and no aggregation method.`);
-  L.push(`Unit of analysis: role x value stream x site scope — one row is one role in one value stream at one site scope, where a`);
+  L.push(`Unit of analysis: role x site scope. One row is one role at one site scope, where a`);
   L.push(`site scope is either a single archetype or a named combination of them (e.g. Plant + DC). That scope is what a curriculum,`);
   L.push(`a comms message and a named accountable manager attach to.`);
   L.push('');
@@ -4220,17 +4146,17 @@ function onePagerText(role, gen) {
   L.push('AFTER');  (role.after || []).forEach((b) => L.push(`  - ${b}`));
   L.push('');
   L.push(`PRESCRIBED (${role.tier})`);
-  packageFor(role).forEach((p) => L.push(`  - ${p.text} — ${p.dose}`));
+  packageFor(role).forEach((p) => L.push(`  - ${p.text}: ${p.dose}`));
   modifiersFor(role).forEach((m) => { L.push(`  ${m.title} [${m.trigger}]`); m.items.forEach((i) => L.push(`    - ${i}`)); });
   const td = trainingDesign(role);
   L.push('');
   L.push('DELIVERY DETAIL (Aberdeen OCM delivery material; the tier -> tactic mapping is ours)');
-  L.push(`  Training: ${td.primary.method}, ${td.primary.duration} — selected for ${td.why}`);
+  L.push(`  Training: ${td.primary.method}, ${td.primary.duration}, selected for ${td.why}`);
   L.push(`  Job aids: ${td.aids.count} (${td.aids.band} band, ${td.aids.range}), ${td.jobAidMethod.duration} each`);
   L.push('  Communications milestones:');
-  commsPlan(role).forEach((m) => L.push(`    - ${m.name} — ${m.objective} · ${m.channel}`));
+  commsPlan(role).forEach((m) => L.push(`    - ${m.name}: ${m.objective} · ${m.channel}`));
   L.push('  Support escalation: ' + SUPPORT_LAYERS.join(' -> '));
-  L.push(`  Hypercare: ${DOSES[role.tier].hypercareWeeks} week(s) — the floor in every tier `
+  L.push(`  Hypercare: ${DOSES[role.tier].hypercareWeeks} week(s), the floor in every tier `
        + `(${TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks); only the duration scales.`);
   L.push(`  Cadence: readiness reassessed every ${CADENCE.readinessReassessMonths} months; role re-scored every ${DOSES[role.tier].rescoreDays} days`);
   L.push(`  Adoption measured over a ${CADENCE.adoptionWindowMonths}-month window on: ${ADOPTION_METRICS.join(', ')}`);
@@ -4238,7 +4164,7 @@ function onePagerText(role, gen) {
   if (gen) {
     L.push(''); L.push('ROLE REDESIGN NARRATIVE'); L.push(gen.narrative);
     L.push(''); L.push('TRAINING CURRICULUM');
-    gen.curriculum.forEach((c) => L.push(`  - ${c.module || c.title}: ${[c.format, c.duration].filter(Boolean).join(' · ')}${c.objective ? ' — ' + c.objective : ''}`));
+    gen.curriculum.forEach((c) => L.push(`  - ${c.module || c.title}: ${[c.format, c.duration].filter(Boolean).join(' · ')}${c.objective ? ', ' + c.objective : ''}`));
     L.push(''); L.push('COMMS MESSAGE'); L.push(`  ${gen.comms.headline}`); L.push(`  ${gen.comms.message}`);
     if (gen.comms.channels) L.push(`  Channels: ${gen.comms.channels.join(' · ')}`);
     L.push(''); L.push('ADOPTION ACTIONS');
@@ -4257,19 +4183,19 @@ function DeliveryDetail({ role }) {
   return (
     <>
       <div className="pkg-extra">
-        <h5>Training design — method chosen by complexity</h5>
+        <h5>Training design: method chosen by complexity</h5>
         <p>
-          <b>{t.primary.method}</b>, <b>{t.primary.duration}</b> — selected for {t.why}.
+          <b>{t.primary.method}</b>, <b>{t.primary.duration}</b>, selected for {t.why}.
           {' '}Fits {t.primary.fits}. Delivered {t.trainTheTrainer ? 'by train-the-trainer participants' : 'self-driven'}.
         </p>
         <p style={{ marginBottom: 0 }}>
-          <b>{t.aids.count} job aids</b> at the point of work — {t.aids.band} band, {t.aids.range} aids,
+          <b>{t.aids.count} job aids</b> at the point of work: {t.aids.band} band, {t.aids.range} aids,
           {' '}{t.jobAidMethod.duration} each.
         </p>
       </div>
 
       <div className="pkg-extra">
-        <h5>Communications — five milestones, each with its objective</h5>
+        <h5>Communications: five milestones, each with its objective</h5>
         <table className="mini">
           <tbody>
             {plan.map((m) => (
@@ -4288,11 +4214,11 @@ function DeliveryDetail({ role }) {
       </div>
 
       <div className="pkg-extra">
-        <h5>Support after go-live — four-layer escalation</h5>
+        <h5>Support after go-live: four-layer escalation</h5>
         <ol className="esc">{SUPPORT_LAYERS.map((s) => <li key={s}>{s}</li>)}</ol>
         <p className="sub" style={{ marginBottom: 0 }}>
           Hypercare is the floor, not a tier-specific extra: {d.hypercareWeeks} week{d.hypercareWeeks === 1 ? '' : 's'} for this tier.
-          {' '}Every tier carries it — {TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks — only the duration scales.
+          {' '}Every tier carries it: {TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks. Only the duration scales.
         </p>
       </div>
 
@@ -4312,20 +4238,21 @@ function DeliveryDetail({ role }) {
 function OnePager({ role, gen, status, onGenerate, onBack, backLabel }) {
   const label = backLabel || 'Stakeholder Impact';
   const [copied, setCopied] = useState(false);
+  const [showScore, setShowScore] = useState(false);
   if (!role) {
     return (
       <div className="card"><div className="empty">
         <h3>No role selected</h3>
-        <p>Pick a role from the heat map or the table — or add one live.</p>
+        <p>Pick a role from the heat map or the table, or add one live.</p>
       </div></div>
     );
   }
   if (!role.complete) {
     return (
       <div className="card"><div className="empty">
-        <h3>{role.role} — incomplete</h3>
+        <h3>{role.role}: incomplete</h3>
         <p>
-          This row cannot be scored or tiered: {role.missing.length} of 6 sub-factors {role.missing.length === 1 ? 'is' : 'are'} not set —
+          This row cannot be scored or tiered: {role.missing.length} of 6 sub-factors {role.missing.length === 1 ? 'is' : 'are'} not set:
           {' '}{role.missing.join(', ')}.
         </p>
         <p className="footnote" style={{ maxWidth: '70ch', margin: '10px auto 0' }}>{NOTE.incomplete}</p>
@@ -4358,12 +4285,13 @@ function OnePager({ role, gen, status, onGenerate, onBack, backLabel }) {
         <button className="btn" onClick={() => window.print()}>Print / PDF</button>
       </div>
 
+      {/* 1. HEADER: name, headcount, site, tier, all immediately visible. */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="op-head">
           <div className="t">
             <h2>{role.role}{role.isNewRole && <span className="newflag">new role</span>}</h2>
             <div className="crumbs">
-              <span>{role.valueStream}</span><span>{role.siteArchetype}</span>
+              <span>{role.siteArchetype}</span>
               <span>{role.siteCount} {role.siteCount === 1 ? 'site' : 'sites'}</span>
               <span>{role.headcount.toLocaleString()} people</span>
               {role.deskless && <span>deskless</span>}
@@ -4371,84 +4299,67 @@ function OnePager({ role, gen, status, onGenerate, onBack, backLabel }) {
           </div>
           <TierBadge tier={role.tier} large />
         </div>
-        <div className="card-body">
-          <p className="op-summary">{role.summary}</p>
-          {role.deckNote && <div className="banner" style={{ marginTop: 14 }}>{role.deckNote}</div>}
-        </div>
+        {role.deckNote && <div className="card-body"><div className="banner">{role.deckNote}</div></div>}
       </div>
 
-      <div className="grid cols-4" style={{ marginBottom: 16 }}>
+      {/* 2. WHAT'S CHANGING: the most prominent content on the page. */}
+      <div className="view-head" style={{ marginBottom: 10 }}>
+        <h3 style={{ margin: 0, fontSize: 17 }}>What's changing</h3>
+      </div>
+      <div className="grid cols-4" style={{ marginBottom: 12 }}>
         <Tile label="Tasks removed" value={role.tasksRemoved} />
         <Tile label="Tasks changed" value={role.tasksChanged} />
         <Tile label="Tasks new" value={role.tasksNew} />
         <Tile label="FTE delta" value={`${role.fteDelta > 0 ? '+' : ''}${role.fteDelta}`} meta="of admin, per site" />
       </div>
-
       <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-head"><h3>The work that changes</h3></div>
+        <div className="card-body" style={{ paddingBottom: 4 }}><p className="op-summary" style={{ marginTop: 0 }}>{role.summary}</p></div>
         <div className="ba">
           <div>
             <h4>Before</h4>
             <ul>{(role.before || []).map((b, i) => <li key={i}>{b}</li>)}</ul>
           </div>
           <div>
-            <h4>After — with ERP</h4>
+            <h4>After: with the new system</h4>
             <ul className="after">{(role.after || []).map((b, i) => <li key={i}>{b}</li>)}</ul>
           </div>
         </div>
       </div>
 
-      <div className="grid cols-2" style={{ marginBottom: 16 }}>
-        <div className="card">
-          <div className="card-head"><h3>Score, and why</h3><span className="hint">deterministic · auditable · weights ours, tunable</span></div>
-          <div className="card-body">
-            <AxisBreakdown name="Impact severity" factors={IMPACT_FACTORS} values={role.impact} score={role.scores.impact} />
-            <AxisBreakdown name="Adoption risk" factors={RISK_FACTORS} values={role.risk} score={role.scores.risk} />
-            <div className="sf-total" style={{ borderTop: '1px solid var(--hairline)', marginTop: 14, paddingTop: 12 }}>
-              impact {role.scores.impact.toFixed(1)} {role.scores.impact >= THRESHOLD ? '≥' : '<'} 3.5 and risk {role.scores.risk.toFixed(1)} {role.scores.risk >= THRESHOLD ? '≥' : '<'} 3.5
-              <b>→ {role.tier}</b>
-            </div>
-            <p className="footnote">{NOTE.threshold}</p>
-            <p className="footnote">{NOTE.weights}</p>
-            <p className="footnote">{NOTE.anchors}</p>
-            <p className="footnote">{NOTE.unit}</p>
-          </div>
+      {/* 3. WHY IT'S SCORED THIS WAY: collapsed by default, full detail on demand
+          (and always present for print/copy, see .score-detail in styles.css). */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-head" style={{ cursor: 'pointer' }} onClick={() => setShowScore((s) => !s)}>
+          <h3>Why it's scored this way</h3>
+          <span className="hint">
+            impact {role.scores.impact.toFixed(1)} · risk {role.scores.risk.toFixed(1)} → <b>{role.tier}</b>
+          </span>
+          <button className="btn no-print" style={{ marginLeft: 12 }}
+                  onClick={(e) => { e.stopPropagation(); setShowScore((s) => !s); }}>
+            {showScore ? 'Hide detail' : 'Show detail'}
+          </button>
         </div>
-
-        <div className="card">
-          <div className="card-head">
-            <h3>Prescribed intervention</h3>
-            <span className="hint">{TIERS[role.tier].quadrant}</span>
+        <div className={'card-body score-detail' + (showScore ? '' : ' collapsed')}>
+          <AxisBreakdown name="Impact severity" factors={IMPACT_FACTORS} values={role.impact} score={role.scores.impact} />
+          <AxisBreakdown name="Adoption risk" factors={RISK_FACTORS} values={role.risk} score={role.scores.risk} />
+          <div className="sf-total" style={{ borderTop: '1px solid var(--hairline)', marginTop: 14, paddingTop: 12 }}>
+            impact {role.scores.impact.toFixed(1)} {role.scores.impact >= THRESHOLD ? '≥' : '<'} 3.5 and risk {role.scores.risk.toFixed(1)} {role.scores.risk >= THRESHOLD ? '≥' : '<'} 3.5
+            <b>→ {role.tier}</b>
           </div>
-          <div className="card-body">
-            <ul className="pkg-list">
-              {pkg.map((p, i) => (
-                <li key={i}><i className="dot" style={{ '--dot': TIERS[role.tier].hex, marginTop: 7 }} />
-                  <span>{p.text}</span><span className="dose">{p.dose}</span></li>
-              ))}
-            </ul>
-            {mods.map((m, i) => (
-              <div className="mod" key={i}>
-                <h5>{m.title} — triggered by {m.trigger}</h5>
-                <ul>{m.items.map((it, j) => <li key={j}>{it}</li>)}</ul>
-              </div>
-            ))}
-            {(role.constraints || []).length > 0 && (
-              <div style={{ marginTop: 16 }}>
-                <h5 style={{ margin: '0 0 7px', fontSize: 12, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>Constraints on this population</h5>
-                <div className="constraint-list">{role.constraints.map((c, i) => <span key={i}>{c}</span>)}</div>
-              </div>
-            )}
-            <DeliveryDetail role={role} />
-            <p className="footnote">{NOTE.mapping}</p>
-            <p className="footnote">{NOTE.ratio}</p>
-          </div>
+          <p className="footnote">{NOTE.threshold}</p>
+          <p className="footnote">{NOTE.weights}</p>
+          <p className="footnote">{NOTE.anchors}</p>
+          <p className="footnote">{NOTE.unit}</p>
         </div>
       </div>
 
+      {/* 4. THE PLAN: concrete action items, not prose. Prescribed package,
+          modifiers and constraints from the deterministic engine, plus the
+          generated training/comms/adoption-actions detail once available. */}
       <div className="card">
         <div className="card-head">
-          <h3>Generated intervention content</h3>
+          <h3>The plan</h3>
+          <span className="hint">{TIERS[role.tier].quadrant}</span>
           <div className="gen-status" style={{ marginLeft: 'auto' }}>
             {gen && (gen.source === 'anthropic'
               ? <span className="mark live">live · {gen.model || 'claude'}</span>
@@ -4459,11 +4370,33 @@ function OnePager({ role, gen, status, onGenerate, onBack, backLabel }) {
           </div>
         </div>
         <div className="card-body">
+          <ul className="pkg-list">
+            {pkg.map((p, i) => (
+              <li key={i}><i className="dot" style={{ '--dot': TIERS[role.tier].hex, marginTop: 7 }} />
+                <span>{p.text}</span><span className="dose">{p.dose}</span></li>
+            ))}
+          </ul>
+          {mods.map((m, i) => (
+            <div className="mod" key={i}>
+              <h5>{m.title}: triggered by {m.trigger}</h5>
+              <ul>{m.items.map((it, j) => <li key={j}>{it}</li>)}</ul>
+            </div>
+          ))}
+          {(role.constraints || []).length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <h5 style={{ margin: '0 0 7px', fontSize: 12, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>Constraints on this population</h5>
+              <div className="constraint-list">{role.constraints.map((c, i) => <span key={i}>{c}</span>)}</div>
+            </div>
+          )}
+          <DeliveryDetail role={role} />
+          <p className="footnote">{NOTE.mapping}</p>
+          <p className="footnote">{NOTE.ratio}</p>
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--hairline)' }}>
           {status === 'loading' && (
             <div className="gen-grid">
-              {[0, 1, 2, 3].map((i) => (
+              {[0, 1, 2].map((i) => (
                 <div className="gen-sec" key={i}>
-                  <h4>{['Role redesign narrative', 'Training curriculum', 'Comms message', 'Adoption actions'][i]}</h4>
+                  <h4>{['Training curriculum', 'Comms message', 'Adoption actions'][i]}</h4>
                   <div className="skeleton"><i /><i /><i /><i /></div>
                 </div>
               ))}
@@ -4471,9 +4404,9 @@ function OnePager({ role, gen, status, onGenerate, onBack, backLabel }) {
           )}
           {status !== 'loading' && !gen && (
             <p style={{ color: 'var(--ink-2)', maxWidth: '72ch' }}>
-              The scoring and the tier above are deterministic. The four sections below — redesign narrative,
-              training curriculum, comms message and adoption actions — are written for this role, grounded in its
-              description, its sub-factor scores, its tier package and its constraints. Press <b>Generate</b>.
+              The scoring and tier above are deterministic. The three sections below, training curriculum, comms
+              message and adoption actions, are written for this role, grounded in its description, sub-factor
+              scores, tier package and constraints. Press <b>Generate</b>.
             </p>
           )}
           {status !== 'loading' && gen && <GeneratedBlock data={gen} />}
@@ -4483,6 +4416,7 @@ function OnePager({ role, gen, status, onGenerate, onBack, backLabel }) {
               Content is grounded in the same inputs the model receives.
             </p>
           )}
+          </div>
         </div>
       </div>
       <p className="footnote">All figures illustrative. All data synthetic.</p>
@@ -4491,17 +4425,17 @@ function OnePager({ role, gen, status, onGenerate, onBack, backLabel }) {
 }
 
 /* ===========================================================================
-   9. ADD A ROLE, LIVE  — the money moment
+   9. ADD A ROLE, LIVE: the money moment
    =========================================================================== */
 
 /* Sub-factors start UNSET. A half-filled row must read as incomplete, not as a
-   score — least of all on stage. */
+   score, least of all on stage. */
 /* Defaults come from whichever project is open, so the form never starts a
    healthcare or financial-services role pre-filled with a manufacturing
-   value stream and site archetype. */
+   site archetype. */
 function blankFor(project) {
   return {
-    role: '', valueStream: project.valueStreams[0], siteArchetype: project.siteArchetypeBase[0],
+    role: '', siteArchetype: project.siteArchetypeBase[0],
     siteCount: 1, headcount: 50, deskless: false, summary: '',
     impact: { taskShare: null, frequencyVolume: null, errorConsequence: null },
     risk: { decisionRights: null, capabilityDelta: null, localReadiness: null },
@@ -4534,7 +4468,7 @@ function Slider({ factor, weightFactors, value, onChange }) {
             <span className="at">{hit.text}</span>
           </>
         ) : (
-          <span className="at">Move the slider to see what the score means — every point on the scale is anchored.</span>
+          <span className="at">Move the slider to see what the score means. Every point on the scale is anchored.</span>
         )}
       </div>
       <details className="anchor-all">
@@ -4573,7 +4507,6 @@ function AddRoleView({ onCreate, project }) {
     onCreate({
       id,
       role: f.role.trim() || 'Untitled role',
-      valueStream: f.valueStream,
       siteArchetype: f.siteArchetype,
       siteCount: Math.max(1, parseInt(f.siteCount, 10) || 1),
       headcount: Math.max(1, parseInt(f.headcount, 10) || 1),
@@ -4594,11 +4527,11 @@ function AddRoleView({ onCreate, project }) {
       <div className="view-head">
         <h2>Add a role</h2>
         <p className="lede">
-          Score a role that was missed — in the room, in front of site leadership. It is scored, tiered,
+          Score a role that was missed, in the room, in front of site leadership. It is scored, tiered,
           placed on the heat map and given a costed package the moment you submit. Change an input, the plan re-costs itself.
         </p>
         <p className="lede unit">
-          One row is one role in <b>one value stream at one site scope</b> — role × process × site, where a site scope is either a
+          One row is one role at <b>one site scope</b>: role × site, where a site scope is either a
           single archetype or a named combination of them, like <b>Plant + DC</b>. That scope is what a curriculum, a comms message
           and a named accountable manager attach to.
           All six sub-factors are required: until they are set the row reads <b>incomplete</b>, with no score and no tier.
@@ -4620,12 +4553,6 @@ function AddRoleView({ onCreate, project }) {
                          onChange={(e) => set({ role: e.target.value })} />
                 </div>
                 <div className="field">
-                  <label htmlFor="a-vs">Value stream</label>
-                  <select id="a-vs" value={f.valueStream} onChange={(e) => set({ valueStream: e.target.value })}>
-                    {project.valueStreams.map((v) => <option key={v}>{v}</option>)}
-                  </select>
-                </div>
-                <div className="field">
                   <label htmlFor="a-sa">Site archetype</label>
                   <select id="a-sa" value={f.siteArchetype} onChange={(e) => set({ siteArchetype: e.target.value })}>
                     <optgroup label={project.siteArchetypeCombos.length ? 'One archetype' : 'Archetype'}>
@@ -4645,11 +4572,11 @@ function AddRoleView({ onCreate, project }) {
                 </div>
                 {scopeHint && (
                   <p className="full scope-hint" data-testid="scope-hint" aria-live="polite">
-                    <b>Worth a look — this will still submit.</b>{' '}
+                    <b>Worth a look: this will still submit.</b>{' '}
                     {scopeHint.archetype} covers {scopeHint.capacity === 1 ? 'one site' : `${scopeHint.capacity} sites`} in this
                     estate, and you have entered {scopeHint.count}.{' '}
                     {scopeHint.suggestion
-                      ? <>Setting the scope to <b>{scopeHint.suggestion}</b> covers {scopeHint.suggestionCapacity} — that is how
+                      ? <>Setting the scope to <b>{scopeHint.suggestion}</b> covers {scopeHint.suggestionCapacity}, that is how
                           the deck writes a role spanning two archetypes, as “HQ+6”.</>
                       : <>Field/Commercial is the one scope with no fixed site list, if the role really is that wide.</>}
                     {' '}Either way the score, the tier and the package are unchanged.
@@ -4681,14 +4608,14 @@ function AddRoleView({ onCreate, project }) {
 
             <div className={'live-score' + (complete ? '' : ' pending')}>
               <div>
-                <div className="lab">{complete ? 'Computed live' : `Incomplete — ${6 - missing.length} of 6 sub-factors set`}</div>
+                <div className="lab">{complete ? 'Computed live' : `Incomplete: ${6 - missing.length} of 6 sub-factors set`}</div>
                 <div className="pair" style={{ marginTop: 8 }}>
                   <div>
-                    <div className="big num">{complete ? impact.toFixed(1) : '—'}</div>
+                    <div className="big num">{complete ? impact.toFixed(1) : 'N/A'}</div>
                     <div className="thr">Impact severity · threshold 3.5, inclusive</div>
                   </div>
                   <div>
-                    <div className="big num">{complete ? risk.toFixed(1) : '—'}</div>
+                    <div className="big num">{complete ? risk.toFixed(1) : 'N/A'}</div>
                     <div className="thr">Adoption risk · threshold 3.5, inclusive</div>
                   </div>
                 </div>
@@ -4744,111 +4671,6 @@ function AddRoleView({ onCreate, project }) {
 }
 
 /* ===========================================================================
-   9b. REPRODUCED, NOT HARDCODED — the claim, stated where a judge can read it.
-   Every "computes" cell below is live. Nothing on this view is asserted.
-   =========================================================================== */
-
-function ReproducedView({ scored, weightsDefault, onBack, backLabel }) {
-  const rep = useMemo(() => reproductionReport(scored), [scored]);
-  const misses = rep.total - rep.matched;
-  return (
-    <>
-      {onBack && (
-        <div className="btn-row no-print" style={{ marginBottom: 14 }}>
-          <button className="btn" onClick={onBack}>← {backLabel || 'Stakeholder Impact'}</button>
-        </div>
-      )}
-      <div className="view-head">
-        <h2>Reproduced, not hardcoded</h2>
-        <p className="lede">
-          Our own deck published a set of figures. None of them is typed into this tool as an answer: the engine scores
-          {' '}{scored.length} rows from their six sub-factors and the figures fall out the other side. This page puts the deck's number
-          next to what the engine computes, live, so the claim can be checked rather than believed.
-        </p>
-        <p className="lede unit">
-          <b>{rep.matched} of {rep.total} figures reproduce exactly.</b> The other {misses} are <b>near misses, and they are not
-          claimed as matches</b> — each one shows the rule that produced it. The derivation is the right answer there, not the deck's
-          number: change an input and these move, which is the whole point of a tool over a slide.
-          {!weightsDefault && ' Weights have been changed from our default, so figures that normally reproduce may not — that is the engine being honest, not a fault.'}
-        </p>
-      </div>
-
-      <div className="repro-summary">
-        <div className="rs-tile ok">
-          <div className="n">{rep.matched}</div>
-          <div className="l">reproduce exactly</div>
-        </div>
-        <div className="rs-tile miss">
-          <div className="n">{misses}</div>
-          <div className="l">near misses, shown as near misses</div>
-        </div>
-        <div className="rs-tile">
-          <div className="n">{scored.length}</div>
-          <div className="l">rows scored to get there · role × process × site</div>
-        </div>
-        <div className="rs-tile">
-          <div className="n">0</div>
-          <div className="l">of these figures is hardcoded as an output</div>
-        </div>
-      </div>
-
-      {rep.groups.map((g) => (
-        <div className="card repro-card" key={g.group}>
-          <div className="card-head">
-            <h3>{g.group}</h3>
-            <span className="hint">
-              {g.rows.filter((r) => r.ok).length} of {g.rows.length} exact
-            </span>
-          </div>
-          <div className="card-body">
-            <div className="repro-table">
-              <div className="rt-head">
-                <span>Figure</span><span>Deck says</span><span>Engine computes</span><span>Verdict</span>
-              </div>
-              {g.rows.map((r) => (
-                <div className={'rt-row' + (r.ok ? '' : ' miss')} key={r.label}>
-                  <span className="f">{r.label}</span>
-                  <span className="d num">{r.deck}</span>
-                  <span className="e num">{r.engine}</span>
-                  <span className="v">{r.ok ? 'reproduced' : 'near miss'}</span>
-                  <span className="r">{r.ok ? <>Rule: {r.rule}</> : <><b>Why it differs:</b> {r.rule}</>}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ))}
-
-      <div className="card">
-        <div className="card-head"><h3>What this page is not claiming</h3></div>
-        <div className="card-body">
-          <ul className="caveats">
-            <li>
-              <b>It is not a validation of the deck.</b> The deck's figures are footnoted <i>illustrative</i>, and the dataset
-              behind them is synthetic. What reproduces is the arithmetic, not a fact about a real client.
-            </li>
-            <li>
-              <b>The dataset was built to be consistent with the deck.</b> {NOTE.dataset} The seven named roles were given
-              sub-factor scores that produce the deck's axis scores — so slide 10 reproducing is a fair demonstration that the
-              engine is deterministic and auditable, not independent evidence that the scores are right.
-            </li>
-            <li>
-              <b>The near misses are the honest part.</b> Four plan figures diverge, one axis score diverges, and the budget split
-              lands a rounding point away — and in every case the tool prints its rule rather than bending to the slide. Plant
-              Controller is the sharpest: the deck's own slide 10 is internally inconsistent, printing a 3.6 adoption risk while
-              tiering the role Enable, and the engine resolves it in favour of the tier the deck assigns.
-            </li>
-            <li>
-              <b>Nothing here is inherited provenance.</b> {NOTE.weights} {NOTE.threshold}
-            </li>
-          </ul>
-        </div>
-      </div>
-    </>
-  );
-}
-
-/* ===========================================================================
    10. COSTED PLAN / ROI
    =========================================================================== */
 
@@ -4856,7 +4678,7 @@ function RoiChart() {
   const ref = useRef(null);
   useEffect(() => {
     if (!window.Chart || !ref.current) return;
-    // Direct labels placed at the widest gap between the curves — at the right
+    // Direct labels placed at the widest gap between the curves, at the right
     // edge the two series converge and stacked end-labels would collide.
     let gapAt = 0, gapMax = -1;
     ROI_WEEKS.forEach((w, i) => {
@@ -4869,7 +4691,7 @@ function RoiChart() {
         const { ctx } = chart;
         ctx.save();
         // Canvas text can't wait on a webfont network request, so this stays a
-        // system-font stack rather than Poppins — weight still maps to Medium.
+        // system-font stack rather than Poppins, weight still maps to Medium.
         ctx.font = '500 12px system-ui, -apple-system, "Segoe UI", sans-serif';
         ctx.textAlign = 'left';
         [[1, -14, SERIES.targeted], [0, 20, SERIES.untargeted]].forEach(([di, dy, colour]) => {
@@ -4906,7 +4728,7 @@ function RoiChart() {
             borderColor: SERIES.targeted, backgroundColor: SERIES.band,
             borderWidth: 2, pointRadius: 4, pointHoverRadius: 6,
             pointBorderColor: '#fff', pointBorderWidth: 2, tension: 0,
-            // Shade the band BETWEEN the curves — that area is literally the
+            // Shade the band BETWEEN the curves, that area is literally the
             // avoided loss the dollar figure is integrated from.
             fill: { target: 0, above: SERIES.band, below: 'transparent' },
           },
@@ -4957,8 +4779,81 @@ function RoiChart() {
   return <div className="chart-box"><canvas ref={ref} /></div>;
 }
 
+/* Same underlying curves as RoiChart, integrated cumulatively to each week
+   checkpoint instead of run once to week 16, so the dollar figure reads as a
+   trend, not a single static total. A "Today" marker lands at the project's
+   actual weeks-since-go-live, when that is known and inside the modeled window. */
+function RoiTrendChart({ points, todayWeek }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!window.Chart || !ref.current) return;
+    const todayMarker = {
+      id: 'todayMarker',
+      afterDatasetsDraw(chart) {
+        if (todayWeek === null || todayWeek === undefined) return;
+        const { ctx, chartArea, scales } = chart;
+        const x = scales.x.getPixelForValue(todayWeek);
+        ctx.save();
+        ctx.strokeStyle = '#09375F';
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, chartArea.top);
+        ctx.lineTo(x, chartArea.bottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = '500 11px system-ui, -apple-system, "Segoe UI", sans-serif';
+        ctx.fillStyle = '#09375F';
+        ctx.textAlign = 'center';
+        ctx.fillText('Today', x, chartArea.top - 6);
+        ctx.restore();
+      },
+    };
+    const c = new window.Chart(ref.current, {
+      type: 'bar',
+      plugins: [todayMarker],
+      data: {
+        labels: points.map((p) => p.week),
+        datasets: [{
+          label: 'Cumulative avoided productivity loss',
+          data: points.map((p) => Math.round(p.dollars)),
+          backgroundColor: SERIES.targeted, borderRadius: 3, maxBarThickness: 34,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        layout: { padding: { top: 22 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#09375F', padding: 10, cornerRadius: 7,
+            callbacks: {
+              title: (items) => `Week ${items[0].label} from go-live`,
+              label: (i) => `$${i.parsed.y.toLocaleString()} recovered so far`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'Weeks from go-live', color: '#6B6B6B', font: { size: 12.5, weight: '500' } },
+            grid: { display: false }, border: { color: '#C9C9C9' },
+            ticks: { color: '#8C8C8C', font: { size: 11.5 } },
+          },
+          y: {
+            title: { display: true, text: 'Cumulative $ recovered', color: '#6B6B6B', font: { size: 12.5, weight: '500' } },
+            grid: { color: '#E0E0E0', drawTicks: false }, border: { color: '#C9C9C9' },
+            ticks: { color: '#8C8C8C', font: { size: 11.5 }, callback: (v) => `$${Math.round(v / 1000)}k` },
+          },
+        },
+      },
+    });
+    return () => c.destroy();
+  }, [points, todayWeek]);
+  return <div className="chart-box"><canvas ref={ref} /></div>;
+}
+
 /* ===========================================================================
-   10a. REDESIGN — before/after task lists and FTE deltas, scanned across the
+   10a. REDESIGN: before/after task lists and FTE deltas, scanned across the
    whole portfolio instead of one role at a time. Every field here already
    lives on the role record; nothing is re-derived.
    =========================================================================== */
@@ -4970,7 +4865,7 @@ function RedesignRow({ role, onOpen }) {
     <div className={'draft-row' + (role.complete ? '' : ' incomplete')}>
       <button type="button" className="draft-row-head" onClick={() => setOpen((o) => !o)}>
         <span className="drn">{role.role}</span>
-        <span className="drm">{role.valueStream} · {(role.headcount || 0).toLocaleString()} people</span>
+        <span className="drm">{role.siteArchetype} · {(role.headcount || 0).toLocaleString()} people</span>
         <span className="drm n">−{role.tasksRemoved || 0} · ~{role.tasksChanged || 0} · +{role.tasksNew || 0} · FTE {fte > 0 ? '+' : ''}{fte}</span>
         {role.complete ? <TierBadge tier={role.tier} /> : <span className="incflag">incomplete</span>}
         <span className="drx" aria-hidden="true">{open ? '▲' : '▼'}</span>
@@ -4983,7 +4878,7 @@ function RedesignRow({ role, onOpen }) {
               <ul className="tasklist">{(role.before || []).map((b, i) => <li key={i}>{b}</li>)}</ul>
             </div>
             <div>
-              <h4>After — with the new system</h4>
+              <h4>After: with the new system</h4>
               <ul className="tasklist">{(role.after || []).map((a, i) => <li key={i}>{a}</li>)}</ul>
             </div>
           </div>
@@ -5014,7 +4909,7 @@ function RedesignView({ all, selectedId, onSelect }) {
   return (
     <>
       <div className="view-head">
-        <h2>Redesign — how the work changes, role by role</h2>
+        <h2>Redesign: how the work changes, role by role</h2>
         <p className="lede">
           Before and after task lists for every role, scanned at portfolio level instead of one one-pager at a time.
           Removed, changed and new task counts and the FTE delta come straight from each role's record.
@@ -5048,10 +4943,10 @@ function RedesignView({ all, selectedId, onSelect }) {
 }
 
 /* ===========================================================================
-   10b. TRAINING — method, duration, job aids and curriculum hours, by role.
+   10b. TRAINING: method, duration, job aids and curriculum hours, by role.
    trainingDesign() and resourcedPlan()'s Training group are the same
    deterministic functions the one-pager and Adoption's plan table already
-   use — this view just presents them across the whole portfolio.
+   use, this view just presents them across the whole portfolio.
    =========================================================================== */
 
 function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProvenance }) {
@@ -5065,9 +4960,9 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
   return (
     <>
       <div className="view-head">
-        <h2>Training — method, duration and job aids, by role</h2>
+        <h2>Training: method, duration and job aids, by role</h2>
         <p className="lede">
-          Every role's training design falls out of its tier, complexity and deskless status — filter by tier to plan
+          Every role's training design falls out of its tier, complexity and deskless status. Filter by tier to plan
           delivery waves.
         </p>
       </div>
@@ -5114,7 +5009,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
       </div>
       {incomplete.length > 0 && (
         <p className="footnote">
-          {incomplete.length} incomplete role{incomplete.length === 1 ? '' : 's'} — no tier yet, so no training design —
+          {incomplete.length} incomplete role{incomplete.length === 1 ? '' : 's'}, no tier yet, so no training design,
           {' '}{incomplete.length === 1 ? 'is' : 'are'} not shown here.
         </p>
       )}
@@ -5163,10 +5058,10 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
 }
 
 /* ===========================================================================
-   10c. COMMUNICATION — milestones, channel, cascade scripts, by role.
+   10c. COMMUNICATION: milestones, channel, cascade scripts, by role.
    =========================================================================== */
 
-function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckProvenance }) {
+function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate }) {
   const [tierFilter, setTierFilter] = useState('All');
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const commsGroup = plan.find((g) => g.group === 'Communication');
@@ -5174,13 +5069,23 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckP
     .filter((r) => tierFilter === 'All' || r.tier === tierFilter)
     .map((r) => ({ role: r, milestones: commsPlan(r) })), [scored, tierFilter]);
 
+  const byTier = useMemo(() => TIER_ORDER.map((t) => {
+    const roles = scored.filter((r) => r.tier === t);
+    const deskCount = roles.filter((r) => !r.deskless).length;
+    const desklessCount = roles.filter((r) => r.deskless).length;
+    return { tier: t, roles, deskCount, desklessCount, timeline: tierCommsTimeline(t, deskCount, desklessCount) };
+  }).filter((g) => g.roles.length > 0), [scored]);
+
   return (
     <>
       <div className="view-head">
-        <h2>Communication — milestones, channels and cascade scripts</h2>
+        <h2>Communication: a timed plan by intervention tier</h2>
         <p className="lede">
-          The same five milestones reach every role, but the channel changes for deskless populations. Cascade
-          scripts and message-track counts are derived from the scored population, not typed in.
+          {goLiveDate
+            ? `Anchored to the ${fmtShortDate(new Date(goLiveDate + 'T00:00:00'))} target go-live, working backward. `
+            : 'No target go-live date set: timing below is shown relative to go-live. Set a date on the engagement profile for calendar dates. '}
+          Lead time before go-live mirrors each tier's own hypercare tail after it ({TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}w`).join(' · ')}),
+          and the channel for each stop follows the same deskless vs. desk-based split used for training and job aids.
         </p>
       </div>
 
@@ -5189,6 +5094,31 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckP
           {commsGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} meta={r.rule} />)}
         </div>
       )}
+
+      {byTier.map((g) => (
+        <div className="card" key={g.tier} style={{ marginBottom: 16 }}>
+          <div className="card-head">
+            <h3><i className="dot" style={{ '--dot': TIERS[g.tier].hex, display: 'inline-block', marginRight: 7 }} />{g.tier}</h3>
+            <span className="hint">{g.roles.length} role{g.roles.length === 1 ? '' : 's'} · {g.roles.reduce((s, r) => s + r.headcount, 0).toLocaleString()} people</span>
+          </div>
+          <div className="card-body">
+            <p className="sub" style={{ marginTop: 0 }}>{TIERS[g.tier].quadrant}: {TIERS[g.tier].package.join(', ')}.</p>
+            <table className="mini milestones">
+              <tbody>
+                {g.timeline.map((s) => (
+                  <tr key={s.label}>
+                    <th scope="row">{s.label}</th>
+                    <td className="ch" style={{ whiteSpace: 'nowrap' }}>
+                      {goLiveDate ? fmtShortDate(dateFromGoLive(goLiveDate, s.weeksFromGoLive)) : fmtWeeksFromGoLive(s.weeksFromGoLive)}
+                    </td>
+                    <td className="ch">{s.channel || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
 
       <div className="filters no-print">
         <div className="field">
@@ -5217,7 +5147,7 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckP
         </table>
       </div>
       {incomplete.length > 0 && (
-        <p className="footnote">{incomplete.length} incomplete role{incomplete.length === 1 ? '' : 's'} — no tier yet — not shown here.</p>
+        <p className="footnote">{incomplete.length} incomplete role{incomplete.length === 1 ? '' : 's'}, no tier yet, not shown here.</p>
       )}
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -5242,33 +5172,103 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckP
   );
 }
 
-function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance }) {
+function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate }) {
   const [tierFilter, setTierFilter] = useState('All');
   const roi = useMemo(() => roiModel(scored), [scored]);
+  const trend = useMemo(() => roiTrend(scored), [scored]);
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const adoptionGroup = plan.find((g) => g.group === 'Adoption');
   const agg = useMemo(() => aggregate(scored), [scored]);
+  const daysLive = useMemo(() => daysSince(goLiveDate), [goLiveDate]);
   const rows = useMemo(
     () => scored.filter((r) => tierFilter === 'All' || r.tier === tierFilter),
     [scored, tierFilter]
   );
+  const tierStatus = useMemo(() => TIER_ORDER.map((t) => ({
+    tier: t, count: agg.byTier[t].roles, people: agg.byTier[t].people, ...rescoreStatus(t, daysLive),
+  })).filter((s) => s.count > 0), [agg, daysLive]);
+  const [completion, setCompletion] = useState(() => TIER_ORDER.reduce((o, t) => {
+    o[t] = simulatedTrainingCompletion(t, daysLive); return o;
+  }, {}));
+  const metrics = useMemo(() => simulatedAdoptionMetrics(agg, daysLive), [agg, daysLive]);
+  const todayWeek = daysLive === null || daysLive < 0 ? null : Math.min(16, daysLive / 7);
+  const recoveredToDate = todayWeek === null ? 0
+    : trend.points.reduce((best, p) => (p.week <= todayWeek ? p.dollars : best), 0);
+
+  const liveLede = daysLive === null
+    ? 'No target go-live date is set for this project yet, so tracking has not started. Set one on the engagement profile.'
+    : daysLive < 0
+      ? `Go-live is ${-daysLive} day${-daysLive === 1 ? '' : 's'} away. Tracking below begins once the project goes live.`
+      : `${daysLive} day${daysLive === 1 ? '' : 's'} since go-live (${fmtShortDate(new Date(goLiveDate + 'T00:00:00'))}).`;
 
   return (
     <>
       <div className="view-head">
-        <h2>Targeting does not cost more. It costs less.</h2>
-        <p className="lede">
-          Same training budget, redistributed — not increased. The curve is illustrative; the money is computed
-          from the roles currently scored, so it moves the moment you add one. Hypercare, support escalation and
-          adoption measurement — the cadence that runs after go-live — are folded in below.
-        </p>
+        <h2>Adoption: tracking since go-live</h2>
+        <p className="lede">{liveLede} Status, completion and the metrics below are simulated for this demo, not measured, and each is derived from a rule printed beside it.</p>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-head">
+          <h3>Status by tier</h3>
+          <span className="hint">Tied to each tier's own re-score cadence: {TIER_ORDER.map((t) => `${t} ${DOSES[t].rescoreDays}d`).join(' · ')}</span>
+        </div>
+        <div className="card-body">
+          {tierStatus.length === 0 && <p className="sub">No scored roles yet.</p>}
+          {tierStatus.map((s) => (
+            <div key={s.tier} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid var(--hairline)', fontSize: 13.5 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="dot" style={{ '--dot': RESCORE_STATUS_COLOR[s.status] }} />
+                <b>{s.tier}</b>
+                <span className="hint">{s.count} role{s.count === 1 ? '' : 's'} · {s.people.toLocaleString()} people</span>
+              </span>
+              <span>
+                {s.status === 'pending' && 'Not yet live'}
+                {s.status === 'upcoming' && `Go-live in ${s.daysToGoLive}d`}
+                {(s.status === 'green' || s.status === 'yellow' || s.status === 'red') &&
+                  `${s.daysIntoCycle}d into a ${s.cadence}d cycle, next due in ${s.daysToNext}d`}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-head">
+          <h3>Training completion by tier</h3>
+          <span className="hint">Simulated: ramps with days live against the tier's re-score cadence. Editable for this demo.</span>
+        </div>
+        <div className="card-body">
+          {TIER_ORDER.filter((t) => agg.byTier[t].roles > 0).map((t) => (
+            <div key={t} style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <i className="dot" style={{ '--dot': TIERS[t].hex }} /><b>{t}</b>
+                </span>
+                <input type="number" min="0" max="100" value={completion[t]}
+                       onChange={(e) => setCompletion((c) => ({ ...c, [t]: Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)) }))}
+                       style={{ width: 56, textAlign: 'right' }} aria-label={`${t} training completion percent`} />
+              </div>
+              <div className="bar"><i style={{ width: `${completion[t]}%`, background: TIERS[t].hex }} /></div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid cols-4" style={{ marginBottom: 16 }}>
+        <Tile label="Unique sign-ons" value={`${metrics.signOnRate}%`} meta="of in-scope headcount, at least once" />
+        <Tile label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} meta="simulated at 3.2 per person over the adoption window" />
+        <Tile label="Job-aid access rate" value={`${metrics.jobAidAccessRate}%`} meta="of issued job aids opened at least once" />
+        <Tile label="Comms click rate" value={`${metrics.commsClickRate}%`} meta="go-live communication click-through" />
+        <Tile label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} meta="Rebuild + Enable population, tapering as adoption matures" />
+        <Tile label="Qualitative feedback" value={metrics.qualitative} />
       </div>
 
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
         <Tile label="Dip depth" value={`${roi.dipUntargeted}% → ${roi.dipTargeted}%`} meta="deepest point below baseline" />
         <Tile label="Recovery" value={`${roi.recoveryUntargeted} wks → ${roi.recoveryTargeted} wks`} meta={`first week back within ${100 - ASSUMPTIONS.recoveryThresholdPct}% of baseline`} />
-        <Tile label="Productivity loss avoided" value={money(roi.lossAvoided)} accent
-              meta={`${roi.affectedHeads.toLocaleString()} people in Rebuild + Enable`} />
+        <Tile label="Recovered to date" value={money(recoveredToDate)} accent
+              meta={todayWeek === null ? `of ${money(roi.lossAvoided)} projected` : `of ${money(roi.lossAvoided)} projected, week ${todayWeek.toFixed(1)}`} />
         <Tile label="Concentration" value={`${pct(agg.byTier.Rebuild.popShare)} → ${pct(agg.byTier.Rebuild.budgetShare)}`}
               meta="Rebuild share of population → of budget" />
       </div>
@@ -5281,9 +5281,17 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         <div className="card-body"><RoiChart /></div>
       </div>
 
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-head">
+          <h3>Avoided productivity loss, as a trend</h3>
+          <span className="hint">Cumulative dollars recovered, integrating the same curves above week by week</span>
+        </div>
+        <div className="card-body"><RoiTrendChart points={trend.points} todayWeek={todayWeek} /></div>
+      </div>
+
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
         <div className="assume">
-          <h4>How the money is derived — so it is defensible</h4>
+          <h4>How the money is derived, so it is defensible</h4>
           <dl>
             <dt>Loaded cost per head, per year</dt><dd>${ASSUMPTIONS.loadedCostPerHeadPerYear.toLocaleString()}</dd>
             <dt>Cost per head, per week</dt><dd>${Math.round(roi.weeklyCost).toLocaleString()}</dd>
@@ -5306,8 +5314,8 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         <div className="assume">
           <h4>Why targeting is cheaper, not more expensive</h4>
           <p style={{ fontSize: 13.5 }}>
-            Every number on this page traces back to a role × value stream × site row. The tiering does not add
-            interventions — it moves them. {pct(agg.byTier.Rebuild.popShare)} of the population attracts
+            Every number on this page traces back to a role × site row. The tiering does not add
+            interventions. It moves them. {pct(agg.byTier.Rebuild.popShare)} of the population attracts
             {' '}{pct(agg.byTier.Rebuild.budgetShare)} of the effort, and {pct(agg.byTier.Inform.popShare)} attracts
             {' '}{pct(agg.byTier.Inform.budgetShare)}. The saving is the classroom time not spent on the
             {' '}{agg.byTier.Inform.people.toLocaleString()} people for whom nothing meaningfully changes.
@@ -5321,7 +5329,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
             ))}
           </dl>
           <p className="footnote">
-            The per-head cost weights are ours, calibrated on the shipped population — the deck states no cost weighting.
+            The per-head cost weights are ours, calibrated on the shipped population. The deck states no cost weighting.
           </p>
         </div>
       </div>
@@ -5359,7 +5367,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         </table>
       </div>
       {incomplete.length > 0 && (
-        <p className="footnote">{incomplete.length} incomplete role{incomplete.length === 1 ? '' : 's'} — no tier yet — not shown here.</p>
+        <p className="footnote">{incomplete.length} incomplete role{incomplete.length === 1 ? '' : 's'}, no tier yet, not shown here.</p>
       )}
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -5379,7 +5387,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
                 <dt>Readiness reassessed</dt><dd>every {CADENCE.readinessReassessMonths} months</dd>
                 <dt>Hypercare</dt>
                 <dd>
-                  every tier — {DOSES.Inform.hypercareWeeks}–{DOSES.Rebuild.hypercareWeeks} weeks, scaling by tier
+                  every tier: {DOSES.Inform.hypercareWeeks}–{DOSES.Rebuild.hypercareWeeks} weeks, scaling by tier
                   {' '}({TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')})
                 </dd>
                 <dt>Role re-scored (go-live gate)</dt><dd>every {DOSES.Rebuild.rescoreDays}–{DOSES.Inform.rescoreDays} days by tier</dd>
@@ -5397,7 +5405,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         </div>
       </div>
       <p className="footnote">
-        Illustrative figures. Same training budget, redistributed — not increased. All data synthetic.
+        Illustrative figures. Same training budget, redistributed, not increased. All data synthetic.
         Every plan number above is derived from the rule printed beside it.
       </p>
       <p className="footnote">{showDeckProvenance && NOTE.dataset} {NOTE.weights}</p>
@@ -5409,10 +5417,10 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
    11. APP
    =========================================================================== */
 
-/* The five primary tabs match the challenge's five deliverables. "Role
-   one-pager", "Add a role" and "Reproduced, not hardcoded" are still real
-   views — reachable by clicking a role, the "+ Add a role" button, or the
-   "Methodology" link — they are just no longer primary navigation. */
+/* The five primary tabs match the challenge's five deliverables. The role
+   one-pager is still a real view, reachable by clicking any role from any
+   tab, and it is just not primary navigation. Add-a-role is also still a
+   real view (tab id 'add'), but has no entry point in the current UI. */
 const ALL_TABS = [
   { id: 'portfolio', label: 'Stakeholder Impact' },
   { id: 'redesign',  label: 'Redesign' },
@@ -5423,7 +5431,7 @@ const ALL_TABS = [
 const TAB_LABELS = ALL_TABS.reduce((o, t) => { o[t.id] = t.label; return o; }, {});
 
 /* ===========================================================================
-   11. PROJECT PICKER — the landing screen. Three worked examples (same engine,
+   11. PROJECT PICKER: the landing screen. Three worked examples (same engine,
    three very different scales/industries/change types) plus a blank start.
    =========================================================================== */
 
@@ -5467,7 +5475,6 @@ function parseCSV(text) {
    to match the downloadable template byte for byte. */
 const CSV_HEADER_ALIASES = {
   role: ['role name', 'role', 'title', 'job title'],
-  valueStream: ['value stream/process area', 'value stream', 'process area', 'value stream / process area'],
   site: ['site', 'location', 'site name'],
   headcount: ['headcount', 'employees', 'people', 'fte'],
   summary: ['description of what changes', 'description', 'what changes', 'change description'],
@@ -5477,7 +5484,7 @@ function matchCsvHeader(raw) {
   return Object.keys(CSV_HEADER_ALIASES).find((key) => CSV_HEADER_ALIASES[key].includes(norm)) || null;
 }
 
-/* Returns draft role records (raw strings — not yet resolved against the
+/* Returns draft role records (raw strings, not yet resolved against the
    engagement profile's site list, that happens where the profile is in
    scope) plus any warnings worth surfacing rather than silently dropping. */
 function rolesFromCSV(text) {
@@ -5488,8 +5495,8 @@ function rolesFromCSV(text) {
   const header = rows[0].map(matchCsvHeader);
   const recognised = header.filter(Boolean).length;
   const useFallbackOrder = recognised === 0;
-  if (useFallbackOrder) warnings.push('No recognised header row — assuming the template\'s column order: Role name, Value stream/process area, Site, Headcount, Description.');
-  const fallbackOrder = ['role', 'valueStream', 'site', 'headcount', 'summary'];
+  if (useFallbackOrder) warnings.push('No recognised header row, assuming the template\'s column order: Role name, Site, Headcount, Description.');
+  const fallbackOrder = ['role', 'site', 'headcount', 'summary'];
 
   const roles = [];
   for (let i = 1; i < rows.length; i++) {
@@ -5502,7 +5509,7 @@ function rolesFromCSV(text) {
     }
     if (!rec.role) { warnings.push(`Row ${i + 1}: no role name, skipped.`); continue; }
     roles.push({
-      role: rec.role, valueStream: rec.valueStream || '', site: rec.site || '',
+      role: rec.role, site: rec.site || '',
       headcount: rec.headcount || '', summary: rec.summary || '',
     });
   }
@@ -5517,7 +5524,7 @@ function ProjectPicker({ projects, onSelect, onStartNew }) {
         <h1>Change Impact Assessment Tool</h1>
         <p className="lede">
           Pick a project to open its impact heat map, role one-pagers and costed plan. The three below are
-          worked examples — entirely synthetic — built to show the same scoring engine at a different scale,
+          worked examples, entirely synthetic, built to show the same scoring engine at a different scale,
           in a different industry, against a different kind of change. Or start a blank project and score
           your own roles live.
         </p>
@@ -5545,10 +5552,10 @@ function ProjectPicker({ projects, onSelect, onStartNew }) {
 }
 
 /* ===========================================================================
-   12. NEW PROJECT WIZARD — two steps: an engagement profile a client would
+   12. NEW PROJECT WIZARD: two steps: an engagement profile a client would
    hand over at kickoff, then role and change data (CSV or one at a time),
    with an assisted-scoring pass in front of the same six manual sliders.
-   Nothing here touches scoreRole/assignTier/THRESHOLD — every role this
+   Nothing here touches scoreRole/assignTier/THRESHOLD, every role this
    produces is scored by the same deterministic engine as every other entry
    path, exactly like AddRoleView's roles are.
    =========================================================================== */
@@ -5589,9 +5596,9 @@ function EngagementProfileStep({ profile, onChange, onNext, onCancel }) {
   return (
     <>
       <div className="view-head">
-        <h2>New project — engagement profile</h2>
+        <h2>New project: engagement profile</h2>
         <p className="lede">
-          The details a client would hand over at kickoff. Company name is the only field required to continue —
+          The details a client would hand over at kickoff. Company name is the only field required to continue,
           everything else sharpens the picture and can be filled in later.
         </p>
       </div>
@@ -5631,12 +5638,12 @@ function EngagementProfileStep({ profile, onChange, onNext, onCancel }) {
                      onChange={(e) => set({ goLiveDate: e.target.value })} />
             </div>
             <div className="field">
-              <label htmlFor="ep-sponsor-name">Engagement sponsor — name</label>
+              <label htmlFor="ep-sponsor-name">Engagement sponsor: name</label>
               <input id="ep-sponsor-name" type="text" value={profile.sponsorName}
                      onChange={(e) => set({ sponsorName: e.target.value })} placeholder="e.g. Dana Whitfield" />
             </div>
             <div className="field">
-              <label htmlFor="ep-sponsor-title">Engagement sponsor — title</label>
+              <label htmlFor="ep-sponsor-title">Engagement sponsor: title</label>
               <input id="ep-sponsor-title" type="text" value={profile.sponsorTitle}
                      onChange={(e) => set({ sponsorTitle: e.target.value })} placeholder="e.g. VP Operations" />
             </div>
@@ -5647,7 +5654,7 @@ function EngagementProfileStep({ profile, onChange, onNext, onCancel }) {
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-head">
           <h3>Sites</h3>
-          <span className="hint">One row per physical site — name, type and headcount</span>
+          <span className="hint">One row per physical site: name, type and headcount</span>
         </div>
         <div className="card-body">
           <div className="site-rows">
@@ -5685,16 +5692,16 @@ function DraftRoleRow({ draft, onUpdate, onRemove }) {
 
   let statusBadge;
   if (draft.scoreStatus === 'loading') statusBadge = <span className="score-badge loading">Scoring…</span>;
-  else if (draft.scoreStatus === 'none') statusBadge = <span className="score-badge none">No description — set manually</span>;
-  else if (draft.scoreSource === 'anthropic') statusBadge = <span className="score-badge ai">AI-suggested — review before finalizing</span>;
-  else if (draft.scoreSource === 'fallback') statusBadge = <span className="score-badge placeholder">Placeholder — no model available</span>;
+  else if (draft.scoreStatus === 'none') statusBadge = <span className="score-badge none">No description: set manually</span>;
+  else if (draft.scoreSource === 'anthropic') statusBadge = <span className="score-badge ai">AI-suggested: review before finalizing</span>;
+  else if (draft.scoreSource === 'fallback') statusBadge = <span className="score-badge placeholder">Placeholder: no model available</span>;
   else statusBadge = <span className="score-badge none">Not scored yet</span>;
 
   return (
     <div className={'draft-row' + (complete ? '' : ' incomplete')}>
       <button type="button" className="draft-row-head" onClick={() => setOpen((o) => !o)}>
         <span className="drn">{draft.role || '(untitled role)'}</span>
-        <span className="drm">{draft.valueStream || '—'} · {draft.site || draft.siteArchetype || '—'} · {draft.headcount || '—'} people</span>
+        <span className="drm">{draft.site || draft.siteArchetype || 'N/A'} · {draft.headcount || 'N/A'} people</span>
         {statusBadge}
         <span className="drx" aria-hidden="true">{open ? '▲' : '▼'}</span>
       </button>
@@ -5738,13 +5745,11 @@ function DraftRoleRow({ draft, onUpdate, onRemove }) {
 }
 
 function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemoveDraft, files, onFilesChange, onBack, onFinish }) {
-  const [manual, setManual] = useState({ role: '', valueStream: '', site: '', headcount: '', summary: '' });
+  const [manual, setManual] = useState({ role: '', site: '', headcount: '', summary: '' });
   const [csvWarnings, setCsvWarnings] = useState([]);
   const [csvFileName, setCsvFileName] = useState('');
   const fileInputRef = useRef(null);
   const attachInputRef = useRef(null);
-
-  const valueStreamSuggestions = useMemo(() => [...new Set(draftRoles.map((d) => d.valueStream).filter(Boolean))], [draftRoles]);
 
   const handleCsvChange = async (e) => {
     const file = e.target.files && e.target.files[0];
@@ -5761,7 +5766,7 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
     e.preventDefault();
     if (!manual.role.trim()) return;
     onAddDrafts([manual]);
-    setManual({ role: '', valueStream: manual.valueStream, site: manual.site, headcount: '', summary: '' });
+    setManual({ role: '', site: manual.site, headcount: '', summary: '' });
   };
 
   const handleAttach = (e) => {
@@ -5780,7 +5785,7 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
       <div className="view-head">
         <h2>Role & change data</h2>
         <p className="lede">
-          Bring roles in from a CSV, add them one at a time, or both — they land in the same review list below. Give
+          Bring roles in from a CSV, add them one at a time, or both, they land in the same review list below. Give
           each one a free-text description of what changes and the assistant proposes the six sub-factor scores
           against the same anchor ladders the manual sliders use. Every proposed score is editable before you finish.
         </p>
@@ -5791,7 +5796,7 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
           <div className="card-head"><h3>a) Upload a CSV</h3></div>
           <div className="card-body">
             <p className="sub" style={{ marginBottom: 10 }}>
-              Columns: Role name, Value stream/process area, Site, Headcount, Description of what changes.
+              Columns: Role name, Site, Headcount, Description of what changes.
             </p>
             <div className="btn-row">
               <button type="button" className="btn" onClick={() => fileInputRef.current && fileInputRef.current.click()}>
@@ -5820,12 +5825,6 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
                        onChange={(e) => setManual((m) => ({ ...m, role: e.target.value }))} placeholder="e.g. Warehouse Supervisor" />
               </div>
               <div className="field">
-                <label htmlFor="rd-vs">Value stream / process area</label>
-                <input id="rd-vs" type="text" list="rd-vs-list" value={manual.valueStream}
-                       onChange={(e) => setManual((m) => ({ ...m, valueStream: e.target.value }))} placeholder="e.g. Order to Cash" />
-                <datalist id="rd-vs-list">{valueStreamSuggestions.map((v) => <option key={v} value={v} />)}</datalist>
-              </div>
-              <div className="field">
                 <label htmlFor="rd-site">Site</label>
                 <input id="rd-site" type="text" list="rd-site-list" value={manual.site}
                        onChange={(e) => setManual((m) => ({ ...m, site: e.target.value }))} placeholder="e.g. Columbus HQ" />
@@ -5840,7 +5839,7 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
                 <label htmlFor="rd-desc">Description of what changes</label>
                 <textarea id="rd-desc" value={manual.summary}
                           onChange={(e) => setManual((m) => ({ ...m, summary: e.target.value }))}
-                          placeholder="Free text — this is what the scoring assistant reads to propose the six sub-factor scores." />
+                          placeholder="Free text: this is what the scoring assistant reads to propose the six sub-factor scores." />
               </div>
               <div className="field full">
                 <button className="btn primary" type="submit" disabled={!manual.role.trim()}>+ Add role to the list below</button>
@@ -5853,7 +5852,7 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-head">
           <h3>Supporting files</h3>
-          <span className="hint">To-be process docs, HRIS extracts, readiness survey results — stored as reference material, not parsed</span>
+          <span className="hint">To-be process docs, HRIS extracts, readiness survey results: stored as reference material, not parsed</span>
         </div>
         <div className="card-body">
           <button type="button" className="btn" onClick={() => attachInputRef.current && attachInputRef.current.click()}>Attach files…</button>
@@ -5879,7 +5878,7 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
         </div>
         <div className="card-body">
           {draftRoles.length === 0 ? (
-            <p className="sub">No roles yet — upload a CSV or add one above.</p>
+            <p className="sub">No roles yet. Upload a CSV or add one above.</p>
           ) : (
             <div className="draft-list">
               {draftRoles.map((d) => (
@@ -5891,7 +5890,7 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
           {incompleteCount > 0 && (
             <p className="footnote">
               {incompleteCount} role{incompleteCount === 1 ? '' : 's'} {incompleteCount === 1 ? 'is' : 'are'} missing one or
-              more sub-factors and will land on the heat map as <b>incomplete</b> — no score, no tier — until finished.
+              more sub-factors and will land on the heat map as <b>incomplete</b>, no score, no tier, until finished.
             </p>
           )}
         </div>
@@ -5917,7 +5916,7 @@ function NewProjectWizard({ onFinish, onCancel }) {
   const runSuggest = useCallback((draft) => {
     setDraftRoles((ds) => ds.map((d) => (d.draftId === draft.draftId ? { ...d, scoreStatus: 'loading' } : d)));
     suggestScoresForRole({
-      name: draft.role, valueStream: draft.valueStream, siteArchetype: draft.siteArchetype,
+      name: draft.role, siteArchetype: draft.siteArchetype,
       headcount: parseInt(draft.headcount, 10) || undefined, summary: draft.summary,
     }).then((data) => {
       setDraftRoles((ds) => ds.map((d) => (d.draftId === draft.draftId ? {
@@ -5933,7 +5932,7 @@ function NewProjectWizard({ onFinish, onCancel }) {
       const { archetype } = resolveSiteArchetype(raw.site, profile.sites);
       return {
         draftId: 'draft-' + draftSeqRef.current,
-        role: raw.role || '', valueStream: raw.valueStream || '', site: raw.site || '',
+        role: raw.role || '', site: raw.site || '',
         siteArchetype: archetype, headcount: raw.headcount || '', summary: raw.summary || '',
         scoreStatus: (raw.summary || '').trim() ? 'pending' : 'none',
         scoreSource: null, rationale: {},
@@ -5959,7 +5958,6 @@ function NewProjectWizard({ onFinish, onCancel }) {
       return {
         id: 'wizard-' + slugify(d.role) + '-' + i + '-' + Date.now().toString(36),
         role: d.role.trim(),
-        valueStream: d.valueStream.trim() || '(unspecified)',
         siteArchetype: archetype,
         siteCount: 1,
         headcount,
@@ -5975,7 +5973,6 @@ function NewProjectWizard({ onFinish, onCancel }) {
       };
     });
 
-    const valueStreams = [...new Set(roles.map((r) => r.valueStream).filter(Boolean))];
     const employeeCount = parseInt(profile.totalEmployees, 10) || roles.reduce((s, r) => s + r.headcount, 0);
 
     onFinish({
@@ -5987,10 +5984,10 @@ function NewProjectWizard({ onFinish, onCancel }) {
       oneLiner: profile.platform.trim() ? `${profile.platform.trim()} rollout, scored live.` : 'Custom engagement, scored live.',
       dataPath: null,
       seed: roles,
-      valueStreams: valueStreams.length ? valueStreams : ['General'],
       siteArchetypeBase: SITE_TYPES,
       siteArchetypeCombos: [],
       hasDeckReproduction: false,
+      goLiveDate: profile.goLiveDate || '',
       engagementProfile: profile,
       referenceFiles: files.map((f) => ({ name: f.name, size: f.size, type: f.type })),
     });
@@ -6042,7 +6039,7 @@ function App() {
   }, [project]);
 
   // The factor objects carry the live weights, so they are synced before any
-  // scoring happens — every displayed weight matches the arithmetic behind it.
+  // scoring happens, every displayed weight matches the arithmetic behind it.
   const all = useMemo(() => { applyWeights(weights); return raw.map(scoreRole); }, [raw, weights]);
   const scored = useMemo(() => all.filter((r) => r.complete), [all]);
   const incomplete = useMemo(() => all.filter((r) => !r.complete), [all]);
@@ -6051,11 +6048,9 @@ function App() {
   const setWeight = useCallback((key, v) => setWeights((w) => ({ ...w, [key]: v })), []);
   const resetWeights = useCallback(() => setWeights({ ...DEFAULT_WEIGHTS }), []);
 
-  // The one-pager and the methodology page are reachable from any of the five
-  // primary tabs now, not just one — "back" has to return wherever the click
-  // came from, not always to Stakeholder Impact.
+  // The one-pager is reachable from any of the five primary tabs, not just
+  // one, so "back" has to return wherever the click came from.
   const openRole = useCallback((id) => { setReturnTab(tab); setSelectedId(id); setTab('role'); }, [tab]);
-  const openRepro = useCallback(() => { setReturnTab(tab); setTab('repro'); }, [tab]);
 
   const createRole = useCallback((role) => {
     setRaw((rs) => [...rs, role]);
@@ -6074,7 +6069,7 @@ function App() {
   }, [selected]);
 
   // Entering a project (from the picker, or leaving one via the header) always
-  // resets session state — a previous project's weights, selection or live-added
+  // resets session state, a previous project's weights, selection or live-added
   // roles must never bleed into the next one.
   const enterProject = useCallback((p) => {
     setProject(p);
@@ -6107,9 +6102,6 @@ function App() {
             {incomplete.length ? ` · ${incomplete.length} incomplete` : ''} · {dataSource}
             {weightsAreDefault(weights) ? '' : ' · weights changed from our default'}
           </span>
-          {project.hasDeckReproduction && (
-            <button className="btn methodology-link" onClick={openRepro}>Methodology →</button>
-          )}
           <button className="btn" onClick={backToProjects}>← All projects</button>
         </div>
         <nav className="tabs" role="tablist" aria-label="Views">
@@ -6122,16 +6114,14 @@ function App() {
 
       <div className="only-print" style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 10, letterSpacing: '.13em', textTransform: 'uppercase', color: 'var(--ink-2)' }}>Aberdeen Advisors</div>
-        <div style={{ fontWeight: 500 }}>Change Impact Assessment Tool — role one-pager — {project.name}</div>
+        <div style={{ fontWeight: 500 }}>Change Impact Assessment Tool: role one-pager, {project.name}</div>
       </div>
 
       <main className="main">
         {tab === 'portfolio' && (
           <PortfolioView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
-                         onAdd={() => setTab('add')} onRepro={openRepro}
                          weights={weights} onWeight={setWeight} onResetWeights={resetWeights}
-                         valueStreams={project.valueStreams} siteArchetypeBase={project.siteArchetypeBase}
-                         siteArchetypeCombos={project.siteArchetypeCombos} showRepro={project.hasDeckReproduction} />
+                         siteArchetypeBase={project.siteArchetypeBase} siteArchetypeCombos={project.siteArchetypeCombos} />
         )}
         {tab === 'redesign' && <RedesignView all={all} selectedId={selectedId} onSelect={openRole} />}
         {tab === 'training' && (
@@ -6140,21 +6130,17 @@ function App() {
         )}
         {tab === 'comms' && (
           <CommunicationView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
-                              showDeckProvenance={project.hasDeckReproduction} />
+                              showDeckProvenance={project.hasDeckReproduction} goLiveDate={project.goLiveDate} />
         )}
         {tab === 'plan' && (
           <PlanView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
-                    showDeckProvenance={project.hasDeckReproduction} />
+                    showDeckProvenance={project.hasDeckReproduction} goLiveDate={project.goLiveDate} />
         )}
         {tab === 'role' && (
           <OnePager role={selected} gen={gen[selectedId]} status={genStatus[selectedId] || 'idle'}
                     onGenerate={generate} onBack={() => setTab(returnTab)} backLabel={TAB_LABELS[returnTab] || 'Stakeholder Impact'} />
         )}
         {tab === 'add' && <AddRoleView onCreate={createRole} project={project} />}
-        {tab === 'repro' && project.hasDeckReproduction && (
-          <ReproducedView scored={scored} weightsDefault={weightsAreDefault(weights)}
-                           onBack={() => setTab(returnTab)} backLabel={TAB_LABELS[returnTab] || 'Stakeholder Impact'} />
-        )}
       </main>
     </div>
   );

@@ -101,7 +101,7 @@ function userPrompt(p) {
   const a = p.anchors || {};
   const lines = [
     `ROLE: ${r.name || '(unnamed role)'}`,
-    `Value stream / process area: ${r.valueStream || '(not given)'} · Site: ${r.siteArchetype || '(not given)'} · Headcount: ${r.headcount ?? '(not given)'}`,
+    `Site: ${r.siteArchetype || '(not given)'} · Headcount: ${r.headcount ?? '(not given)'}`,
     '',
     `DESCRIPTION OF WHAT CHANGES: ${r.summary || '(none supplied)'}`,
     '',
@@ -212,7 +212,7 @@ module.exports = async (req, res) => {
   if (!payload || !payload.role || !payload.role.summary) {
     res.statusCode = 400;
     res.setHeader('content-type', 'application/json');
-    return res.end(JSON.stringify({ error: 'expected { role: { name, valueStream, siteArchetype, headcount, summary }, anchors }' }));
+    return res.end(JSON.stringify({ error: 'expected { role: { name, siteArchetype, headcount, summary }, anchors }' }));
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;

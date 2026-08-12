@@ -130,7 +130,7 @@ function userPrompt(p) {
   const sf = p.subFactors || { impact: {}, risk: {} };
   const lines = [
     `ROLE: ${r.name}`,
-    `Value stream: ${r.valueStream} · Site archetype: ${r.siteArchetype} · Sites: ${r.siteCount} · Headcount: ${r.headcount}`,
+    `Site archetype: ${r.siteArchetype} · Sites: ${r.siteCount} · Headcount: ${r.headcount}`,
     `Deskless: ${r.deskless ? 'YES' : 'no'} · New role: ${r.isNewRole ? 'YES — no incumbent population, no existing curriculum' : 'no'}`,
     '',
     `DESCRIPTION: ${r.summary || '(none supplied)'}`,
@@ -211,7 +211,7 @@ function fallback(p) {
   const num = (v, dp) => (typeof v === 'number' ? v.toFixed(dp === undefined ? 1 : dp) : String(v));
 
   const narrative = [
-    `${r.name} sits in ${r.valueStream} across ${site}, covering ${Number(r.headcount || 0).toLocaleString()} people. `
+    `${r.name} covers ${site}, ${Number(r.headcount || 0).toLocaleString()} people. `
       + `The assessment scores it ${num(p.axisScores && p.axisScores.impact)} on impact severity and `
       + `${num(p.axisScores && p.axisScores.risk)} on adoption risk, placing it in ${tier}. `
       + `${r.tasksRemoved} tasks leave the role, ${r.tasksChanged} change shape and ${r.tasksNew} are new, `
