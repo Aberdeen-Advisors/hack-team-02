@@ -4785,8 +4785,6 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
               </table>
             </div>
           </div>
-          <p className="footnote">{NOTE.mapping}</p>
-          {showDeckProvenance && <p className="footnote">{NOTE.dataset}</p>}
         </div>
       </div>
       <p className="footnote">All figures illustrative. All data synthetic. {NOTE.weights}</p>
@@ -4897,11 +4895,6 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckP
               ))}
             </tbody>
           </table>
-          <p className="footnote">
-            Objective ladder underneath: {OBJECTIVE_LADDER.join(' → ')}. Town hall run-of-show {CADENCE.townHallMinutes} min,
-            invitations {CADENCE.inviteLeadDays} business days ahead.
-          </p>
-          <p className="footnote">{NOTE.mapping}</p>
         </div>
       </div>
       <p className="footnote">All figures illustrative. All data synthetic. {NOTE.weights}</p>
