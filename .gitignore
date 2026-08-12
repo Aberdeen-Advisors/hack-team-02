@@ -7,6 +7,9 @@
 # Dependencies
 node_modules/
 
+# Screenshots and PDFs written by tools/verify/verify.js
+tools/verify/shots/
+
 # OS cruft
 .DS_Store
 

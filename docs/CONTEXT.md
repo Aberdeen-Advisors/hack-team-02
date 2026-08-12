@@ -206,13 +206,15 @@ inherited and what we authored.
   claim that a source uses 3.5 for risk tiering.** It does not.
 - **Prosci material.** The mechanics — two axes, item scores, a quadrant, band tables — are generic and
   safe to reimplement. The *item wording* is licensed and must not be embedded in the product. All
-  item and anchor text in the app is original or Aberdeen's, and a repo-wide grep confirms the app
-  files carry no Prosci item bank, assessment items or tactic lists. Two caveats, so nobody is caught
-  out: (a) the local-readiness anchor ladder in `index.html` closely paraphrases two Prosci scale-pole
-  phrases about change saturation and manager change competency, and the app says so on screen; if you
-  want the "clean" claim to be literally airtight, reword those two lines. (b)
-  `docs/source-synthesis.md` is an internal evidence document and *does* quote Prosci items verbatim,
-  with source references, for grounding. It is not client-facing and nothing in it feeds the product.
+  item and anchor text in the app is original or Aberdeen's: the app's own files — `index.html`,
+  `styles.css`, `api/`, `data/roles.json`, `tools/` — carry no Prosci item bank, assessment items or
+  tactic lists. The local-readiness anchor ladder used to paraphrase two Prosci scale-pole phrases
+  (change saturation, manager change competency); **all five of its bands have been rewritten in our
+  own wording**, and its on-screen badge now attributes the construct to our own deck and the band
+  wording to us. One caveat, so nobody is caught out: `docs/source-synthesis.md` is an internal cited
+  evidence document and *does* quote Prosci items verbatim, with source references, for grounding.
+  That is a different use from shipping wording in a product — it is not client-facing and nothing in
+  it feeds the app. Keep the hygiene claim scoped to the product, not to the whole repository.
 - **Most of the dataset is our illustration.** The deck names only **7 of the 38 roles** (slide 10) and
   gives **no 1–5 anchors for any sub-factor** — no definition of what a 4.2 on capability delta means.
   So the other 31 roles, every headcount and site count outside those seven, and every sub-factor value
