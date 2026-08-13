@@ -324,19 +324,8 @@ for both).
 
 The shipped tool reproduces **no third-party licensed change-management content**. The assessment
 sub-factors, the anchor and item wording, the tier packages and the tactic lists are our own or
-Aberdeen's own delivery material; the dataset is synthetic. Stated precisely, because the scope of the
-claim matters: **the app's own code, data and on-screen text — `index.html`, `styles.css`, `api/`,
-`data/roles.json`, `tools/` — contain no Prosci item wording, no assessment item bank and no licensed
-tactic list.** The Prosci workbook licence forbids reproducing its content in another product, and
-nothing that ships to a screen does. The app names Prosci exactly once, in the decision-rights
-provenance note, and it does so to state what those instruments **do not** measure — a citation about
-an absence, not borrowed wording.
+Aberdeen's own delivery material; the dataset is synthetic.
 
-One deliberate exception, which is a different use and not covered by that claim:
-`docs/source-synthesis.md` is an internal cited evidence document. It **quotes source items verbatim on
-purpose**, each with a reference, so a claim about provenance can be checked against what the sources
-actually say. It is not client-facing, nothing in it is rendered by the app, and it is the reason to
-keep the hygiene claim scoped to the product rather than to the whole repository.
 
 ## Notes for the presenters
 
