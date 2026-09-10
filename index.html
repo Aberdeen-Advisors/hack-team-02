@@ -3874,6 +3874,33 @@ const money = (n) => {
   return `$${Math.round(n)}`;
 };
 
+/* The first thing an operations lead does with 38 scored roles is put them
+   in a spreadsheet. RFC4180-ish: quote a field that contains a comma, a
+   quote or a newline, double any quote inside it. */
+function csvField(v) {
+  const s = String(v ?? '');
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function rolesToCSV(roles) {
+  const header = ['Role', 'Site archetype', 'Site count', 'Headcount', 'Deskless', 'Net-new', 'Impact severity', 'Adoption risk', 'Tier'];
+  const lines = [header.map(csvField).join(',')];
+  roles.forEach((r) => {
+    lines.push([
+      r.role, r.siteArchetype, r.siteCount, r.headcount, r.deskless ? 'Yes' : 'No', r.isNewRole ? 'Yes' : 'No',
+      r.scores.impact.toFixed(1), r.scores.risk.toFixed(1), r.tier,
+    ].map(csvField).join(','));
+  });
+  return lines.join('\r\n');
+}
+function downloadCSV(filename, csv) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function TierBadge({ tier, large }) {
   return (
     <span className={'tier-badge' + (large ? ' lg' : '')} style={{ '--wash': TIERS[tier].wash }}>
@@ -4233,8 +4260,7 @@ function concentrationFinding(agg) {
 
 function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights, weightDeltas,
                           siteArchetypeBase, siteArchetypeCombos, comboExample, citeDeck, sourceNamedRoleCount,
-                          onOpenBudgetWeights, rateCard, onRate, onResetRateCard }) {
-  const [sa, setSa] = useState('All');
+                          onOpenBudgetWeights, rateCard, onRate, onResetRateCard, sa, setSa, projectName }) {
   // A filter with one real choice is not a filter: Ashford has one site
   // archetype and no combos, so the control is hidden rather than showing
   // "All site archetypes" next to a single, redundant second option.
@@ -4378,6 +4404,10 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         <div className="card-head">
           <h3>Role × site</h3>
           <span className="hint">One row per role × site. Sort any column. Click a row for the one-pager.</span>
+          <button type="button" className="btn no-print"
+                  onClick={() => downloadCSV(`${(projectName || 'roles').replace(/[^a-z0-9]+/gi, '-')}-role-table.csv`, rolesToCSV(filtered))}>
+            Export to CSV
+          </button>
         </div>
         <RoleTable roles={filtered} incomplete={filteredIncomplete} selectedId={selectedId} onSelect={onSelect} />
       </div>
@@ -4596,6 +4626,7 @@ function DeliveryDetail({ role }) {
 function OnePager({ role, onBack, backLabel, comboExample, citeDeck }) {
   const label = backLabel || 'Stakeholder Impact';
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [showScore, setShowScore] = useState(false);
   if (!role) {
     return (
@@ -4634,11 +4665,23 @@ function OnePager({ role, onBack, backLabel, comboExample, citeDeck }) {
     setCopied(true); setTimeout(() => setCopied(false), 2200);
   };
 
+  const copyLink = async () => {
+    const href = window.location.href;
+    try { await navigator.clipboard.writeText(href); }
+    catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = href; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+    }
+    setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2200);
+  };
+
   return (
     <>
       <div className="btn-row no-print" style={{ marginBottom: 14 }}>
         <button className="btn" onClick={onBack}>← {label}</button>
         <div style={{ marginLeft: 'auto' }} />
+        <button className="btn" onClick={copyLink}>{linkCopied ? '✓ Link copied' : 'Copy link'}</button>
         <button className="btn" onClick={copy}>{copied ? '✓ Copied' : 'Copy one-pager'}</button>
         <button className="btn" onClick={() => window.print()}>Print / PDF</button>
       </div>
@@ -5222,8 +5265,7 @@ function RedesignRow({ role, onOpen }) {
   );
 }
 
-function RedesignView({ all, selectedId, onSelect, weights, onResetWeights }) {
-  const [tierFilter, setTierFilter] = useState('All');
+function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tierFilter, setTierFilter }) {
   const rows = useMemo(
     () => all.filter((r) => tierFilter === 'All' || r.tier === tierFilter),
     [all, tierFilter]
@@ -5311,8 +5353,7 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights }) {
    use, this view just presents them across the whole portfolio.
    =========================================================================== */
 
-function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, weights, onResetWeights }) {
-  const [tierFilter, setTierFilter] = useState('All');
+function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, weights, onResetWeights, tierFilter, setTierFilter }) {
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const trainingGroup = plan.find((g) => g.group === 'Training');
   const rows = useMemo(() => scored
@@ -5429,8 +5470,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
    10c. COMMUNICATION: milestones, channel, cascade scripts, by role.
    =========================================================================== */
 
-function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate, weights, onResetWeights }) {
-  const [tierFilter, setTierFilter] = useState('All');
+function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate, weights, onResetWeights, tierFilter, setTierFilter }) {
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const commsGroup = plan.find((g) => g.group === 'Communication');
   const daysLive = useMemo(() => daysSince(goLiveDate), [goLiveDate]);
@@ -5760,6 +5800,52 @@ const ALL_TABS = [
   { id: 'plan',      label: 'Adoption' },
 ];
 const TAB_LABELS = ALL_TABS.reduce((o, t) => { o[t.id] = t.label; return o; }, {});
+
+/* ===========================================================================
+   ROUTING: a hash fragment, not a real path. A real path needs the server
+   (or Vercel's rewrite) to answer every URL with index.html, which this app
+   deliberately doesn't require - it also has to open from file:// with no
+   server at all, a promise this whole build has kept everywhere else. A
+   hash fragment gives every other requirement (shareable link, Back and
+   Forward through tabs and one-pagers, a URL that reproduces exactly what
+   the sender saw) without breaking that one.
+   Shape: #/<projectId>/<tabId>[/role/<roleId>][?sa=..&tier=..&w=..] */
+function buildHash(project, tab, returnTab, selectedId, weights, filters) {
+  if (!project) return '#/';
+  const baseTab = tab === 'role' ? (returnTab || 'portfolio') : tab;
+  let path = `#/${project.id}/${baseTab}`;
+  if (tab === 'role' && selectedId) path += `/role/${selectedId}`;
+  const q = new URLSearchParams();
+  if (filters && filters.sa && filters.sa !== 'All') q.set('sa', filters.sa);
+  if (filters && filters.tier && filters.tier !== 'All') q.set('tier', filters.tier);
+  if (weights && !weightsAreDefault(weights)) q.set('w', ALL_FACTORS.map((f) => weights[f.key]).join(','));
+  const qs = q.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+function parseHash(hash) {
+  const raw = String(hash || '').replace(/^#\/?/, '');
+  const [pathPart, queryPart] = raw.split('?');
+  const segs = pathPart.split('/').filter(Boolean);
+  const [projectId, tabId, roleWord, roleId] = segs;
+  const q = new URLSearchParams(queryPart || '');
+  let weights = null;
+  const wRaw = q.get('w');
+  if (wRaw) {
+    const nums = wRaw.split(',').map(Number);
+    if (nums.length === ALL_FACTORS.length && nums.every((n) => isFinite(n))) {
+      weights = {};
+      ALL_FACTORS.forEach((f, i) => { weights[f.key] = nums[i]; });
+    }
+  }
+  return {
+    projectId: projectId || null,
+    tabId: (tabId && ALL_TABS.some((t) => t.id === tabId)) ? tabId : null,
+    roleId: roleWord === 'role' ? (roleId || null) : null,
+    sa: q.get('sa') || 'All',
+    tier: q.get('tier') || 'All',
+    weights,
+  };
+}
 
 /* ===========================================================================
    11. PROJECT PICKER: the landing screen. Three worked examples (same engine,
@@ -6361,6 +6447,59 @@ function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [weights, setWeights] = useState(() => ({ ...DEFAULT_WEIGHTS }));
   const [rateCard, setRateCard] = useState(() => ({ ...DEFAULT_RATE_CARD }));
+  const [filters, setFilters] = useState({ sa: 'All', tier: 'All' }); // site-archetype and tier filters, URL-encoded
+
+  // Boot: a shared link should reproduce exactly what the sender saw, so
+  // the very first render reads it, before anything else has a chance to
+  // decide there's no project open.
+  useEffect(() => {
+    const route = parseHash(window.location.hash);
+    const matched = PROJECTS.find((p) => p.id === route.projectId);
+    if (!matched) return;
+    setProject(matched);
+    setTab(route.roleId ? 'role' : (route.tabId || 'portfolio'));
+    setReturnTab(route.tabId || 'portfolio');
+    if (route.roleId) setSelectedId(route.roleId);
+    setFilters({ sa: route.sa, tier: route.tier });
+    if (route.weights) setWeights(route.weights);
+  }, []);
+
+  // Back and Forward navigate the hash directly; re-sync every piece of
+  // state from wherever it lands, the same way the boot effect does.
+  useEffect(() => {
+    const onPop = () => {
+      const route = parseHash(window.location.hash);
+      const matched = PROJECTS.find((p) => p.id === route.projectId);
+      if (!matched) { setProject(null); return; }
+      setProject(matched);
+      setTab(route.roleId ? 'role' : (route.tabId || 'portfolio'));
+      setReturnTab(route.tabId || 'portfolio');
+      setSelectedId(route.roleId || null);
+      setFilters({ sa: route.sa, tier: route.tier });
+      setWeights(route.weights || { ...DEFAULT_WEIGHTS });
+      setRateCard({ ...DEFAULT_RATE_CARD });
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // Writes the URL to match state that already changed. 'push' for real
+  // navigation (a new tab, a new role, a new project - Back should undo
+  // it); 'replace' for continuous edits (a filter, a weight) that would
+  // otherwise spam the history stack with every slider tick.
+  const syncRoute = useCallback((overrides, mode) => {
+    const s = {
+      project: 'project' in overrides ? overrides.project : project,
+      tab: 'tab' in overrides ? overrides.tab : tab,
+      returnTab: 'returnTab' in overrides ? overrides.returnTab : returnTab,
+      selectedId: 'selectedId' in overrides ? overrides.selectedId : selectedId,
+      weights: 'weights' in overrides ? overrides.weights : weights,
+      filters: 'filters' in overrides ? overrides.filters : filters,
+    };
+    const hash = buildHash(s.project, s.tab, s.returnTab, s.selectedId, s.weights, s.filters);
+    if (mode === 'push') history.pushState(null, '', hash);
+    else history.replaceState(null, '', hash);
+  }, [project, tab, returnTab, selectedId, weights, filters]);
 
   useEffect(() => {
     if (!project) return;
@@ -6398,6 +6537,7 @@ function App() {
       .filter((k) => before[k] !== undefined && before[k] !== after[k])
       .map((k) => ({ label: k, from: before[k], to: after[k] }));
     setWeights(nextWeights);
+    syncRoute({ weights: nextWeights }, 'replace');
     clearTimeout(flashTimerRef.current);
     if (deltas.length) {
       setWeightDeltas(deltas);
@@ -6405,27 +6545,57 @@ function App() {
     } else {
       setWeightDeltas(null);
     }
-  }, [raw, weights]);
+  }, [raw, weights, syncRoute]);
   const setWeight = useCallback((key, v) => applyAndDiff({ ...weights, [key]: v }), [applyAndDiff, weights]);
   const resetWeights = useCallback(() => applyAndDiff({ ...DEFAULT_WEIGHTS }), [applyAndDiff]);
 
   const setRate = useCallback((key, v) => setRateCard((rc) => ({ ...rc, [key]: v })), []);
   const resetRateCard = useCallback(() => setRateCard({ ...DEFAULT_RATE_CARD }), []);
 
+  // Filters are URL state too, so a shared link reproduces exactly what
+  // the sender was looking at, not just which project and tab.
+  const setFilterSa = useCallback((v) => {
+    const nf = { ...filters, sa: v };
+    setFilters(nf);
+    syncRoute({ filters: nf }, 'replace');
+  }, [filters, syncRoute]);
+  const setFilterTier = useCallback((v) => {
+    const nf = { ...filters, tier: v };
+    setFilters(nf);
+    syncRoute({ filters: nf }, 'replace');
+  }, [filters, syncRoute]);
+
   // The one-pager is reachable from any of the five primary tabs, not just
   // one, so "back" has to return wherever the click came from.
-  const openRole = useCallback((id) => { setReturnTab(tab); setSelectedId(id); setTab('role'); }, [tab]);
+  const openRole = useCallback((id) => {
+    setReturnTab(tab); setSelectedId(id); setTab('role');
+    syncRoute({ tab: 'role', returnTab: tab, selectedId: id }, 'push');
+  }, [tab, syncRoute]);
+
+  // Not history.back(): a one-pager reached by a shared link is the first
+  // history entry in the tab, and going "back" from it must land on the
+  // return tab inside the app, not exit the app entirely.
+  const closeRole = useCallback(() => {
+    setTab(returnTab);
+    syncRoute({ tab: returnTab }, 'push');
+  }, [returnTab, syncRoute]);
+
+  const switchTab = useCallback((tabId) => {
+    setTab(tabId);
+    syncRoute({ tab: tabId }, 'push');
+  }, [syncRoute]);
 
   // The Stakeholder Impact tab's budget-share note is a real cross-reference,
   // not prose: clicking it has to actually land on the panel that backs it.
-  const openBudgetWeights = useCallback(() => setTab('plan'), []);
+  const openBudgetWeights = useCallback(() => switchTab('plan'), [switchTab]);
 
   const createRole = useCallback((role) => {
     setRaw((rs) => [...rs, role]);
     setSelectedId(role.id);
     setReturnTab('portfolio');
     setTab('role');
-  }, []);
+    syncRoute({ tab: 'role', returnTab: 'portfolio', selectedId: role.id }, 'push');
+  }, [syncRoute]);
 
   // Entering a project (from the picker, or leaving one via the header) always
   // resets session state, a previous project's weights, selection or live-added
@@ -6437,10 +6607,12 @@ function App() {
     setTab('portfolio'); setReturnTab('portfolio'); setSelectedId(null);
     setWeights({ ...DEFAULT_WEIGHTS });
     setRateCard({ ...DEFAULT_RATE_CARD });
+    setFilters({ sa: 'All', tier: 'All' });
     // A leftover flash from the previous project's weights must never
     // bleed into this one.
     clearTimeout(flashTimerRef.current);
     setWeightDeltas(null);
+    history.pushState(null, '', buildHash(p, 'portfolio', 'portfolio', null, DEFAULT_WEIGHTS, { sa: 'All', tier: 'All' }));
   }, []);
 
   const backToProjects = useCallback(() => enterProject(null), [enterProject]);
@@ -6480,14 +6652,16 @@ function App() {
         <nav className="tabs" role="tablist" aria-label="Views">
           {ALL_TABS.map((t) => (
             <button key={t.id} className="tab" role="tab" aria-selected={tab === t.id}
-                    onClick={() => setTab(t.id)}>{t.label}</button>
+                    onClick={() => switchTab(t.id)}>{t.label}</button>
           ))}
         </nav>
       </header>
 
       <div className="only-print" style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 10, letterSpacing: '.13em', textTransform: 'uppercase', color: 'var(--ink-2)' }}>Aberdeen Advisors</div>
-        <div style={{ fontWeight: 500 }}>Change Impact Assessment Tool: role one-pager, {project.name}</div>
+        <div style={{ fontWeight: 500 }}>
+          Change Impact Assessment Tool: {tab === 'role' ? `role one-pager${selected ? ', ' + selected.role : ''}` : TAB_LABELS[tab] || tab}, {project.name}
+        </div>
       </div>
 
       <main className="main">
@@ -6497,19 +6671,23 @@ function App() {
                          siteArchetypeBase={project.siteArchetypeBase} siteArchetypeCombos={project.siteArchetypeCombos}
                          comboExample={comboExample} citeDeck={project.hasDeckReproduction}
                          sourceNamedRoleCount={meta.sourceNamedRoleCount} onOpenBudgetWeights={openBudgetWeights}
-                         rateCard={rateCard} onRate={setRate} onResetRateCard={resetRateCard} />
+                         rateCard={rateCard} onRate={setRate} onResetRateCard={resetRateCard}
+                         sa={filters.sa} setSa={setFilterSa} projectName={project.name} />
         )}
         {tab === 'redesign' && (
-          <RedesignView all={all} selectedId={selectedId} onSelect={openRole} weights={weights} onResetWeights={resetWeights} />
+          <RedesignView all={all} selectedId={selectedId} onSelect={openRole} weights={weights} onResetWeights={resetWeights}
+                        tierFilter={filters.tier} setTierFilter={setFilterTier} />
         )}
         {tab === 'training' && (
           <TrainingView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
-                        showDeckProvenance={project.hasDeckReproduction} weights={weights} onResetWeights={resetWeights} />
+                        showDeckProvenance={project.hasDeckReproduction} weights={weights} onResetWeights={resetWeights}
+                        tierFilter={filters.tier} setTierFilter={setFilterTier} />
         )}
         {tab === 'comms' && (
           <CommunicationView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
                               showDeckProvenance={project.hasDeckReproduction} goLiveDate={project.goLiveDate}
-                              weights={weights} onResetWeights={resetWeights} />
+                              weights={weights} onResetWeights={resetWeights}
+                              tierFilter={filters.tier} setTierFilter={setFilterTier} />
         )}
         {tab === 'plan' && (
           <PlanView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
@@ -6517,7 +6695,7 @@ function App() {
                     weights={weights} onResetWeights={resetWeights} />
         )}
         {tab === 'role' && (
-          <OnePager role={selected} onBack={() => setTab(returnTab)} backLabel={TAB_LABELS[returnTab] || 'Stakeholder Impact'}
+          <OnePager role={selected} onBack={closeRole} backLabel={TAB_LABELS[returnTab] || 'Stakeholder Impact'}
                     comboExample={comboExample} citeDeck={project.hasDeckReproduction} />
         )}
         {tab === 'add' && <AddRoleView onCreate={createRole} project={project} comboExample={comboExample} />}
