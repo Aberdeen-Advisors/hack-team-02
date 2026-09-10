@@ -34,7 +34,11 @@
   --surface-sunk:    #FAFAFA;
   --ink:             var(--onyx);
   --ink-2:           #6B6B6B;
-  --ink-3:           #8C8C8C;
+  /* #8C8C8C measured 3.1-3.4:1 against --page/--surface - below the 4.5:1
+     WCAG AA text minimum, and this token colours real running text
+     (.footnote, .hint, tile labels), not just decoration. #707070 clears
+     4.5:1 against both. */
+  --ink-3:           #707070;
   --hairline:        #E0E0E0;
   --hairline-strong: #C9C9C9;
   --brand-wash:      color-mix(in srgb, var(--brand) 8%, white);
@@ -428,11 +432,23 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 .map-legend .sizes svg { width: auto; }
 
 .pt { cursor: pointer; }
-.pt circle.mark { stroke: #fff; stroke-width: 2; }
-.pt:hover circle.mark { stroke: var(--brand); }
-.pt.sel circle.mark { stroke: var(--brand); stroke-width: 2.5; }
+/* .mark, not circle.mark: a tier's marker is a circle, a square, a
+   triangle or a diamond now (WCAG 1.4.1, shape carries tier identity too,
+   not just hue), and every shape needs the same stroke treatment. */
+.pt .mark { stroke: #fff; stroke-width: 2; }
+.pt:hover .mark { stroke: var(--brand); }
+.pt.sel .mark { stroke: var(--brand); stroke-width: 2.5; }
+/* Keyboard focus had no visible indicator at all before this - a :hover
+   and a .sel style existed, but tabbing to a point (each is its own
+   role="button" tabindex="0") showed nothing. */
+.pt:focus-visible .mark { stroke: var(--brand); stroke-width: 3; }
+.pt:focus-visible { outline: none; } /* the thicker stroke above is the indicator; an SVG outline box looks broken */
 
-.quad-label { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
+/* Fixed, AA-passing colour, not the raw tier hue: gold and sky measure
+   1.5:1 and 1.9:1 against white, nowhere near the 4.5:1 an 11px label
+   needs. Tier identity here comes from the marker shape and the quadrant
+   position, not this label's colour. */
+.quad-label { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; fill: var(--ink-2); }
 .axis-t { font-size: 10.5px; fill: var(--ink-3); }
 .axis-title { font-size: 11px; fill: var(--ink-2); font-weight: 500; }
 

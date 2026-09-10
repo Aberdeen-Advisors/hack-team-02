@@ -4054,6 +4054,38 @@ const MAP = { w: 940, h: 500, l: 62, r: 26, t: 24, b: 54 };
    neither of which changes `roles`, `selectedId` or `onSelect` - forced a
    full re-render of the chart anyway. Its own hover state stays local
    (`tip`), so memoising the outer shell doesn't touch that. */
+/* The scatter plot's only per-point differentiator used to be fill colour -
+   a real WCAG 1.4.1 (Use of Color) failure: a colour-blind reader, or
+   anyone on a bad projector, cannot tell Rebuild from Enable from Reassure
+   from Inform by hue alone. Shape now carries the same information hue
+   does, so it survives greyscale. Each shape's area is scaled to match a
+   circle of the same radius, so "point area = headcount" in the legend
+   stays true for every tier, not just Rebuild's circles. */
+function tierMark(tier, cx, cy, r, extraProps) {
+  const fill = TIERS[tier].hex;
+  const props = { fill, fillOpacity: '0.78', ...extraProps };
+  switch (tier) {
+    case 'Enable': {
+      const s = r * 0.8862 * 2;
+      return <rect x={cx - s / 2} y={cy - s / 2} width={s} height={s} {...props} />;
+    }
+    case 'Reassure': {
+      const R = r * 1.5551;
+      const pts = [-90, 30, 150].map((deg) => {
+        const rad = (deg * Math.PI) / 180;
+        return `${cx + R * Math.cos(rad)},${cy + R * Math.sin(rad)}`;
+      }).join(' ');
+      return <polygon points={pts} {...props} />;
+    }
+    case 'Inform': {
+      const d = r * 1.2533;
+      return <polygon points={`${cx},${cy - d} ${cx + d},${cy} ${cx},${cy + d} ${cx - d},${cy}`} {...props} />;
+    }
+    default: // Rebuild
+      return <circle cx={cx} cy={cy} r={r} {...props} />;
+  }
+}
+
 const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
   const [tip, setTip] = useState(null);
   const wrap = useRef(null);
@@ -4089,7 +4121,7 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
         {quads.map((q) => (
           <g key={q.tier}>
             <rect x={q.x} y={q.y} width={q.w} height={q.h} fill={TIERS[q.tier].hex} opacity="0.045" />
-            <text className="quad-label" x={q.tx} y={q.ty} textAnchor={q.anchor} fill={TIERS[q.tier].hex}>{q.tier}</text>
+            <text className="quad-label" x={q.tx} y={q.ty} textAnchor={q.anchor}>{q.tier}</text>
           </g>
         ))}
 
@@ -4120,8 +4152,7 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
              onClick={() => onSelect(r.id)} tabIndex="0"
              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(r.id); } }}
              role="button" aria-label={`${r.role}. Impact ${r.scores.impact}, risk ${r.scores.risk}, tier ${r.tier}, ${pluralize(r.headcount, 'person', 'people')}.`}>
-            <circle className="mark" cx={px(r.scores.impact)} cy={py(r.scores.risk)} r={rad(r.headcount)}
-                    fill={TIERS[r.tier].hex} fillOpacity="0.78" />
+            {tierMark(r.tier, px(r.scores.impact), py(r.scores.risk), rad(r.headcount), { className: 'mark' })}
           </g>
         ))}
       </svg>
@@ -4138,7 +4169,10 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
 
       <div className="map-legend">
         {TIER_ORDER.map((t) => (
-          <span className="item" key={t}><i className="dot" style={{ '--dot': TIERS[t].hex }} />{t}</span>
+          <span className="item" key={t}>
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">{tierMark(t, 7, 7, 4)}</svg>
+            {t}
+          </span>
         ))}
         <span className="sizes">
           <svg viewBox="0 0 108 30" width="108" height="30" aria-hidden="true">
@@ -4427,7 +4461,7 @@ function ScenariosPanel({ weights, threshold, activeScenarioName, scenarios, onS
         </p>
         <div className="btn-row" style={{ marginBottom: 12 }}>
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name this scenario"
-                 style={{ flex: '1 1 200px' }} />
+                 aria-label="Name this scenario" style={{ flex: '1 1 200px' }} />
           <button className="btn" type="button" onClick={() => { onSave(name); setName(''); }} disabled={!name.trim()}>
             Save current as…
           </button>
@@ -5678,7 +5712,9 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
           </thead>
           <tbody>
             {rows.map(({ role, design }) => (
-              <tr key={role.id} className={selectedId === role.id ? 'sel' : ''} onClick={() => onSelect(role.id)}>
+              <tr key={role.id} className={selectedId === role.id ? 'sel' : ''} onClick={() => onSelect(role.id)}
+                  role="button" tabIndex={0} aria-label={`Open one-pager for ${role.role}`}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(role.id); } }}>
                 <td><span className="rolename">{role.role}</span></td>
                 <td><TierBadge tier={role.tier} /></td>
                 <td className="n">{pluralize(design.hours, 'hour')}</td>
@@ -5839,7 +5875,9 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckP
           <thead><tr><th>Role</th><th>Tier</th><th>Go-live channel</th><th>Cascade needed?</th></tr></thead>
           <tbody>
             {rows.map(({ role, milestones }) => (
-              <tr key={role.id} className={selectedId === role.id ? 'sel' : ''} onClick={() => onSelect(role.id)}>
+              <tr key={role.id} className={selectedId === role.id ? 'sel' : ''} onClick={() => onSelect(role.id)}
+                  role="button" tabIndex={0} aria-label={`Open one-pager for ${role.role}`}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(role.id); } }}>
                 <td><span className="rolename">{role.role}</span></td>
                 <td><TierBadge tier={role.tier} /></td>
                 <td>{milestones[3].channel}</td>
@@ -6504,7 +6542,8 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
               </button>
               <a className="btn" href="data/role-import-template.csv" download>Download CSV template</a>
             </div>
-            <input ref={fileInputRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={handleCsvChange} />
+            <input ref={fileInputRef} type="file" accept=".csv,text/csv" aria-label="Import roles from CSV file"
+                   style={{ display: 'none' }} onChange={handleCsvChange} />
             {csvFileName && <p className="sub" style={{ marginTop: 8 }}>Last imported: {csvFileName}</p>}
             {csvWarnings.length > 0 && (
               <div className="note warn" style={{ marginTop: 10 }}>
@@ -6556,7 +6595,7 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
         </div>
         <div className="card-body">
           <button type="button" className="btn" onClick={() => attachInputRef.current && attachInputRef.current.click()}>Attach files…</button>
-          <input ref={attachInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleAttach} />
+          <input ref={attachInputRef} type="file" multiple aria-label="Attach files" style={{ display: 'none' }} onChange={handleAttach} />
           {files.length > 0 && (
             <ul className="file-list">
               {files.map((f, i) => (
