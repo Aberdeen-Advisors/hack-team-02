@@ -3846,6 +3846,27 @@ function pluralize(n, singular, plural) {
   return `${n.toLocaleString()} ${word}`;
 }
 
+const signed = (n) => `${n > 0 ? '+' : ''}${n.toFixed(1)}`;
+
+/* A fractional FTE delta (-0.4, of admin time) is not the same conversation
+   as a whole head. 1.0 is the line: below it, a role's staffing adjusts;
+   at or above it, a real person's job is being added or removed, and the
+   one-pager says so rather than presenting it as a neutral statistic. */
+const MATERIAL_FTE_DELTA = 1.0;
+
+/* Not an editorial judgment on whether the change is good - a factual
+   statement that a delta this size is a decision with its own process,
+   not a by-product of the redesign math. */
+function fteConsequenceLine(fteDelta) {
+  if (fteDelta <= -MATERIAL_FTE_DELTA) {
+    return 'A reduction of this size is a consultation, redeployment and timeline decision, not a by-product of the redesign - it needs its own workstream and its own sign-off.';
+  }
+  if (fteDelta >= MATERIAL_FTE_DELTA) {
+    return 'Growth of this size is a recruitment decision with its own sourcing lead time - it needs its own workstream and its own sign-off, not just a headcount line in the plan.';
+  }
+  return null;
+}
+
 const money = (n) => {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
@@ -4483,7 +4504,8 @@ function onePagerText(role, comboExample, citeDeck) {
   L.push(`Weights are ours: our default, and tunable. The source deck states no weights and no aggregation method.`);
   L.push(noteUnit(comboExample, citeDeck));
   L.push('');
-  L.push(`Tasks: ${role.tasksRemoved} removed · ${role.tasksChanged} changed · ${role.tasksNew} new · FTE delta ${role.fteDelta}`);
+  L.push(`Tasks: ${role.tasksRemoved} removed · ${role.tasksChanged} changed · ${role.tasksNew} new · FTE delta ${signed(role.fteDelta)}`);
+  if (fteConsequenceLine(role.fteDelta)) L.push(`  ${fteConsequenceLine(role.fteDelta)}`);
   L.push('');
   L.push('BEFORE'); (role.before || []).forEach((b) => L.push(`  - ${b}`));
   L.push('AFTER');  (role.after || []).forEach((b) => L.push(`  - ${b}`));
@@ -4646,8 +4668,14 @@ function OnePager({ role, onBack, backLabel, comboExample, citeDeck }) {
         <Tile label="Tasks removed" value={role.tasksRemoved} />
         <Tile label="Tasks changed" value={role.tasksChanged} />
         <Tile label="Tasks new" value={role.tasksNew} />
-        <Tile label="FTE delta" value={`${role.fteDelta > 0 ? '+' : ''}${role.fteDelta}`} meta="of admin, per site" />
+        <Tile label="FTE delta" value={signed(role.fteDelta)} meta="of admin, per site" />
       </div>
+      {fteConsequenceLine(role.fteDelta) && (
+        <div className="banner" style={{ marginBottom: 16 }}>
+          <b>{signed(role.fteDelta)} FTE is a decision, not a by-product.</b>
+          <span className="src">{fteConsequenceLine(role.fteDelta)}</span>
+        </div>
+      )}
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-body" style={{ paddingBottom: 4 }}><p className="op-summary" style={{ marginTop: 0 }}>{role.summary}</p></div>
         <div className="ba">
@@ -5166,8 +5194,8 @@ function RedesignRow({ role, onOpen }) {
       <button type="button" className="draft-row-head" onClick={() => setOpen((o) => !o)}>
         <span className="drn">{role.role}</span>
         <span className="drm">{role.siteArchetype} · {(role.headcount || 0).toLocaleString()} people</span>
-        <span className="drm n" title={`${role.tasksRemoved || 0} tasks removed, ${role.tasksChanged || 0} changed, ${role.tasksNew || 0} new, FTE delta ${fte > 0 ? '+' : ''}${fte}`}>
-          −{role.tasksRemoved || 0} removed · ~{role.tasksChanged || 0} changed · +{role.tasksNew || 0} new · FTE {fte > 0 ? '+' : ''}{fte}
+        <span className="drm n" title={`${role.tasksRemoved || 0} tasks removed, ${role.tasksChanged || 0} changed, ${role.tasksNew || 0} new, FTE delta ${signed(fte)}`}>
+          −{role.tasksRemoved || 0} removed · ~{role.tasksChanged || 0} changed · +{role.tasksNew || 0} new · FTE {signed(fte)}
         </span>
         {role.complete ? <TierBadge tier={role.tier} /> : <span className="incflag">incomplete</span>}
         <span className="drx" aria-hidden="true">{open ? '▲' : '▼'}</span>
@@ -5184,6 +5212,7 @@ function RedesignRow({ role, onOpen }) {
               <ul className="tasklist">{(role.after || []).map((a, i) => <li key={i}>{a}</li>)}</ul>
             </div>
           </div>
+          {fteConsequenceLine(fte) && <p className="sub">{fteConsequenceLine(fte)}</p>}
           <div className="btn-row">
             <button type="button" className="btn" onClick={onOpen}>Open full one-pager →</button>
           </div>
@@ -5203,10 +5232,28 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights }) {
     acc.removed += r.tasksRemoved || 0;
     acc.changed += r.tasksChanged || 0;
     acc.added += r.tasksNew || 0;
-    acc.fte += r.fteDelta || 0;
     if (r.isNewRole) acc.newRoles += 1;
     return acc;
-  }, { removed: 0, changed: 0, added: 0, fte: 0, newRoles: 0 }), [all]);
+  }, { removed: 0, changed: 0, added: 0, newRoles: 0 }), [all]);
+
+  // A single number hides its own story: Bellcrest's +8.3 is one net-new
+  // role at +9.0 and every other role netting to -0.7 - a completely
+  // different conversation. Split by net-new vs. existing, name the
+  // largest single mover, and count how many roles actually move.
+  const fte = useMemo(() => {
+    const newRoles = all.filter((r) => r.isNewRole);
+    const existing = all.filter((r) => !r.isNewRole);
+    const added = newRoles.reduce((s, r) => s + (r.fteDelta || 0), 0);
+    const released = existing.reduce((s, r) => s + (r.fteDelta || 0), 0);
+    const growing = all.filter((r) => (r.fteDelta || 0) > 0).length;
+    const shrinking = all.filter((r) => (r.fteDelta || 0) < 0).length;
+    const largest = all.reduce((max, r) =>
+      Math.abs(r.fteDelta || 0) > Math.abs((max && max.fteDelta) || 0) ? r : max, null);
+    return { newRoles, existing, added, released, net: added + released, growing, shrinking, largest };
+  }, [all]);
+  const fteDriver = fte.newRoles.length > 0
+    ? `${signed(fte.added)} from ${pluralize(fte.newRoles.length, 'net-new role')}, ${signed(fte.released)} across ${pluralize(fte.existing.length, 'existing role')}`
+    : `across ${pluralize(fte.existing.length, 'existing role')}`;
 
   return (
     <>
@@ -5219,13 +5266,25 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights }) {
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
-      <div className="grid cols-4" style={{ marginBottom: 16 }}>
+      <div className="grid cols-4" style={{ marginBottom: 12 }}>
         <Tile label="Tasks removed" value={totals.removed} />
         <Tile label="Tasks changed" value={totals.changed} />
         <Tile label="Tasks new" value={totals.added} />
-        <Tile label="Net FTE delta" value={`${totals.fte > 0 ? '+' : ''}${totals.fte.toFixed(1)}`} accent
-              meta={`${totals.newRoles} net-new role${totals.newRoles === 1 ? '' : 's'}`} />
+        <Tile label="Net FTE delta" value={signed(fte.net)} accent meta={fteDriver} />
       </div>
+      <p className="footnote" style={{ marginBottom: 16 }}>
+        {fte.growing === 1 ? '1 role grows' : `${fte.growing} roles grow`} · {fte.shrinking === 1 ? '1 role shrinks' : `${fte.shrinking} roles shrink`}
+        {fte.largest && <> · largest single movement: <b>{fte.largest.role}</b> {signed(fte.largest.fteDelta || 0)}</>}
+      </p>
+      {fte.net < 0 && (
+        <div className="banner" style={{ marginBottom: 16 }}>
+          <b>A net reduction of {Math.abs(fte.net).toFixed(1)} FTE is a decision, not a by-product.</b>
+          <span className="src">
+            Consultation, redeployment and timeline implications follow from a reduction this size; they need their own
+            workstream and their own sign-off, not just a line in this table.
+          </span>
+        </div>
+      )}
 
       <div className="filters no-print">
         <div className="field">
