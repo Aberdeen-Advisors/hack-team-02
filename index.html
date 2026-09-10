@@ -3979,51 +3979,14 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
 
   return (
     <>
+      {/* 1. THE HEADLINE FINDING: first thing on the page, largest thing on
+          the page. Everything that used to sit above it (two lede
+          paragraphs, a methodological aside about deck slide numbers) now
+          lives in the "Method and provenance" disclosure at the bottom -
+          same words, just not the first thing a reader meets. */}
       <div className="view-head">
         <h2>Impact heat map</h2>
-        <p className="lede">
-          Every role scored on two axes and placed in a quadrant. The quadrant does not label the role.
-          It prescribes the intervention package, and its dose. Click any point or row to open the role one-pager.
-        </p>
-        <p className="lede unit">
-          <b>One row = one role at one site scope: role × site.</b>{' '}
-          {comboExample ? (
-            <>A site scope is either a single archetype or a named combination of them, like <b>{comboExample}</b>, because
-            some roles genuinely work across more than one. </>
-          ) : (
-            <>In this project every role sits at a single site archetype: no role here spans more than one. </>
-          )}
-          That scope is the level a curriculum, a comms message and a named accountable manager can
-          actually be attached to, which is why we score and tier there.{' '}
-          {citeDeck ? (
-            <>Ours: the source deck says role × process × site on slides 5 and 13 but tiers at role level on slides 9 and 10, so we
-            state the unit and tier at row level.</>
-          ) : (
-            <>Ours: we tier at row level. That is our own choice, not a rule stated by any source for this project.</>
-          )}
-        </p>
       </div>
-
-      {siteScopeOptionCount > 1 && (
-        <div className="filters no-print">
-          <div className="field">
-            <label htmlFor="f-sa">Site archetype</label>
-            <select id="f-sa" value={sa} onChange={(e) => setSa(e.target.value)}>
-              <option value="All">All site archetypes</option>
-              <optgroup label="Archetype (includes roles that span it)">
-                {siteArchetypeBase.map((v) => <option key={v} value={v}>{v}</option>)}
-              </optgroup>
-              {siteArchetypeCombos.length > 0 && (
-                <optgroup label="Spans more than one archetype">
-                  {siteArchetypeCombos.map((v) => <option key={v} value={v}>{v}</option>)}
-                </optgroup>
-              )}
-            </select>
-          </div>
-        </div>
-      )}
-
-      <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} />
 
       {filteredIncomplete.length > 0 && (
         <div className="note warn" style={{ marginBottom: 16 }}>
@@ -4034,7 +3997,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         </div>
       )}
 
-      <div className="banner" style={{ marginBottom: 16 }}>
+      <div className="banner headline" style={{ marginBottom: 20 }}>
         {finding.mode === 'concentrated' && (
           <>
             <b>{pct(reb.popShare)} of the population absorbs {pct(reb.budgetShare)} of the effort.</b> That concentration is the deliverable.
@@ -4067,6 +4030,28 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         )}
       </div>
 
+      {/* 2. THE FOUR TIER CARDS. The site-archetype filter sits right above
+          them: it's the control that scopes every number below it, on the
+          cards, the chart and the table alike. */}
+      {siteScopeOptionCount > 1 && (
+        <div className="filters no-print">
+          <div className="field">
+            <label htmlFor="f-sa">Site archetype</label>
+            <select id="f-sa" value={sa} onChange={(e) => setSa(e.target.value)}>
+              <option value="All">All site archetypes</option>
+              <optgroup label="Archetype (includes roles that span it)">
+                {siteArchetypeBase.map((v) => <option key={v} value={v}>{v}</option>)}
+              </optgroup>
+              {siteArchetypeCombos.length > 0 && (
+                <optgroup label="Spans more than one archetype">
+                  {siteArchetypeCombos.map((v) => <option key={v} value={v}>{v}</option>)}
+                </optgroup>
+              )}
+            </select>
+          </div>
+        </div>
+      )}
+
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
         {TIER_ORDER.map((t) => {
           const b = agg.byTier[t];
@@ -4085,31 +4070,70 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         })}
       </div>
 
+      {/* 3. THE QUADRANT CHART. The weighting panel sits right after it: it's
+          the control that moves what the chart plots and how roles tier. */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-head">
           <h3>Impact severity × adoption risk</h3>
           <span className="hint">{filtered.length} of {scored.length} roles · threshold 3.5 on both axes, inclusive</span>
         </div>
         <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
-        <div className="card-body" style={{ borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
-          <p className="formula" style={{ marginTop: 0 }}>
-            Impact severity = {IMPACT_FACTORS.map((f) => `${effWeight(IMPACT_FACTORS, f).toFixed(2)}×${f.label.toLowerCase()}`).join(' + ')}
-          </p>
-          <p className="formula">
-            Adoption risk = {RISK_FACTORS.map((f) => `${effWeight(RISK_FACTORS, f).toFixed(2)}×${f.label.toLowerCase()}`).join(' + ')}
-          </p>
-          <p className="footnote">{NOTE.threshold}</p>
-          <p className="footnote">{NOTE.weights}</p>
-        </div>
       </div>
 
-      <div className="card">
+      <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} />
+
+      {/* 4. THE ROLE x SITE TABLE. */}
+      <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-head">
           <h3>Role × site</h3>
           <span className="hint">One row per role × site. Sort any column. Click a row for the one-pager.</span>
         </div>
         <RoleTable roles={filtered} incomplete={filteredIncomplete} selectedId={selectedId} onSelect={onSelect} />
       </div>
+
+      {/* 6. METHOD AND PROVENANCE. Every word that used to sit above the
+          fold: the intro, the unit-of-analysis argument, the source-deck
+          reconciliation, the 3.5 threshold rationale and the sub-factor
+          formulas. Closed by default, same disclosure pattern as
+          "Weighting: ours, and tunable" above - one click away, not gone. */}
+      <details className="tuner no-print" style={{ marginBottom: 16 }}>
+        <summary>
+          <span className="lbl">Method and provenance</span>
+          <span className="state">unit of analysis · threshold · weighting formulas</span>
+        </summary>
+        <div className="tuner-body">
+          <p className="lede" style={{ marginTop: 12 }}>
+            Every role scored on two axes and placed in a quadrant. The quadrant does not label the role.
+            It prescribes the intervention package, and its dose. Click any point or row to open the role one-pager.
+          </p>
+          <p className="lede unit">
+            <b>One row = one role at one site scope: role × site.</b>{' '}
+            {comboExample ? (
+              <>A site scope is either a single archetype or a named combination of them, like <b>{comboExample}</b>, because
+              some roles genuinely work across more than one. </>
+            ) : (
+              <>In this project every role sits at a single site archetype: no role here spans more than one. </>
+            )}
+            That scope is the level a curriculum, a comms message and a named accountable manager can
+            actually be attached to, which is why we score and tier there.{' '}
+            {citeDeck ? (
+              <>Ours: the source deck says role × process × site on slides 5 and 13 but tiers at role level on slides 9 and 10, so we
+              state the unit and tier at row level.</>
+            ) : (
+              <>Ours: we tier at row level. That is our own choice, not a rule stated by any source for this project.</>
+            )}
+          </p>
+          <p className="formula">
+            Impact severity = {IMPACT_FACTORS.map((f) => `${effWeight(IMPACT_FACTORS, f).toFixed(2)}×${f.label.toLowerCase()}`).join(' + ')}
+          </p>
+          <p className="formula">
+            Adoption risk = {RISK_FACTORS.map((f) => `${effWeight(RISK_FACTORS, f).toFixed(2)}×${f.label.toLowerCase()}`).join(' + ')}
+          </p>
+          <p className="footnote" style={{ marginTop: 8 }}>{NOTE.threshold}</p>
+          <p className="footnote">{NOTE.weights}</p>
+        </div>
+      </details>
+
       <p className="footnote">All figures illustrative. All data synthetic. {datasetProvenanceNote(scored.length + incomplete.length, sourceNamedRoleCount)}</p>
     </>
   );
