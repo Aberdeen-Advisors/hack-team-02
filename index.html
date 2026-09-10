@@ -1061,6 +1061,32 @@ function resourcedPlan(scored) {
   ];
 }
 
+/* Every headline count that moves when the weights move: the four tier
+   role counts, plus every resourcedPlan row across Training, Communication
+   and Adoption (curricula, sandbox seats, cascade scripts, comms tracks,
+   super-users, site coaches...). Re-tiering is the tool's most impressive
+   trick and, un-surfaced, its most invisible one - this is what lets the
+   header show "Rebuild 9 -> 11 roles" the moment a slider moves it, on
+   tabs the reader isn't even looking at yet. Always computed against the
+   whole, unfiltered roster (raw), never a site-scoped subset, since the
+   header indicator is project-wide. */
+function computeKeyFigures(rawRoles, weightsObj) {
+  applyWeights(weightsObj);
+  const scoredNow = rawRoles.map(scoreRole).filter((r) => r.complete);
+  const agg = aggregate(scoredNow);
+  const plan = resourcedPlan(scoredNow);
+  const figures = {};
+  TIER_ORDER.forEach((t) => { figures[`${t} roles`] = agg.byTier[t].roles; });
+  plan.forEach((g) => g.rows.forEach((r) => { figures[r.txt] = r.n; }));
+  return figures;
+}
+/* "Rebuild 9 -> 11 roles" for a tier count, "sandbox seats 62 -> 58" for a
+   resourcedPlan row - same {label, from, to} shape, read differently. */
+function formatWeightDelta(d) {
+  const tier = TIER_ORDER.find((t) => d.label === `${t} roles`);
+  return tier ? `${tier} ${d.from}→${d.to} roles` : `${d.label} ${d.from}→${d.to}`;
+}
+
 /* ===========================================================================
    4. DATA. Fetched at startup, with the parsed object embedded as a hard
    fallback so the app also runs from file:// or with no network at all.
@@ -3728,6 +3754,20 @@ function Tile({ label, value, meta, accent, emptyNote }) {
   );
 }
 
+/* Every tab downstream of the weight sliders shows this under its heading
+   whenever weights differ from default, so a reader who lands here first -
+   not on Stakeholder Impact, where the sliders live - still knows this
+   page's numbers are not the tool's own default weighting. */
+function WeightNote({ weights, onReset }) {
+  if (weightsAreDefault(weights)) return null;
+  return (
+    <p className="weight-note no-print">
+      Reflects custom weighting.{' '}
+      <button type="button" className="link-btn" onClick={onReset}>Reset to our defaults</button>
+    </p>
+  );
+}
+
 /* ===========================================================================
    7. PORTFOLIO / HEAT MAP
    =========================================================================== */
@@ -3991,7 +4031,7 @@ function concentrationFinding(agg) {
   };
 }
 
-function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights,
+function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights, weightDeltas,
                           siteArchetypeBase, siteArchetypeCombos, comboExample, citeDeck, sourceNamedRoleCount,
                           onOpenBudgetWeights }) {
   const [sa, setSa] = useState('All');
@@ -3999,6 +4039,12 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
   // archetype and no combos, so the control is hidden rather than showing
   // "All site archetypes" next to a single, redundant second option.
   const siteScopeOptionCount = siteArchetypeBase.length + siteArchetypeCombos.length;
+  // weightDeltas is computed against the whole, unfiltered project, so it
+  // can only be trusted to flash a tile while no site-archetype filter is
+  // narrowing what that tile counts.
+  const changedTiers = new Set(
+    sa === 'All' ? (weightDeltas || []).map((d) => d.label).filter((l) => l.endsWith(' roles')).map((l) => l.replace(' roles', '')) : []
+  );
 
   const match = (r) => archetypeMatches(r.siteArchetype, sa);
   const filtered = useMemo(() => scored.filter(match), [scored, sa]);
@@ -4094,7 +4140,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         {TIER_ORDER.map((t) => {
           const b = agg.byTier[t];
           return (
-            <div className="tile tier-tile" key={t} style={{ '--tier-color': TIERS[t].hex }}>
+            <div className={'tile tier-tile' + (changedTiers.has(t) ? ' tile-flash' : '')} key={t} style={{ '--tier-color': TIERS[t].hex }}>
               <div className="tier-name"><i className="dot" style={{ '--dot': TIERS[t].hex }} />{t}</div>
               <div className="tier-desc">{TIERS[t].quadrant}: {TIERS[t].package.join(', ')}.</div>
               <div className="rows">
@@ -4961,7 +5007,7 @@ function RedesignRow({ role, onOpen }) {
   );
 }
 
-function RedesignView({ all, selectedId, onSelect }) {
+function RedesignView({ all, selectedId, onSelect, weights, onResetWeights }) {
   const [tierFilter, setTierFilter] = useState('All');
   const rows = useMemo(
     () => all.filter((r) => tierFilter === 'All' || r.tier === tierFilter),
@@ -4984,6 +5030,7 @@ function RedesignView({ all, selectedId, onSelect }) {
           Before and after task lists for every role, scanned at portfolio level instead of one one-pager at a time.
           Removed, changed and new task counts and the FTE delta come straight from each role's record.
         </p>
+        <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
@@ -5019,7 +5066,7 @@ function RedesignView({ all, selectedId, onSelect }) {
    use, this view just presents them across the whole portfolio.
    =========================================================================== */
 
-function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProvenance }) {
+function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, weights, onResetWeights }) {
   const [tierFilter, setTierFilter] = useState('All');
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const trainingGroup = plan.find((g) => g.group === 'Training');
@@ -5037,6 +5084,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
           or e-learning, with nano-learning added as reinforcement, never substituted for the curriculum - not the volume.
           Filter by tier to plan delivery waves.
         </p>
+        <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
       {trainingGroup && (
@@ -5136,7 +5184,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
    10c. COMMUNICATION: milestones, channel, cascade scripts, by role.
    =========================================================================== */
 
-function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate }) {
+function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate, weights, onResetWeights }) {
   const [tierFilter, setTierFilter] = useState('All');
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const commsGroup = plan.find((g) => g.group === 'Communication');
@@ -5171,6 +5219,7 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckP
           Lead time before go-live mirrors each tier's own hypercare tail after it ({TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}w`).join(' · ')}),
           and the channel for each stop follows the same deskless vs. desk-based split used for training and job aids.
         </p>
+        <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
       {commsGroup && (
@@ -5319,7 +5368,7 @@ function BudgetWeightingPanel({ agg }) {
   );
 }
 
-function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate }) {
+function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate, weights, onResetWeights }) {
   const agg = useMemo(() => aggregate(scored), [scored]);
   const daysLive = useMemo(() => daysSince(goLiveDate), [goLiveDate]);
   const tierStatus = useMemo(() => TIER_ORDER.map((t) => ({
@@ -5341,6 +5390,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
       <div className="view-head">
         <h2>Adoption: tracking since go-live</h2>
         <p className="lede">{liveLede} Status, completion and the metrics below are simulated for this demo, not measured, and each is derived from a rule printed beside it.</p>
+        <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
       <BudgetWeightingPanel agg={agg} />
@@ -6047,8 +6097,32 @@ function App() {
   // analysis explainer - null if no role here spans more than one archetype.
   const comboExample = useMemo(() => exampleComboScope(all), [all]);
 
-  const setWeight = useCallback((key, v) => setWeights((w) => ({ ...w, [key]: v })), []);
-  const resetWeights = useCallback(() => setWeights({ ...DEFAULT_WEIGHTS }), []);
+  // Weight changes are the tool's most impressive trick and, un-surfaced,
+  // its most invisible one: every downstream figure re-tiers, but nothing
+  // says so. applyAndDiff snapshots the whole roster's key figures before
+  // and after a weight change - synchronously, so the diff is ready the
+  // instant setWeights fires - and holds whatever moved for a few seconds
+  // so the header (and the tier tiles) can show it moving, not just having
+  // moved.
+  const flashTimerRef = useRef(null);
+  const [weightDeltas, setWeightDeltas] = useState(null);
+  const applyAndDiff = useCallback((nextWeights) => {
+    const before = computeKeyFigures(raw, weights);
+    const after = computeKeyFigures(raw, nextWeights);
+    const deltas = Object.keys(after)
+      .filter((k) => before[k] !== undefined && before[k] !== after[k])
+      .map((k) => ({ label: k, from: before[k], to: after[k] }));
+    setWeights(nextWeights);
+    clearTimeout(flashTimerRef.current);
+    if (deltas.length) {
+      setWeightDeltas(deltas);
+      flashTimerRef.current = setTimeout(() => setWeightDeltas(null), 5000);
+    } else {
+      setWeightDeltas(null);
+    }
+  }, [raw, weights]);
+  const setWeight = useCallback((key, v) => applyAndDiff({ ...weights, [key]: v }), [applyAndDiff, weights]);
+  const resetWeights = useCallback(() => applyAndDiff({ ...DEFAULT_WEIGHTS }), [applyAndDiff]);
 
   // The one-pager is reachable from any of the five primary tabs, not just
   // one, so "back" has to return wherever the click came from.
@@ -6074,6 +6148,10 @@ function App() {
     setRaw([]); setDataSource(''); setMeta({});
     setTab('portfolio'); setReturnTab('portfolio'); setSelectedId(null);
     setWeights({ ...DEFAULT_WEIGHTS });
+    // A leftover flash from the previous project's weights must never
+    // bleed into this one.
+    clearTimeout(flashTimerRef.current);
+    setWeightDeltas(null);
   }, []);
 
   const backToProjects = useCallback(() => enterProject(null), [enterProject]);
@@ -6096,10 +6174,20 @@ function App() {
           <span className="sub">
             {pluralize(all.length, 'role')} · {pluralize(all.reduce((s, r) => s + (r.headcount || 0), 0), 'person', 'people')}
             {incomplete.length ? ` · ${pluralize(incomplete.length, 'incomplete role')}` : ''}
-            {weightsAreDefault(weights) ? '' : ' · weights changed from our default'}
           </span>
+          {!weightsAreDefault(weights) && (
+            <span className="weight-alert">
+              Custom weighting active
+              <button type="button" className="link-btn" onClick={resetWeights}>Reset</button>
+            </span>
+          )}
           <button className="btn" onClick={backToProjects}>← All projects</button>
         </div>
+        {weightDeltas && (
+          <div className="weight-flash">
+            Just moved: {weightDeltas.map(formatWeightDelta).join(' · ')}
+          </div>
+        )}
         <nav className="tabs" role="tablist" aria-label="Views">
           {ALL_TABS.map((t) => (
             <button key={t.id} className="tab" role="tab" aria-selected={tab === t.id}
@@ -6116,23 +6204,27 @@ function App() {
       <main className="main">
         {tab === 'portfolio' && (
           <PortfolioView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
-                         weights={weights} onWeight={setWeight} onResetWeights={resetWeights}
+                         weights={weights} onWeight={setWeight} onResetWeights={resetWeights} weightDeltas={weightDeltas}
                          siteArchetypeBase={project.siteArchetypeBase} siteArchetypeCombos={project.siteArchetypeCombos}
                          comboExample={comboExample} citeDeck={project.hasDeckReproduction}
                          sourceNamedRoleCount={meta.sourceNamedRoleCount} onOpenBudgetWeights={openBudgetWeights} />
         )}
-        {tab === 'redesign' && <RedesignView all={all} selectedId={selectedId} onSelect={openRole} />}
+        {tab === 'redesign' && (
+          <RedesignView all={all} selectedId={selectedId} onSelect={openRole} weights={weights} onResetWeights={resetWeights} />
+        )}
         {tab === 'training' && (
           <TrainingView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
-                        showDeckProvenance={project.hasDeckReproduction} />
+                        showDeckProvenance={project.hasDeckReproduction} weights={weights} onResetWeights={resetWeights} />
         )}
         {tab === 'comms' && (
           <CommunicationView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
-                              showDeckProvenance={project.hasDeckReproduction} goLiveDate={project.goLiveDate} />
+                              showDeckProvenance={project.hasDeckReproduction} goLiveDate={project.goLiveDate}
+                              weights={weights} onResetWeights={resetWeights} />
         )}
         {tab === 'plan' && (
           <PlanView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
-                    showDeckProvenance={project.hasDeckReproduction} goLiveDate={project.goLiveDate} />
+                    showDeckProvenance={project.hasDeckReproduction} goLiveDate={project.goLiveDate}
+                    weights={weights} onResetWeights={resetWeights} />
         )}
         {tab === 'role' && (
           <OnePager role={selected} onBack={() => setTab(returnTab)} backLabel={TAB_LABELS[returnTab] || 'Stakeholder Impact'}
