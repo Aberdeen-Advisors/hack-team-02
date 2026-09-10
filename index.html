@@ -953,12 +953,22 @@ const RESCORE_STATUS_CLASS = {
 };
 
 /* Simulated (not measured) training-completion percentage for one tier, a
-   starting point for the demo, not a claim: it ramps with days live relative
-   to that tier's own re-score cadence, and is editable on screen. Ours. */
+   starting point for the demo, not a claim, and editable on screen.
+   Asymptotic against a tier-specific ceiling rather than linear against
+   cadence: a linear ramp put both Rebuild and Enable at 100% by ~60 days
+   post-go-live (they share a 30-day re-score cadence), which is not a
+   credible demo state and buries the one thing an adoption tracker exists
+   to show. Rebuild's heavy support (super-user, sandbox, manager coaching)
+   gets it closest to fully done; Enable, more self-directed, deliberately
+   lags behind its own ceiling even on the same cadence - that gap is the
+   story. Ours, an illustration, not a measurement. */
+const COMPLETION_CEILING = { Rebuild: 92, Enable: 68, Reassure: 85, Inform: 90 };
 function simulatedTrainingCompletion(tier, daysLive) {
-  const cadence = DOSES[tier].rescoreDays;
   if (daysLive === null || daysLive < 0) return 0;
-  return Math.max(0, Math.min(100, Math.round(15 + (daysLive / cadence) * 40)));
+  const cadence = DOSES[tier].rescoreDays;
+  const ceiling = COMPLETION_CEILING[tier] ?? 90;
+  const progress = 1 - Math.exp(-daysLive / cadence);
+  return Math.max(0, Math.min(100, Math.round(ceiling * progress)));
 }
 
 /* Simulated readings for Aberdeen's ADOPTION_METRICS list, for the demo. Each
@@ -983,6 +993,36 @@ function simulatedAdoptionMetrics(agg, daysLive) {
         ? 'Improving: initial friction easing, job aids cited as the most-used support.'
         : 'Mostly positive: the new system is now the default way of working for most of the affected population.';
   return { liveFrac, signOnRate, processesCompleted, jobAidAccessRate, commsClickRate, hrCaseVolume, qualitative };
+}
+
+/* What was actually prescribed for one tier (Training tab), so Adoption's
+   completion figure has something real to be completion OF, instead of
+   floating free of tabs 2-4. Real, not simulated: hours come straight from
+   DOSES, aids from the same trainingDesign() every role's own plan uses. */
+function tierPrescription(tier, scored) {
+  const roles = scored.filter((r) => r.tier === tier);
+  const totalAids = roles.reduce((s, r) => s + trainingDesign(r).aids.count, 0);
+  return { roleCount: roles.length, hours: DOSES[tier].curriculumHours, totalAids };
+}
+
+/* The honest version of "what changed at the last re-score": this app
+   keeps no historical score snapshot, so it cannot truthfully say which
+   roles moved tier in the past - that would be inventing a record that
+   doesn't exist. What it can truthfully say is which roles sit closest to
+   the 3.5 line right now, on whichever axis is closer: real current
+   scores, not a fabricated history, answering the same operational
+   question ("what does the next re-score need to watch") from the
+   direction the data actually supports. */
+function nearestBoundaryRoles(scored, limit) {
+  return scored
+    .map((r) => {
+      const impactMargin = Math.abs(r.scores.impact - THRESHOLD);
+      const riskMargin = Math.abs(r.scores.risk - THRESHOLD);
+      const onImpact = impactMargin <= riskMargin;
+      return { role: r, axis: onImpact ? 'impact' : 'risk', margin: onImpact ? impactMargin : riskMargin };
+    })
+    .sort((a, b) => a.margin - b.margin)
+    .slice(0, limit);
 }
 
 /* Cumulative dollars of avoided productivity loss realized as of each ROI_WEEKS
@@ -3735,7 +3775,7 @@ function TierBadge({ tier, large }) {
    a filter) but "this project genuinely has none of this," e.g. no deskless
    roles at all. A big bold 0 reads as a KPI regressing; a dash and a stated
    reason reads as a deliberate finding. */
-function Tile({ label, value, meta, accent, emptyNote }) {
+function Tile({ label, value, meta, accent, emptyNote, simulated }) {
   if (emptyNote) {
     return (
       <div className="tile tile-empty">
@@ -3746,9 +3786,9 @@ function Tile({ label, value, meta, accent, emptyNote }) {
     );
   }
   return (
-    <div className={'tile' + (accent ? ' accent' : '')}>
+    <div className={'tile' + (accent ? ' accent' : '') + (simulated ? ' tile-simulated' : '')}>
       <div className="label">{label}</div>
-      <div className="value">{value}</div>
+      <div className="value">{value}{simulated && <span className="sim-tag">Simulated</span>}</div>
       {meta && <div className="meta">{meta}</div>}
     </div>
   );
@@ -5378,6 +5418,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
     o[t] = simulatedTrainingCompletion(t, daysLive); return o;
   }, {}));
   const metrics = useMemo(() => simulatedAdoptionMetrics(agg, daysLive), [agg, daysLive]);
+  const boundary = useMemo(() => nearestBoundaryRoles(scored, 3), [scored]);
 
   const liveLede = daysLive === null
     ? 'No target go-live date is set for this project yet, so tracking has not started. Set one on the engagement profile.'
@@ -5389,7 +5430,11 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
     <>
       <div className="view-head">
         <h2>Adoption: tracking since go-live</h2>
-        <p className="lede">{liveLede} Status, completion and the metrics below are simulated for this demo, not measured, and each is derived from a rule printed beside it.</p>
+        <p className="lede">
+          {liveLede} Budget weighting and status below are computed from the plan; training completion, the adoption
+          metrics and qualitative feedback are simulated for this demo, not measured - each says so on its own container
+          and its own value, not just in this sentence.
+        </p>
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
@@ -5424,36 +5469,71 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-head">
-          <h3>Training completion by tier</h3>
-          <span className="hint">Simulated: ramps with days live against the tier's re-score cadence. Editable for this demo.</span>
+          <h3>Roles nearest a tier boundary</h3>
+          <span className="hint">What the next re-score is most likely to move</span>
         </div>
         <div className="card-body">
-          {TIER_ORDER.filter((t) => agg.byTier[t].roles > 0).map((t) => (
-            <div key={t} style={{ marginBottom: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <i className="dot" style={{ '--dot': TIERS[t].hex }} /><b>{t}</b>
-                </span>
-                <input type="number" min="0" max="100" value={completion[t]}
-                       onChange={(e) => setCompletion((c) => ({ ...c, [t]: Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)) }))}
-                       style={{ width: 56, textAlign: 'right' }} aria-label={`${t} training completion percent`} />
-              </div>
-              <div className="bar"><i style={{ width: `${completion[t]}%`, background: TIERS[t].hex }} /></div>
+          <p className="sub" style={{ marginTop: 0 }}>
+            This tool keeps no historical score snapshot, so it cannot truthfully say which roles moved tier at the last
+            re-score - that would be a record it doesn't have. What it can say is which roles sit closest to the 3.5 line
+            right now: the ones the next re-score is most likely to flip.
+          </p>
+          {boundary.length === 0 && <p className="sub">No scored roles yet.</p>}
+          {boundary.map(({ role, axis, margin }) => (
+            <div key={role.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid var(--hairline)', fontSize: 13.5 }}>
+              <button type="button" className="link-btn" onClick={() => onSelect(role.id)}>{role.role}</button>
+              <span className="hint">
+                {axis} {role.scores[axis].toFixed(1)}, {margin.toFixed(1)} {role.scores[axis] >= THRESHOLD ? 'above' : 'below'} the 3.5 line
+                {' '}· <TierBadge tier={role.tier} />
+              </span>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="grid cols-4" style={{ marginBottom: 12 }}>
-        <Tile label="Unique sign-ons" value={`${metrics.signOnRate}%`} meta="of in-scope headcount, at least once" />
-        <Tile label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} meta="simulated at 3.2 per person over the adoption window" />
-        <Tile label="Job-aid access rate" value={`${metrics.jobAidAccessRate}%`} meta="of issued job aids opened at least once" />
-        <Tile label="Comms click rate" value={`${metrics.commsClickRate}%`} meta="go-live communication click-through" />
-        <Tile label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} meta="Rebuild + Enable population, tapering as adoption matures" />
+      <div className="card simulated" style={{ marginBottom: 16 }}>
+        <div className="card-head">
+          <h3>Training completion by tier <span className="sim-tag">Simulated</span></h3>
+          <span className="hint">Ramps toward a tier-specific ceiling with days live. Editable for this demo.</span>
+        </div>
+        <div className="card-body">
+          {TIER_ORDER.filter((t) => agg.byTier[t].roles > 0).map((t) => {
+            const presc = tierPrescription(t, scored);
+            const accessed = Math.round(presc.totalAids * (completion[t] / 100));
+            return (
+              <div key={t} style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <i className="dot" style={{ '--dot': TIERS[t].hex }} /><b>{t}</b>
+                    <span className="hint">{pluralize(presc.hours, 'hour')} curriculum · {pluralize(presc.roleCount, 'role')} prescribed</span>
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input type="number" min="0" max="100" value={completion[t]}
+                           onChange={(e) => setCompletion((c) => ({ ...c, [t]: Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)) }))}
+                           style={{ width: 56, textAlign: 'right' }} aria-label={`${t} training completion percent`} />
+                    <span className="sim-tag">Simulated</span>
+                  </span>
+                </div>
+                <div className="bar"><i style={{ width: `${completion[t]}%`, background: TIERS[t].hex }} /></div>
+                <p className="hint" style={{ marginTop: 4 }}>
+                  ≈ {accessed} of {pluralize(presc.totalAids, 'prescribed job aid')} accessed at this completion rate (simulated, tracks completion)
+                </p>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="card">
-        <div className="card-head"><h3>Qualitative feedback</h3></div>
+      <div className="grid cols-4" style={{ marginBottom: 12 }}>
+        <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} meta="of in-scope headcount, at least once" />
+        <Tile simulated label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} meta="at 3.2 per person over the adoption window" />
+        <Tile simulated label="Job-aid access rate" value={`${metrics.jobAidAccessRate}%`} meta="of issued job aids opened at least once" />
+        <Tile simulated label="Comms click rate" value={`${metrics.commsClickRate}%`} meta="go-live communication click-through" />
+        <Tile simulated label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} meta="Rebuild + Enable population, tapering as adoption matures" />
+      </div>
+
+      <div className="card simulated">
+        <div className="card-head"><h3>Qualitative feedback <span className="sim-tag">Simulated</span></h3></div>
         <div className="card-body"><p style={{ margin: 0 }}>{metrics.qualitative}</p></div>
       </div>
     </>
