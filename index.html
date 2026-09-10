@@ -503,19 +503,37 @@ function jobAidPlan(impact) {
   return { band: b.band, range: b.range, count: Math.min(b.high, b.low + steps) };
 }
 
-/* The training design for one role: method + duration off Aberdeen's table,
-   selected by complexity, with deskless reach and audience size as overrides.
-   The selection rule is ours. */
+/* INTENSITY and MODALITY are two different questions, kept apart on
+   purpose. Intensity - how many hours of training this role needs - is set
+   by tier alone (DOSES[tier].curriculumHours) and NEVER changes with
+   deskless status: a deskless Rebuild nurse needs exactly the hours a
+   desk-based Rebuild analyst needs. Modality - how those hours actually
+   reach the person - is set by deskless status: on shift instead of in a
+   classroom or online. Nano-learning is reinforcement layered on top of
+   that curriculum in every tier, never a substitute for it.
+
+   This replaces a real bug: deskless used to override tier in the method
+   picker, so a deskless Rebuild role (a nurse going live on CPOE/eMAR, an
+   adoption-risk-4.7 warehouse lead) came out as "Nano-learning, 1-5 min,
+   self-driven" - five minutes of self-serve training on the highest-risk
+   work in the project - while its own package line above still promised
+   sandbox training and the tier tile above that still counted its seat in
+   the sandbox total. Same tier, two contradictory promises on one screen. */
 function trainingDesign(role) {
   const impact = role.scores ? role.scores.impact : 0;
   const complexity = complexityBand(impact);
   const deskless = role.deskless === true;
   const large = role.headcount >= LARGE_AUDIENCE;
+  const hours = DOSES[role.tier].curriculumHours;
+
+  // The desk-based method complexity and audience size would pick. Inform
+  // is a real exception, not a deskless one: it is the one tier with no
+  // course at all (DOSES.Inform has no sandbox, no super-user, no
+  // curriculum to speak of), so it stays nano-learning regardless of
+  // deskless status - there is no full-intensity course to reformat.
   let key, why;
   if (role.tier === 'Inform') {
     key = 'nano'; why = 'Inform tier: reinforcement only, no course';
-  } else if (deskless) {
-    key = 'nano'; why = 'deskless population: delivered on shift at the line, so no classroom and no e-learning';
   } else if (complexity === 'high') {
     key = 'instructorLed'; why = `high complexity (impact severity ${impact.toFixed(1)})`;
   } else if (complexity === 'medium') {
@@ -524,12 +542,32 @@ function trainingDesign(role) {
     key = large ? 'webBased' : 'virtual';
     why = large ? `low complexity, large audience (${role.headcount.toLocaleString()} people)` : 'low complexity, small audience';
   }
-  const primary = TRAINING_METHODS[key];
+  const core = TRAINING_METHODS[key];
+
+  let primary;
+  if (deskless && role.tier !== 'Inform') {
+    // Same hours, on-shift format: never nano-learning INSTEAD of the
+    // curriculum, only reinforcing it (see packageFor's Sandbox
+    // training / On-site super-user rows for the on-shift specifics -
+    // shadowing, sandbox rotated into shift time - this just states the
+    // hours and the reinforcement).
+    primary = {
+      method: 'On-shift delivery', duration: `${pluralize(hours, 'hour')} total, plus nano-learning reinforcement`,
+      fits: 'deskless: no classroom or screen access', delivery: 'train-the-trainer',
+    };
+    why = `deskless: the same ${pluralize(hours, 'hour')} ${role.tier} requires everywhere, delivered on shift instead of in a classroom or online`;
+  } else {
+    primary = core;
+  }
+
   return {
-    complexity, primary, why, largeAudience: large,
+    complexity, hours, deskless, primary, why, largeAudience: large,
     aids: jobAidPlan(impact),
     jobAidMethod: TRAINING_METHODS.jobAids,
     trainTheTrainer: primary.delivery === 'train-the-trainer',
+    // Real field only - siteCount, not an invented "shift pattern" count
+    // the data doesn't carry. Names the constraint that shaped format.
+    deliveryConstraint: deskless ? `Deskless · ${pluralize(role.siteCount, 'site')}` : null,
   };
 }
 
@@ -681,17 +719,17 @@ function packageFor(role) {
   switch (role.tier) {
     case 'Rebuild': return [
       { text: 'Role redesign',       dose: `${pluralize(role.tasksRemoved + role.tasksChanged + role.tasksNew, 'task')} re-mapped · 1 workshop per site` },
-      { text: 'Sandbox training',    dose: `${d.sandboxDays}-day sandbox · ${pluralize(Math.max(1, Math.ceil(role.headcount * d.sandboxSeatsPerHead)), 'seat')}` },
+      { text: 'Sandbox training',    dose: `${d.sandboxDays}-day sandbox${role.deskless ? ', rotated into shift time' : ''} · ${pluralize(Math.max(1, Math.ceil(role.headcount * d.sandboxSeatsPerHead)), 'seat')}` },
       { text: 'Role-based training', dose: `${method} · ${t.complexity} complexity` },
       { text: 'Job aids',            dose: aids },
-      { text: 'On-site super-user',  dose: `${d.superUsersPerSite} per site (${sites}) · 1:${d.superUserRatio}` },
+      { text: 'On-site super-user',  dose: `${d.superUsersPerSite} per site (${sites})${role.deskless ? ', shadowing on the floor' : ''} · 1:${d.superUserRatio}` },
       { text: 'Manager coaching',    dose: `${pluralize(d.managerCoachingSessions, 'session')} · ${pluralize(d.floorCoachingWeeks, 'week')} floor presence` },
       { text: 'Hypercare',           dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
     case 'Enable': return [
       { text: 'Role-based training',   dose: `${method} · ${t.complexity} complexity` },
       { text: 'Job aids',              dose: aids },
-      { text: 'Recruit as champions',  dose: `${pluralize(Math.max(1, Math.ceil(role.headcount / d.superUserRatio)), 'champion')} · 1:${d.superUserRatio}` },
+      { text: 'Recruit as champions',  dose: `${pluralize(Math.max(1, Math.ceil(role.headcount / d.superUserRatio)), 'champion')}${role.deskless ? ', coaching on shift' : ''} · 1:${d.superUserRatio}` },
       { text: 'Hypercare',             dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
     case 'Reassure': return [
@@ -714,9 +752,9 @@ function modifiersFor(role) {
   if (role.deskless === true) {
     out.push({
       trigger: 'deskless = true',
-      title: 'Deskless delivery override',
+      title: 'Deskless delivery format (same required hours, reformatted)',
       items: [
-        'On-shift micro-training at the line, not a classroom, not e-learning',
+        'Full required-hours curriculum delivered on shift at the line, not a classroom or e-learning - see Required hours in the delivery detail below',
         'Laminated job aids in local language, held at the point of work',
         'Email channel dropped from this role’s comms plan entirely',
         'QR code on the shift huddle board carries every message instead',
@@ -4224,7 +4262,8 @@ function onePagerText(role, comboExample, citeDeck) {
   const td = trainingDesign(role);
   L.push('');
   L.push('DELIVERY DETAIL (Aberdeen OCM delivery material; the tier -> tactic mapping is ours)');
-  L.push(`  Training: ${td.primary.method}, ${td.primary.duration}, selected for ${td.why}`);
+  L.push(`  Training: ${pluralize(td.hours, 'hour')} required for ${role.tier} (by tier alone, not deskless status)`);
+  L.push(`  Delivered as: ${td.primary.method}, ${td.primary.duration}, selected for ${td.why}`);
   L.push(`  Job aids: ${td.aids.count} (${td.aids.band} band, ${td.aids.range}), ${td.jobAidMethod.duration} each`);
   L.push('  Communications milestones:');
   commsPlan(role).forEach((m) => L.push(`    - ${m.name}: ${m.objective} · ${m.channel}`));
@@ -4247,9 +4286,10 @@ function DeliveryDetail({ role }) {
   return (
     <>
       <div className="pkg-extra">
-        <h5>Training design: method chosen by complexity</h5>
+        <h5>Training design: required hours by tier, format by deskless status</h5>
         <p>
-          <b>{t.primary.method}</b>, <b>{t.primary.duration}</b>, selected for {t.why}.
+          <b>{pluralize(t.hours, 'hour')} required</b> for {role.tier} - set by tier alone, the same whether or not this role
+          {' '}is deskless. Delivered as <b>{t.primary.method}</b>, {t.primary.duration}, selected for {t.why}.
           {' '}Fits {t.primary.fits}. Delivered {t.trainTheTrainer ? 'by train-the-trainer participants' : 'self-driven'}.
         </p>
         <p style={{ marginBottom: 0 }}>
@@ -4990,10 +5030,12 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
   return (
     <>
       <div className="view-head">
-        <h2>Training: method, duration and job aids, by role</h2>
+        <h2>Training: required hours, delivery format and job aids, by role</h2>
         <p className="lede">
-          Every role's training design falls out of its tier, complexity and deskless status. Filter by tier to plan
-          delivery waves.
+          Required hours come from tier and complexity alone, never from deskless status: a deskless Rebuild role needs the
+          same hours a desk-based Rebuild role needs. Deskless changes the delivery format - on shift instead of a classroom
+          or e-learning, with nano-learning added as reinforcement, never substituted for the curriculum - not the volume.
+          Filter by tier to plan delivery waves.
         </p>
       </div>
 
@@ -5017,8 +5059,9 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
         <table className="data">
           <thead>
             <tr>
-              <th>Role</th><th>Tier</th><th>Method</th><th className="n">Duration</th>
-              <th>Complexity</th><th className="n">Job aids</th><th>Delivery</th>
+              <th>Role</th><th>Tier</th><th className="n" title="Set by tier alone (DOSES[tier].curriculumHours) - never by deskless status">Required hours</th>
+              <th>Method</th><th>Complexity</th><th className="n">Job aids</th>
+              <th title="What shaped the delivery format, not the volume">Delivery constraint</th>
             </tr>
           </thead>
           <tbody>
@@ -5026,11 +5069,11 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
               <tr key={role.id} className={selectedId === role.id ? 'sel' : ''} onClick={() => onSelect(role.id)}>
                 <td><span className="rolename">{role.role}</span></td>
                 <td><TierBadge tier={role.tier} /></td>
+                <td className="n">{pluralize(design.hours, 'hour')}</td>
                 <td>{design.primary.method}</td>
-                <td className="n">{design.primary.duration}</td>
                 <td>{design.complexity}</td>
                 <td className="n">{design.aids.count} ({design.aids.band})</td>
-                <td>{design.trainTheTrainer ? 'Train-the-trainer' : 'Self-driven'}{role.deskless ? ' · deskless' : ''}</td>
+                <td>{design.deliveryConstraint || '—'}</td>
               </tr>
             ))}
             {!rows.length && <tr><td colSpan={7} style={{ color: 'var(--ink-3)' }}>No roles match this filter.</td></tr>}
@@ -5062,8 +5105,12 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
                 </tbody>
               </table>
               <p className="footnote">
-                Our selection rule: high complexity → instructor-led, medium → virtual, low → web-based above
-                {' '}{LARGE_AUDIENCE} people and virtual below it, deskless → nano-learning on shift, Inform → nano-learning only.
+                Our selection rule, in two parts. Required hours: set by tier alone (Rebuild {DOSES.Rebuild.curriculumHours}h,
+                {' '}Enable {DOSES.Enable.curriculumHours}h, Reassure {DOSES.Reassure.curriculumHours}h, Inform {DOSES.Inform.curriculumHours}h) -
+                {' '}deskless status never changes this number. Delivery format: high complexity → instructor-led, medium → virtual, low →
+                {' '}web-based above {LARGE_AUDIENCE} people and virtual below it; deskless → the same hours delivered on shift instead,
+                {' '}with nano-learning added as reinforcement, not substituted for the curriculum; Inform has no curriculum to reformat, so it
+                {' '}stays nano-learning regardless of deskless status.
               </p>
             </div>
             <div className="assume">
