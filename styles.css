@@ -286,13 +286,18 @@ a { color: var(--brand); }
 
 .grid { display: grid; gap: 16px; }
 .cols-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
-.cols-4 { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+/* 220px, not 190px: the longest tier-tile row label ("Share of change
+   budget") plus its value needs that much to sit on one line at this font
+   size. Grid rows always size to content, so a card can still grow taller
+   at any narrower width - it never gets cut. */
+.cols-4 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 
 /* -------------------------------------------------------------- stat tiles */
 
 .tile {
   background: var(--surface); border: 1px solid var(--hairline);
   border-radius: var(--radius); padding: 14px 16px;
+  height: auto; overflow: visible; /* never clip: the card grows to fit its content, always */
 }
 .tile .label { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
 .tile .value { font-size: 27px; font-weight: 500; letter-spacing: -.02em; margin-top: 6px; line-height: 1.1; }
@@ -306,7 +311,9 @@ a { color: var(--brand); }
 .tier-tile .tier-name { display: flex; align-items: center; gap: 7px; font-weight: 500; font-size: 14px; }
 .tier-tile .tier-desc { margin-top: 4px; font-size: 12px; color: var(--ink-2); line-height: 1.4; }
 .tier-tile .rows { margin-top: 10px; display: grid; gap: 3px; }
-.tier-tile .row { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-2); }
+/* flex-wrap so a long label ("Share of change budget") at a narrow card
+   width drops the value to its own line instead of the two overlapping. */
+.tier-tile .row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0 8px; font-size: 13px; color: var(--ink-2); }
 .tier-tile .row b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
 
 .banner {
@@ -412,7 +419,11 @@ table.data td .newflag {
   color: var(--brand); border: 1px solid var(--brand-line); background: var(--brand-wash);
   border-radius: 4px; padding: 1px 5px; margin-left: 7px; vertical-align: 1px;
 }
-.table-scroll { overflow-x: auto; max-height: 460px; overflow-y: auto; }
+/* No vertical scroll pane: a table this long scrolls with the page, once,
+   not in a second scrollbar trapped inside the first. overflow-x stays -
+   that is a legitimate, different concern (a wide table on a narrow
+   viewport), not the nested-scroll problem. */
+.table-scroll { overflow-x: auto; }
 
 /* --------------------------------------------------------------- one-pager */
 
