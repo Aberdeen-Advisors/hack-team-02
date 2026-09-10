@@ -76,8 +76,6 @@ function applyThreshold(t) { if (isScore(t) && t >= 1 && t <= 5) THRESHOLD = t; 
    tool makes on stage are the claims it can defend. */
 const NOTE = {
   weights: 'The six sub-factor weights are ours: our default, and tunable. The source deck states no weights and no aggregation method, so nothing here is inherited from it.',
-  threshold: 'Threshold 3.5 on both axes, inclusive: a score of exactly 3.5 counts as above the line. '
-      + '3.5 is the “good” floor used in the sponsor competency assessment we work from (70 of 100), not the midpoint of the 1–5 scale.',
   mapping: 'Provenance: the tier → tactic mapping is OURS. Aberdeen’s OCM delivery material supplies the training method table, job-aid ranges, '
       + 'communications milestones, four-layer support escalation and cadences. It contains no tier-to-tactic mapping, so the mapping is our extension of it, not something inherited.',
   ratio: 'The 1:15 super-user ratio comes from Team 2’s own deck (slide 13). Aberdeen’s material states no ratio.',
@@ -90,6 +88,19 @@ const NOTE = {
       + 'exists we use it and say so, and where it does not the wording is ours. They are not equally well grounded, and each one says which it is: '
       + 'capability delta is Aberdeen’s own wording at 1, 3 and 5; frequency and volume is ours end to end, because no source in the evidence base measures it.',
 };
+
+/* THRESHOLD is mutable (see applyThreshold above) - a slider on the
+   Adoption tab can move it off its 3.5 default - so this string, unlike the
+   rest of NOTE, has to be a function of the live value rather than a fixed
+   constant, or it goes stale (and self-contradictory next to the operators
+   that already read THRESHOLD live) the moment someone drags that slider. */
+function noteThreshold(threshold) {
+  const t = threshold.toFixed(1);
+  return `Threshold ${t} on both axes, inclusive: a score of exactly ${t} counts as above the line. `
+      + (threshold === DEFAULT_THRESHOLD
+          ? `3.5 is the “good” floor used in the sponsor competency assessment we work from (70 of 100), not the midpoint of the 1–5 scale.`
+          : `Our default is ${DEFAULT_THRESHOLD.toFixed(1)}, the “good” floor used in the sponsor competency assessment we work from (70 of 100), not the midpoint of the 1–5 scale; this is a threshold moved from that default.`);
+}
 
 /* The unit-of-analysis explainer, shown on the Stakeholder Impact tab and on
    every role one-pager. Two things in it are project-specific and must never
@@ -3806,12 +3817,15 @@ async function loadRolesForProject(project) {
 
 /* ===========================================================================
    4b. PROJECTS. The picker's registry. Three worked examples plus a blank
-   starting point. Each entry carries its own dataset, vocabulary (value
-   streams / site archetypes) and hasDeckReproduction, which controls whether
-   the deck-specific provenance notes on the Training, Communication and
-   Adoption tabs are shown. Those notes cite the original deck's own figures
-   and would be misleading for a dataset with no corresponding deck, so they
-   only show for the consumer-products example.
+   starting point. Each entry carries its own dataset, site-archetype
+   vocabulary, and hasDeckReproduction - which gates only the handful of
+   citations that trace to Team 2's original deck (the unit-of-analysis note
+   and the Rebuild super-user ratio, both in the Stakeholder Impact tab and
+   the one-pager). Those citations would be misleading for a dataset with no
+   corresponding deck, so they only show for the consumer-products example.
+   showDeckProvenance is a separate, dead prop threaded into TrainingView/
+   CommunicationView/PlanView from this same flag - see CLAUDE.md - and gates
+   nothing; do not describe it here as showing anything.
    =========================================================================== */
 
 const PROJECTS = [
@@ -4137,8 +4151,8 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
         {/* the 3.5 thresholds */}
         <line x1={xm} y1={y1} x2={xm} y2={y0} stroke="var(--hairline-strong)" strokeWidth="1.5" />
         <line x1={x0} y1={ym} x2={x1} y2={ym} stroke="var(--hairline-strong)" strokeWidth="1.5" />
-        <text className="axis-t" x={xm} y={y0 + 16} textAnchor="middle" fontWeight="700" fill="var(--ink-2)">3.5</text>
-        <text className="axis-t" x={x0 - 9} y={ym + 3} textAnchor="end" fontWeight="700" fill="var(--ink-2)">3.5</text>
+        <text className="axis-t" x={xm} y={y0 + 16} textAnchor="middle" fontWeight="700" fill="var(--ink-2)">{THRESHOLD.toFixed(1)}</text>
+        <text className="axis-t" x={x0 - 9} y={ym + 3} textAnchor="end" fontWeight="700" fill="var(--ink-2)">{THRESHOLD.toFixed(1)}</text>
 
         <line x1={x0} y1={y0} x2={x1} y2={y0} stroke="var(--hairline-strong)" strokeWidth="1" />
         <line x1={x0} y1={y1} x2={x0} y2={y0} stroke="var(--hairline-strong)" strokeWidth="1" />
@@ -4187,23 +4201,31 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
   );
 });
 
-const COLUMNS = [
-  { key: 'role', label: 'Role' },
-  { key: 'siteArchetype', label: 'Sites', title: 'The site archetype (or combination) this row scopes to, e.g. "Plant + DC"' },
-  { key: 'headcount', label: 'People', n: true },
-  { key: 'siteCount', label: 'Site count', n: true,
-    title: 'How many individual sites are in this row\'s scope - e.g. "Plant + DC" is 8 sites, six plants and two DCs. '
-         + 'Not the same as the Sites column, which names the archetype, not how many of it there are.' },
-  { key: 'impact', label: 'Impact', n: true, title: 'Impact severity: hover a value to see its weighted breakdown' },
-  { key: 'risk', label: 'Risk', n: true, title: 'Adoption risk: hover a value to see its weighted breakdown' },
-  { key: 'tier', label: 'Tier' },
-];
+// "Plant + DC" is Thornwood's own combined scope, real only there - a
+// project with no combos (Ashford) or a different vocabulary entirely
+// (Bellcrest) gets a tooltip built from its own comboExample instead of a
+// borrowed one, or a plain description when it has no combo to cite at all.
+function columnsFor(comboExample) {
+  return [
+    { key: 'role', label: 'Role' },
+    { key: 'siteArchetype', label: 'Sites', title: comboExample
+        ? `The site archetype (or combination) this row scopes to, e.g. "${comboExample}"`
+        : 'The site archetype this row scopes to. Every role in this project sits at a single archetype, none span more than one.' },
+    { key: 'headcount', label: 'People', n: true },
+    { key: 'siteCount', label: 'Site count', n: true,
+      title: 'How many individual sites are in this row\'s scope. Not the same as the Sites column, which names the '
+           + 'archetype, not how many of it there are.' },
+    { key: 'impact', label: 'Impact', n: true, title: 'Impact severity: hover a value to see its weighted breakdown' },
+    { key: 'risk', label: 'Risk', n: true, title: 'Adoption risk: hover a value to see its weighted breakdown' },
+    { key: 'tier', label: 'Tier' },
+  ];
+}
 
 /* Memoised for the same reason as HeatMap: 38 sortable rows re-diffing on
    every keystroke in the rate card or the scenario name field, none of
    which touch `roles`/`incomplete`/`selectedId`/`onSelect`, was the
    single biggest avoidable render cost on the Stakeholder Impact tab. */
-const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId, onSelect }) {
+const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId, onSelect, comboExample }) {
   const [sort, setSort] = useState({ key: 'impact', dir: -1 });
   const sorted = useMemo(() => {
     const val = (r, k) => (k === 'impact' ? r.scores.impact : k === 'risk' ? r.scores.risk
@@ -4222,7 +4244,7 @@ const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId,
     const counts = new Set([...roles, ...(incomplete || [])].map((r) => r.siteCount));
     return counts.size > 1;
   }, [roles, incomplete]);
-  const columns = useMemo(() => COLUMNS.filter((c) => c.key !== 'siteCount' || showSiteCount), [showSiteCount]);
+  const columns = useMemo(() => columnsFor(comboExample).filter((c) => c.key !== 'siteCount' || showSiteCount), [showSiteCount, comboExample]);
 
   const click = (k) => setSort((s) => (s.key === k ? { key: k, dir: -s.dir } : { key: k, dir: k === 'role' || k === 'siteArchetype' ? 1 : -1 }));
   // Rows are the only way to reach the one-pagers, the best content in the
@@ -4387,7 +4409,7 @@ function ThresholdSensitivityPanel({ scored, threshold, onChange, onReset }) {
       </summary>
       <div className="tuner-body">
         <p className="sub">
-          {NOTE.threshold} Move it and watch which roles are close enough to flip - that fragility is real, and hiding it
+          {noteThreshold(threshold)} Move it and watch which roles are close enough to flip - that fragility is real, and hiding it
           would be worse than showing it.
         </p>
         <div className="wt-row">
@@ -4506,8 +4528,8 @@ function ScenariosPanel({ weights, threshold, activeScenarioName, scenarios, onS
                       {comparison.tierPop.map((t) => (
                         <tr key={t.tier}>
                           <th scope="row"><i className="dot" style={{ '--dot': TIERS[t.tier].hex, marginRight: 6 }} />{t.tier}</th>
-                          <td className="num">{pluralize(t.a, 'role')} · {t.peopleA.toLocaleString()} people</td>
-                          <td className="num">{pluralize(t.b, 'role')} · {t.peopleB.toLocaleString()} people</td>
+                          <td className="num">{pluralize(t.a, 'role')} · {pluralize(t.peopleA, 'person', 'people')}</td>
+                          <td className="num">{pluralize(t.b, 'role')} · {pluralize(t.peopleB, 'person', 'people')}</td>
                         </tr>
                       ))}
                       <tr style={{ borderTop: '1px solid var(--hairline)', fontWeight: 500 }}>
@@ -4521,7 +4543,7 @@ function ScenariosPanel({ weights, threshold, activeScenarioName, scenarios, onS
                 <p className="sub" style={{ marginTop: 10 }}>
                   {comparison.moved.length === 0
                     ? 'No role changes tier between these two scenarios.'
-                    : `${pluralize(comparison.moved.length, 'role')} change tier: ${comparison.moved.map((m) => `${m.role.role} (${m.from} → ${m.to})`).join(', ')}.`}
+                    : `${pluralize(comparison.moved.length, 'role')} ${comparison.moved.length === 1 ? 'changes' : 'change'} tier: ${comparison.moved.map((m) => `${m.role.role} (${m.from} → ${m.to})`).join(', ')}.`}
                 </p>
               </div>
             )}
@@ -4549,7 +4571,11 @@ function ScenariosPanel({ weights, threshold, activeScenarioName, scenarios, onS
 function concentrationFinding(agg) {
   const reb = agg.byTier.Rebuild;
   const en = agg.byTier.Enable;
-  const mode = reb.popShare <= 0.25 ? 'concentrated' : reb.popShare >= 0.5 ? 'broad' : 'between';
+  // A zero-Rebuild population falls out of the popShare math as "<=0.25",
+  // which would print a vacuous "0% of the population absorbs 0% of the
+  // effort" as if that were a finding rather than an absence of one.
+  const mode = reb.roles === 0 ? 'none'
+    : reb.popShare <= 0.25 ? 'concentrated' : reb.popShare >= 0.5 ? 'broad' : 'between';
   return {
     mode, reb, en,
     ratio: reb.popShare > 0 ? reb.budgetShare / reb.popShare : null,
@@ -4643,6 +4669,13 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
             </span>
           </>
         )}
+        {finding.mode === 'none' && (
+          <>
+            <b>No role in this population sits in Rebuild.</b> At the current weights and threshold, nothing here needs a
+            full role redesign - the heaviest intervention present is Enable or lighter.
+            <span className="src">{budgetLinkNote}</span>
+          </>
+        )}
       </div>
 
       {/* 2. THE FOUR TIER CARDS. The site-archetype filter sits right above
@@ -4696,7 +4729,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-head">
           <h3>Impact severity × adoption risk</h3>
-          <span className="hint">{filtered.length} of {scored.length} roles · threshold 3.5 on both axes, inclusive</span>
+          <span className="hint">{filtered.length} of {pluralize(scored.length, 'role')} · threshold {threshold.toFixed(1)} on both axes, inclusive</span>
         </div>
         <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
       </div>
@@ -4716,7 +4749,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
             Export to CSV
           </button>
         </div>
-        <RoleTable roles={filtered} incomplete={filteredIncomplete} selectedId={selectedId} onSelect={onSelect} />
+        <RoleTable roles={filtered} incomplete={filteredIncomplete} selectedId={selectedId} onSelect={onSelect} comboExample={comboExample} />
       </div>
 
       {/* 6. METHOD AND PROVENANCE. Every word that used to sit above the
@@ -4757,7 +4790,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
           <p className="formula">
             Adoption risk = {RISK_FACTORS.map((f) => `${effWeight(RISK_FACTORS, f).toFixed(2)}×${f.label.toLowerCase()}`).join(' + ')}
           </p>
-          <p className="footnote" style={{ marginTop: 8 }}>{NOTE.threshold}</p>
+          <p className="footnote" style={{ marginTop: 8 }}>{noteThreshold(threshold)}</p>
           <p className="footnote">{NOTE.weights}</p>
         </div>
       </details>
@@ -4825,7 +4858,7 @@ function onePagerText(role, comboExample, citeDeck) {
   L.push('');
   L.push(`Impact severity ${role.scores.impact.toFixed(1)} = ` + IMPACT_FACTORS.map((f) => `${effWeight(IMPACT_FACTORS, f).toFixed(2)}x${role.impact[f.key].toFixed(1)} (${f.label})`).join(' + '));
   L.push(`Adoption risk   ${role.scores.risk.toFixed(1)} = ` + RISK_FACTORS.map((f) => `${effWeight(RISK_FACTORS, f).toFixed(2)}x${role.risk[f.key].toFixed(1)} (${f.label})`).join(' + '));
-  L.push(`Threshold ${THRESHOLD} on both axes, inclusive (exactly 3.5 counts as above) -> ${role.tier}`);
+  L.push(`Threshold ${THRESHOLD.toFixed(1)} on both axes, inclusive (exactly ${THRESHOLD.toFixed(1)} counts as above) -> ${role.tier}`);
   L.push('');
   L.push('WHAT EACH SCORE MEANS (1-5 anchors, with their provenance)');
   ALL_FACTORS.forEach((f) => {
@@ -4863,7 +4896,11 @@ function onePagerText(role, comboExample, citeDeck) {
        + `(${TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks); only the duration scales.`);
   L.push(`  Cadence: readiness reassessed every ${CADENCE.readinessReassessMonths} months; role re-scored every ${pluralize(DOSES[role.tier].rescoreDays, 'day')}`);
   L.push(`  Adoption measured over a ${CADENCE.adoptionWindowMonths}-month window on: ${ADOPTION_METRICS.join(', ')}`);
-  L.push('  The 1:15 super-user ratio is from Team 2\'s own deck (slide 13); Aberdeen\'s material states no ratio.');
+  // NOTE.ratio cites a specific deck slide for the 1:15 Rebuild ratio - true
+  // only for a Rebuild role on a project with a deck to cite (Thornwood).
+  // Enable's 1:40 champion ratio, and every non-deck project, has no such
+  // citation to make.
+  if (role.tier === 'Rebuild' && citeDeck) L.push(`  ${NOTE.ratio}`);
   L.push(''); L.push('Aberdeen Advisors · Change Impact Assessment Tool · illustrative figures, synthetic data');
   return L.join('\n');
 }
@@ -4920,8 +4957,8 @@ function DeliveryDetail({ role }) {
       <div className="pkg-extra">
         <h5>Measurement</h5>
         <p>
-          Readiness reassessed every <b>{CADENCE.readinessReassessMonths} months</b>; this role re-scored every
-          {' '}<b>{d.rescoreDays} days</b> as the go-live gate. Adoption measured over a
+          Readiness reassessed every <b>{pluralize(CADENCE.readinessReassessMonths, 'month')}</b>; this role re-scored every
+          {' '}<b>{pluralize(d.rescoreDays, 'day')}</b> as the go-live gate. Adoption measured over a
           {' '}<b>{CADENCE.adoptionWindowMonths}-month window</b> after go-live on:
         </p>
         <div className="constraint-list">{ADOPTION_METRICS.map((m) => <span key={m}>{m}</span>)}</div>
@@ -5057,10 +5094,10 @@ function OnePager({ role, onBack, backLabel, comboExample, citeDeck }) {
           <AxisBreakdown name="Impact severity" factors={IMPACT_FACTORS} values={role.impact} score={role.scores.impact} newRole={role.isNewRole} />
           <AxisBreakdown name="Adoption risk" factors={RISK_FACTORS} values={role.risk} score={role.scores.risk} />
           <div className="sf-total" style={{ borderTop: '1px solid var(--hairline)', marginTop: 14, paddingTop: 12 }}>
-            impact {role.scores.impact.toFixed(1)} {role.scores.impact >= THRESHOLD ? '≥' : '<'} 3.5 and risk {role.scores.risk.toFixed(1)} {role.scores.risk >= THRESHOLD ? '≥' : '<'} 3.5
+            impact {role.scores.impact.toFixed(1)} {role.scores.impact >= THRESHOLD ? '≥' : '<'} {THRESHOLD.toFixed(1)} and risk {role.scores.risk.toFixed(1)} {role.scores.risk >= THRESHOLD ? '≥' : '<'} {THRESHOLD.toFixed(1)}
             <b>→ {role.tier}</b>
           </div>
-          <p className="footnote">{NOTE.threshold}</p>
+          <p className="footnote">{noteThreshold(THRESHOLD)}</p>
           <p className="footnote">{NOTE.weights}</p>
           <p className="footnote">{NOTE.anchors}</p>
           <p className="footnote">{noteUnit(comboExample, citeDeck)}</p>
@@ -5171,8 +5208,13 @@ function AddRoleView({ onCreate, project, comboExample }) {
 
   const missing = missingFactors(f);
   const complete = missing.length === 0;
-  /* Guidance only: it never gates submit and never touches impact, risk or tier. */
-  const scopeHint = siteScopeHint(f.siteArchetype, f.siteCount);
+  /* Guidance only: it never gates submit and never touches impact, risk or tier.
+     siteScopeHint leans on SITE_CAPACITY/SITE_ARCHETYPES, which encode one
+     specific estate (one HQ, six plants, two DCs) traced to Team 2's own
+     deck - meaningless for a project with a different site vocabulary and no
+     such estate to check against, so it only ever runs for the project that
+     estate actually describes. */
+  const scopeHint = project.hasDeckReproduction ? siteScopeHint(f.siteArchetype, f.siteCount) : null;
   const impact = impactSeverity(f.impact);
   const risk = adoptionRisk(f.risk);
   const tier = complete ? assignTier(impact, risk) : null;
@@ -5212,7 +5254,7 @@ function AddRoleView({ onCreate, project, comboExample }) {
           single archetype{comboExample ? <> or a named combination of them, like <b>{comboExample}</b></> : null}. That scope is
           what a curriculum, a comms message and a named accountable manager attach to.
           All six sub-factors are required: until they are set the row reads <b>incomplete</b>, with no score and no tier.
-          {' '}{NOTE.threshold} {NOTE.weights}
+          {' '}{noteThreshold(THRESHOLD)} {NOTE.weights}
         </p>
         <p className="lede unit">{NOTE.anchors}</p>
       </div>
@@ -5289,11 +5331,11 @@ function AddRoleView({ onCreate, project, comboExample }) {
                 <div className="pair" style={{ marginTop: 8 }}>
                   <div>
                     <div className="big num">{complete ? impact.toFixed(1) : 'N/A'}</div>
-                    <div className="thr">Impact severity · threshold 3.5, inclusive</div>
+                    <div className="thr">Impact severity · threshold {THRESHOLD.toFixed(1)}, inclusive</div>
                   </div>
                   <div>
                     <div className="big num">{complete ? risk.toFixed(1) : 'N/A'}</div>
-                    <div className="thr">Adoption risk · threshold 3.5, inclusive</div>
+                    <div className="thr">Adoption risk · threshold {THRESHOLD.toFixed(1)}, inclusive</div>
                   </div>
                 </div>
               </div>
@@ -5548,7 +5590,7 @@ const RedesignRow = React.memo(function RedesignRow({ role, onSelect }) {
     <div className={'draft-row' + (role.complete ? '' : ' incomplete')}>
       <button type="button" className="draft-row-head" onClick={() => setOpen((o) => !o)}>
         <span className="drn">{role.role}</span>
-        <span className="drm">{role.siteArchetype} · {(role.headcount || 0).toLocaleString()} people</span>
+        <span className="drm">{role.siteArchetype} · {pluralize(role.headcount || 0, 'person', 'people')}</span>
         <span className="drm n" title={`${role.tasksRemoved || 0} tasks removed, ${role.tasksChanged || 0} changed, ${role.tasksNew || 0} new, FTE delta ${signed(fte)}`}>
           −{role.tasksRemoved || 0} removed · ~{role.tasksChanged || 0} changed · +{role.tasksNew || 0} new · FTE {signed(fte)}
         </span>
@@ -5630,7 +5672,7 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
         {fte.growing === 1 ? '1 role grows' : `${fte.growing} roles grow`} · {fte.shrinking === 1 ? '1 role shrinks' : `${fte.shrinking} roles shrink`}
         {fte.largest && <> · largest single movement: <b>{fte.largest.role}</b> {signed(fte.largest.fteDelta || 0)}</>}
       </p>
-      {fte.net < 0 && (
+      {fte.net <= -MATERIAL_FTE_DELTA && (
         <div className="banner" style={{ marginBottom: 16 }}>
           <b>A net reduction of {Math.abs(fte.net).toFixed(1)} FTE is a decision, not a by-product.</b>
           <span className="src">
@@ -6035,7 +6077,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         <div className="card-body">
           <p className="sub" style={{ marginTop: 0 }}>
             This tool keeps no historical score snapshot, so it cannot truthfully say which roles moved tier at the last
-            re-score - that would be a record it doesn't have. What it can say is which roles sit closest to the 3.5 line
+            re-score - that would be a record it doesn't have. What it can say is which roles sit closest to the {THRESHOLD.toFixed(1)} line
             right now: the ones the next re-score is most likely to flip.
           </p>
           {boundary.length === 0 && <p className="sub">No scored roles yet.</p>}
@@ -6043,7 +6085,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
             <div key={role.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid var(--hairline)', fontSize: 13.5 }}>
               <button type="button" className="link-btn" onClick={() => onSelect(role.id)}>{role.role}</button>
               <span className="hint">
-                {axis} {role.scores[axis].toFixed(1)}, {margin.toFixed(1)} {role.scores[axis] >= THRESHOLD ? 'above' : 'below'} the 3.5 line
+                {axis} {role.scores[axis].toFixed(1)}, {margin.toFixed(1)} {role.scores[axis] >= THRESHOLD ? 'above' : 'below'} the {THRESHOLD.toFixed(1)} line
                 {' '}· <TierBadge tier={role.tier} />
               </span>
             </div>

@@ -74,10 +74,24 @@ Other files:
 - `data/roles.json`, `data/roles-healthcare.json`, `data/roles-financial.json`
   — the three example datasets, one schema (below).
 
-**State is pure React state, not a router.** `App()` owns `project`,
-`wizardActive`, `raw`, `dataSource`, `tab`, `returnTab`, `selectedId`,
-`weights` via plain `useState`. No `history`/`location`/hash routing, no
-query params, no deep links. A reload always returns to the project picker.
+**State is plain React state, mirrored into the URL hash, not a router
+dependency.** `App()` owns `project`, `wizardActive`, `raw`, `dataSource`,
+`tab`, `returnTab`, `selectedId`, `weights`, `threshold`, `activeScenarioName`,
+`rateCard`, `filters` via plain `useState` — none of it lives in a routing
+library. `buildHash`/`parseHash`/`syncRoute` encode the project, tab, open
+role, filters, weights, threshold and scenario name into
+`#/:projectId/:tabId/[role/:roleId][?sa=&tier=&w=&threshold=&scenario=]` on
+every navigation (`'replace'` for continuous edits like a slider drag,
+`'push'` for a real navigation like a tab or project change), and a
+`popstate` listener re-syncs every one of those pieces of state on Back/
+Forward. A boot effect reads `window.location.hash` on first render, so **a
+reload reproduces exactly what the hash encodes** — the project picker only
+appears on a bare reload/link with no project segment, not on every reload.
+This was deliberately built as hash-based (`#/...`), not
+`history.pushState`-based path routing, so the app still works unmodified
+from `file://` with no server. A "Copy link" control on the one-pager copies
+the current `window.location.href` verbatim, so sending it reproduces the
+sender's exact view.
 
 ## Role record shape
 
@@ -142,10 +156,11 @@ Aberdeen delivery tables — never a model call:
   `decisionRights ≥ 4`.
 - **Supervisors briefed**: `ceil(heads(Rebuild+Enable+Reassure) /
   ASSUMPTIONS.supervisorSpanOfControl)`.
-- **Budget share**: `aggregate()` weights headcount by
-  `ASSUMPTIONS.budgetWeightPerHead` (calibrated against Thornwood's own
-  55/27/13/5 — see hard rules below on why this must not silently break for
-  the other two projects).
+- **Budget share**: `aggregate()` weights headcount by the per-tier weight in
+  `BUDGET_WEIGHT_PER_TIER` (derived from the `BUDGET_WEIGHTS` array, a
+  module-level constant, not part of `ASSUMPTIONS`), calibrated against
+  Thornwood's own 55/27/13/5 — see hard rules below on why this must not
+  silently break for the other two projects.
 - **ROI**: trapezoidal integration of `ROI_UNTARGETED`/`ROI_TARGETED` curves ×
   loaded cost × Rebuild+Enable headcount.
 
