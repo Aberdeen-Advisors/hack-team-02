@@ -3797,9 +3797,11 @@ function HeatMap({ roles, selectedId, onSelect }) {
 
 const COLUMNS = [
   { key: 'role', label: 'Role' },
-  { key: 'siteArchetype', label: 'Sites' },
+  { key: 'siteArchetype', label: 'Sites', title: 'The site archetype (or combination) this row scopes to, e.g. "Plant + DC"' },
   { key: 'headcount', label: 'People', n: true },
-  { key: 'siteCount', label: '#', n: true },
+  { key: 'siteCount', label: 'Site count', n: true,
+    title: 'How many individual sites are in this row\'s scope - e.g. "Plant + DC" is 8 sites, six plants and two DCs. '
+         + 'Not the same as the Sites column, which names the archetype, not how many of it there are.' },
   { key: 'impact', label: 'Impact', n: true, title: 'Impact severity: hover a value to see its weighted breakdown' },
   { key: 'risk', label: 'Risk', n: true, title: 'Adoption risk: hover a value to see its weighted breakdown' },
   { key: 'tier', label: 'Tier' },
@@ -3817,14 +3819,28 @@ function RoleTable({ roles, incomplete, selectedId, onSelect }) {
     });
   }, [roles, sort]);
 
+  // A column where every row reads the same number is noise, not signal -
+  // Ashford's Site count is 1 on every row, so it's dropped there entirely
+  // rather than shown as a column of identical values.
+  const showSiteCount = useMemo(() => {
+    const counts = new Set([...roles, ...(incomplete || [])].map((r) => r.siteCount));
+    return counts.size > 1;
+  }, [roles, incomplete]);
+  const columns = useMemo(() => COLUMNS.filter((c) => c.key !== 'siteCount' || showSiteCount), [showSiteCount]);
+
   const click = (k) => setSort((s) => (s.key === k ? { key: k, dir: -s.dir } : { key: k, dir: k === 'role' || k === 'siteArchetype' ? 1 : -1 }));
+  // Rows are the only way to reach the one-pagers, the best content in the
+  // product, so they have to work from a keyboard, not just a mouse.
+  const rowKeyHandler = (id) => (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(id); }
+  };
 
   return (
     <div className="table-scroll">
       <table className="data">
         <thead>
           <tr>
-            {COLUMNS.map((c) => (
+            {columns.map((c) => (
               <th key={c.key} className={'sortable' + (c.n ? ' n' : '')} onClick={() => click(c.key)} title={c.title}
                   aria-sort={sort.key === c.key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
                 {c.label}{sort.key === c.key && <span className="arrow"> {sort.dir === 1 ? '▲' : '▼'}</span>}
@@ -3834,11 +3850,12 @@ function RoleTable({ roles, incomplete, selectedId, onSelect }) {
         </thead>
         <tbody>
           {sorted.map((r) => (
-            <tr key={r.id} className={selectedId === r.id ? 'sel' : ''} onClick={() => onSelect(r.id)}>
+            <tr key={r.id} className={selectedId === r.id ? 'sel' : ''} onClick={() => onSelect(r.id)}
+                role="button" tabIndex={0} aria-label={`Open one-pager for ${r.role}`} onKeyDown={rowKeyHandler(r.id)}>
               <td><span className="rolename">{r.role}</span>{r.isNewRole && <span className="newflag">new role</span>}</td>
               <td>{r.siteArchetype}{r.deskless ? ' · deskless' : ''}</td>
               <td className="n">{r.headcount.toLocaleString()}</td>
-              <td className="n">{r.siteCount}</td>
+              {showSiteCount && <td className="n">{r.siteCount}</td>}
               <td className="n" title={axisFormula(IMPACT_FACTORS, r.impact, r.scores.impact)}>{r.scores.impact.toFixed(1)}</td>
               <td className="n" title={axisFormula(RISK_FACTORS, r.risk, r.scores.risk)}>{r.scores.risk.toFixed(1)}</td>
               <td><TierBadge tier={r.tier} /></td>
@@ -3846,17 +3863,18 @@ function RoleTable({ roles, incomplete, selectedId, onSelect }) {
           ))}
           {(incomplete || []).map((r) => (
             <tr key={r.id} className={'inc' + (selectedId === r.id ? ' sel' : '')} onClick={() => onSelect(r.id)}
+                role="button" tabIndex={0} aria-label={`Open one-pager for ${r.role}, incomplete`} onKeyDown={rowKeyHandler(r.id)}
                 title={`${r.missing.length} of 6 sub-factors missing: ${r.missing.join(', ')}`}>
               <td><span className="rolename">{r.role}</span></td>
               <td>{r.siteArchetype}{r.deskless ? ' · deskless' : ''}</td>
               <td className="n">{(r.headcount || 0).toLocaleString()}</td>
-              <td className="n">{r.siteCount}</td>
+              {showSiteCount && <td className="n">{r.siteCount}</td>}
               <td className="n">N/A</td>
               <td className="n">N/A</td>
               <td><span className="incflag">incomplete</span></td>
             </tr>
           ))}
-          {!sorted.length && !(incomplete || []).length && <tr><td colSpan={COLUMNS.length} style={{ color: 'var(--ink-3)' }}>No roles match this filter.</td></tr>}
+          {!sorted.length && !(incomplete || []).length && <tr><td colSpan={columns.length} style={{ color: 'var(--ink-3)' }}>No roles match this filter.</td></tr>}
         </tbody>
       </table>
     </div>
