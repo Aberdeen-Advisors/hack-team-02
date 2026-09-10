@@ -2,7 +2,8 @@
   "meta": {
     "totalHeadcount": 5000,
     "roleCount": 38,
-    "generated": "synthetic demo data, illustrative only"
+    "generated": "synthetic demo data, illustrative only",
+    "sourceNamedRoleCount": 7
   },
   "roles": [
     {

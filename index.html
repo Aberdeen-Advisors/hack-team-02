@@ -68,9 +68,6 @@ const THRESHOLD = 3.5;
 /* Short, honest provenance strings. Used verbatim on screen so the claims the
    tool makes on stage are the claims it can defend. */
 const NOTE = {
-  unit: 'Unit of analysis: one row = one role at one site scope: role × site. A site scope is either a single archetype or a named combination of them, like Plant + DC, because some roles genuinely work across both. '
-      + 'That scope is the level a curriculum, a comms message and a named accountable manager can actually be attached to, which is why we score and tier there. '
-      + 'Our choice, stated because the source deck is ambiguous: slides 5 and 13 say role × process × site, slides 9 and 10 tier at role level. We tier at row level.',
   weights: 'The six sub-factor weights are ours: our default, and tunable. The source deck states no weights and no aggregation method, so nothing here is inherited from it.',
   threshold: 'Threshold 3.5 on both axes, inclusive: a score of exactly 3.5 counts as above the line. '
       + '3.5 is the “good” floor used in the sponsor competency assessment we work from (70 of 100), not the midpoint of the 1–5 scale.',
@@ -80,13 +77,62 @@ const NOTE = {
   hypercare: 'Hypercare is the floor deliverable, not a top-tier extra. Aberdeen’s lowest-ambition delivery tier is defined as training, '
       + 'go-live communications and hypercare, so every tier here carries hypercare and only the duration scales. The 8 weeks at the top of the '
       + 'range is our own deck’s number (slide 13); how it steps down across the other three tiers is ours.',
-  dataset: 'The deck names 7 of the 38 roles and gives no 1–5 anchors per sub-factor. The other 31 roles and every sub-factor value are our synthetic illustration.',
   incomplete: 'A role scores only when all six sub-factors are set. Anything less shows as incomplete, never as a score or a tier.',
+  budgetWeights: 'These four weights are ours, not the deck’s or Aberdeen’s. The source deck states Thornwood’s final split '
+      + '(55% / 27% / 13% / 5%) but no method for deriving it from headcount, and Aberdeen’s OCM material states no per-tier cost figures at all. '
+      + 'We built them from what each tier’s own package actually costs to run: Rebuild (role redesign, sandbox training, an on-site super-user, '
+      + 'manager coaching) is the most expensive per head and is the 1.0 reference every other tier is priced against. Calibrated so Thornwood’s '
+      + 'dataset reproduces the deck’s split within a rounding point; the same four weights apply unchanged to every project.',
   anchors: 'Every sub-factor carries a 1–5 anchor, so a score reads as a description rather than a number. The source deck states the '
       + '1–5 scale and never defines a single point on it, so these ladders are ours to own: where Aberdeen’s or the client plan’s band text '
       + 'exists we use it and say so, and where it does not the wording is ours. They are not equally well grounded, and each one says which it is: '
       + 'capability delta is Aberdeen’s own wording at 1, 3 and 5; frequency and volume is ours end to end, because no source in the evidence base measures it.',
 };
+
+/* The unit-of-analysis explainer, shown on the Stakeholder Impact tab and on
+   every role one-pager. Two things in it are project-specific and must never
+   be hard-coded: the worked example of a combined site scope (a project with
+   a single site archetype and no combos, like Ashford, has none to show),
+   and the claim that "the source deck" is ambiguous about the unit of
+   analysis, which is only true of the one project (Thornwood) that actually
+   has a source deck behind it.
+     comboExample - an actual siteArchetype value from the active project's
+       own data that spans more than one archetype, or null if the project
+       has none (see exampleComboScope). Never invent one.
+     citeDeck - project.hasDeckReproduction: only Thornwood traces to a deck
+       with numbered slides to cite. */
+function noteUnit(comboExample, citeDeck) {
+  const comboClause = comboExample
+    ? `A site scope is either a single archetype or a named combination of them, like ${comboExample}, because some roles genuinely work across more than one.`
+    : 'In this project every role sits at a single site archetype: no role here spans more than one.';
+  const whyRowLevel = citeDeck
+    ? 'the source deck is ambiguous here: slides 5 and 13 describe role × process × site, while slides 9 and 10 tier at role level, so we state the unit and tier at row level.'
+    : 'we tier at row level: that is our own choice, not a rule stated by any source for this project.';
+  return `Unit of analysis: one row = one role at one site scope: role × site. ${comboClause} `
+       + `That scope is the level a curriculum, a comms message and a named accountable manager can actually be attached to, which is why we score and tier there. Our choice: ${whyRowLevel}`;
+}
+
+/* Grammatically correct at 0, 1 and n. */
+function pluralRoles(n) { return `${n} ${n === 1 ? 'role' : 'roles'}`; }
+
+/* The dataset provenance footnote on the Stakeholder Impact tab. namedCount
+   comes from the active project's own data file (meta.sourceNamedRoleCount);
+   totalRoles is the roles actually loaded right now, so the sentence stays
+   true even after a role is added live. Only Thornwood's dataset traces to
+   named roles in an external deck - Bellcrest and Ashford are illustration
+   end to end, and the sentence must say so plainly rather than citing "the
+   deck" for a project that has none. */
+function datasetProvenanceNote(totalRoles, namedCount) {
+  const named = Math.max(0, namedCount || 0);
+  const synthesized = Math.max(0, totalRoles - named);
+  if (named <= 0) {
+    return `No external source names any of this example's ${pluralRoles(totalRoles)}: all of them, and every sub-factor value, are our synthetic illustration.`;
+  }
+  if (synthesized <= 0) {
+    return `The source names all ${pluralRoles(totalRoles)} but gives no 1–5 anchor for any sub-factor, so every sub-factor value here is still our synthetic illustration.`;
+  }
+  return `The source names ${named} of the ${pluralRoles(totalRoles)} and gives no 1–5 anchors per sub-factor. The other ${pluralRoles(synthesized)} and every sub-factor value are our synthetic illustration.`;
+}
 
 const IMPACT_FACTORS = [
   { key: 'taskShare',        weight: 0.45, label: 'Share of daily tasks changing',           hint: 'How much of the daily task set is affected' },
@@ -544,12 +590,33 @@ const ASSUMPTIONS = {
   recoveryThresholdPct: 94,          // "recovered" = back within 6% of baseline
   supervisorSpanOfControl: 10,       // 1 supervisor briefed per 10 people in R/E/R roles
   sandboxSeatRatio: 10,              // 1 sandbox seat per 10 Rebuild people
-  // Relative cost of one person-in-tier, used to derive share of change budget.
-  // Ours. Calibrated so the deck's 5,000-person population lands on 55/27/13/5.
-  budgetWeightPerHead: { Rebuild: 1.0, Enable: 0.26, Reassure: 0.115, Inform: 0.032 },
 };
 
 const TIER_ORDER = ['Rebuild', 'Enable', 'Reassure', 'Inform'];
+
+/* BUDGET_WEIGHTS: the relative cost of supporting one person in each tier,
+   the only input "Share of change budget" is built from (aggregate() below).
+   Same shape and same status as IMPACT_FACTORS/RISK_FACTORS: a named,
+   inspectable weight per key, not a number buried inside a function. Shown
+   with its arithmetic on the Adoption tab's "Change budget weighting" panel,
+   which is what the Stakeholder Impact tab's budget-share note links to.
+
+   Provenance, ours end to end: the source deck states Thornwood's final
+   split (55% / 27% / 13% / 5%) but no method for deriving it from headcount,
+   and Aberdeen's OCM material states no per-tier cost figures at all. We
+   built these from what each tier's own package actually costs to run:
+   Rebuild (role redesign, sandbox training, an on-site super-user, manager
+   coaching) is the most expensive per head and is the 1.0 reference every
+   other tier is priced against. Calibrated so Thornwood's dataset reproduces
+   the deck's split within a rounding point; the same four weights apply
+   unchanged to every project, same as the sub-factor weights above. */
+const BUDGET_WEIGHTS = [
+  { tier: 'Rebuild',  weight: 1.0 },
+  { tier: 'Enable',   weight: 0.26 },
+  { tier: 'Reassure', weight: 0.115 },
+  { tier: 'Inform',   weight: 0.032 },
+];
+const BUDGET_WEIGHT_PER_TIER = BUDGET_WEIGHTS.reduce((o, b) => { o[b.tier] = b.weight; return o; }, {});
 
 /* Literal hex, not var(--t-*), these feed SVG fill attributes, and must
    mirror the --t-* custom properties in styles.css exactly. Aberdeen brand's
@@ -666,6 +733,16 @@ function archetypeMatches(value, filter) {
   return archetypeParts(value).includes(filter);
 }
 
+/* A real, concrete example of a combined site scope, pulled from the active
+   project's own roles rather than named in copy. Null if no role in this
+   project spans more than one archetype (e.g. Ashford, single-site), in
+   which case the unit-of-analysis explainer must drop the example clause
+   entirely rather than invent one. */
+function exampleComboScope(roles) {
+  const hit = (roles || []).find((r) => archetypeParts(r.siteArchetype).length > 1);
+  return hit ? hit.siteArchetype : null;
+}
+
 /* How many real sites each base archetype can hold: the estate is one HQ, six
    plants and two DCs. Field/Commercial has no fixed site list, so it has no
    ceiling. A combination holds the sum of its parts, which is why 'Plant + DC'
@@ -707,7 +784,7 @@ function aggregate(scored) {
     const b = byTier[r.tier];
     b.roles += 1;
     b.people += r.headcount;
-    b.weight += r.headcount * ASSUMPTIONS.budgetWeightPerHead[r.tier];
+    b.weight += r.headcount * BUDGET_WEIGHT_PER_TIER[r.tier];
   });
   const people = scored.reduce((s, r) => s + r.headcount, 0) || 1;
   const weight = TIER_ORDER.reduce((s, t) => s + byTier[t].weight, 0) || 1;
@@ -3382,9 +3459,10 @@ const SEED_ROLES_FINANCIAL = [
 async function loadRolesForProject(project) {
   if (!project.dataPath) {
     // Every project reaching this branch came through the new-project wizard
-    // and carries its finalized roles as its seed.
+    // and carries its finalized roles as its seed. A brand-new engagement has
+    // no external source behind it at all.
     const roles = project.seed || [];
-    return { roles, source: 'new project: from the engagement wizard' };
+    return { roles, source: 'new project: from the engagement wizard', meta: project.seedMeta || {} };
   }
   try {
     const res = await fetch(project.dataPath, { cache: 'no-store' });
@@ -3393,9 +3471,15 @@ async function loadRolesForProject(project) {
     // Accept either a bare array or { meta, roles: [...] }.
     const data = Array.isArray(doc) ? doc : (doc && Array.isArray(doc.roles) ? doc.roles : null);
     if (!data || !data.length) throw new Error('no roles array');
-    return { roles: data, source: project.dataPath };
+    // A bare array has no meta block; fall back to the project's own mirror
+    // of it rather than losing provenance fields like sourceNamedRoleCount.
+    const meta = (!Array.isArray(doc) && doc && doc.meta) ? doc.meta : (project.seedMeta || {});
+    return { roles: data, source: project.dataPath, meta };
   } catch (err) {
-    return { roles: project.seed || [], source: 'embedded seed' };
+    // Same reasoning as tools/embed-seed.js: the embedded fallback can go
+    // stale, so its provenance numbers live on the project entry, not in
+    // this function, and must be kept in step with the data file by hand.
+    return { roles: project.seed || [], source: 'embedded seed', meta: project.seedMeta || {} };
   }
 }
 
@@ -3423,6 +3507,10 @@ const PROJECTS = [
     siteArchetypeCombos: SITE_ARCHETYPE_COMBOS,
     hasDeckReproduction: true,
     goLiveDate: '2026-06-28',
+    // Mirrors data/roles.json's meta block, for the embedded/offline fallback
+    // path only (file://, or the network fetch failing). Keep in step by hand
+    // if that file's meta ever changes; the live fetch path reads it fresh.
+    seedMeta: { sourceNamedRoleCount: 7 },
   },
   {
     id: 'healthcare-ehr',
@@ -3438,6 +3526,7 @@ const PROJECTS = [
     siteArchetypeCombos: [],
     hasDeckReproduction: false,
     goLiveDate: '2026-07-23',
+    seedMeta: { sourceNamedRoleCount: 0 },
   },
   {
     id: 'fs-underwriting',
@@ -3452,6 +3541,7 @@ const PROJECTS = [
     siteArchetypeCombos: [],
     hasDeckReproduction: false,
     goLiveDate: '2026-08-07',
+    seedMeta: { sourceNamedRoleCount: 0 },
   },
 ];
 
@@ -3738,8 +3828,37 @@ function WeightTuner({ weights, onChange, onReset }) {
   );
 }
 
+/* Whether Rebuild is a small slice of the population or most of it changes
+   the story entirely, and both are real findings depending on the project: a
+   manufacturer's ERP rollout can be 9 roles out of 5,000 people (Thornwood);
+   a hospital's EHR rollout can be most of the clinical staff (Bellcrest). A
+   single fixed "X% absorbs Y%, that concentration is the deliverable" line
+   is simply false on the second kind of project, so the framing itself has
+   to be picked from the shape of the distribution, not hard-coded.
+     concentrated (Rebuild's population share <= ~25%): few people carry most
+       of the effort - the targeting story, and the current template's story.
+     broad (>= ~50%): most of the population sits in Rebuild or Enable - a
+       capacity story, not a targeting one. Measured on Rebuild + Enable
+       combined, since that is the actual "most of the org is affected" claim.
+     between: neither extreme holds, so the finding states the two numbers
+       without editorialising either way. */
+function concentrationFinding(agg) {
+  const reb = agg.byTier.Rebuild;
+  const en = agg.byTier.Enable;
+  const mode = reb.popShare <= 0.25 ? 'concentrated' : reb.popShare >= 0.5 ? 'broad' : 'between';
+  return {
+    mode, reb, en,
+    ratio: reb.popShare > 0 ? reb.budgetShare / reb.popShare : null,
+    highRoles: reb.roles + en.roles,
+    highPeople: reb.people + en.people,
+    highPopShare: reb.popShare + en.popShare,
+    highBudgetShare: reb.budgetShare + en.budgetShare,
+  };
+}
+
 function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights,
-                          siteArchetypeBase, siteArchetypeCombos }) {
+                          siteArchetypeBase, siteArchetypeCombos, comboExample, citeDeck, sourceNamedRoleCount,
+                          onOpenBudgetWeights }) {
   const [sa, setSa] = useState('All');
 
   const match = (r) => archetypeMatches(r.siteArchetype, sa);
@@ -3747,7 +3866,15 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
   const filteredIncomplete = useMemo(() => incomplete.filter(match), [incomplete, sa]);
 
   const agg = useMemo(() => aggregate(filtered), [filtered]);
-  const reb = agg.byTier.Rebuild;
+  const finding = useMemo(() => concentrationFinding(agg), [agg]);
+  // One real cross-reference, reused by all three banner variants below, so
+  // the link destination and its wording can never drift out of sync.
+  const budgetLinkNote = (
+    <>{' '}Budget share is headcount weighted by{' '}
+      <button type="button" className="link-btn" onClick={onOpenBudgetWeights}>the per-tier cost weights on the Adoption tab</button>,
+      not a flat headcount split.</>
+  );
+  const reb = finding.reb;
 
   return (
     <>
@@ -3759,11 +3886,20 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         </p>
         <p className="lede unit">
           <b>One row = one role at one site scope: role × site.</b>{' '}
-          A site scope is either a single archetype or a named combination of them, like <b>Plant + DC</b>, because some roles
-          genuinely work across both. That scope is the level a curriculum, a comms message and a named accountable manager can
-          actually be attached to, which is why we score and tier there.
-          Ours: the source deck says role × process × site on slides 5 and 13 but tiers at role level on slides 9 and 10, so we
-          state the unit and tier at row level.
+          {comboExample ? (
+            <>A site scope is either a single archetype or a named combination of them, like <b>{comboExample}</b>, because
+            some roles genuinely work across more than one. </>
+          ) : (
+            <>In this project every role sits at a single site archetype: no role here spans more than one. </>
+          )}
+          That scope is the level a curriculum, a comms message and a named accountable manager can
+          actually be attached to, which is why we score and tier there.{' '}
+          {citeDeck ? (
+            <>Ours: the source deck says role × process × site on slides 5 and 13 but tiers at role level on slides 9 and 10, so we
+            state the unit and tier at row level.</>
+          ) : (
+            <>Ours: we tier at row level. That is our own choice, not a rule stated by any source for this project.</>
+          )}
         </p>
       </div>
 
@@ -3796,11 +3932,36 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       )}
 
       <div className="banner" style={{ marginBottom: 16 }}>
-        <b>{pct(reb.popShare)} of the population absorbs {pct(reb.budgetShare)} of the effort.</b> That concentration is the deliverable.
-        <span className="src">
-          {reb.roles} Rebuild {reb.roles === 1 ? 'role' : 'roles'} · {reb.people.toLocaleString()} of {agg.totalPeople.toLocaleString()} people.
-          {' '}Budget share is headcount weighted by the per-tier cost weights on the Adoption tab, not a flat headcount split.
-        </span>
+        {finding.mode === 'concentrated' && (
+          <>
+            <b>{pct(reb.popShare)} of the population absorbs {pct(reb.budgetShare)} of the effort.</b> That concentration is the deliverable.
+            <span className="src">
+              {reb.roles} Rebuild {reb.roles === 1 ? 'role' : 'roles'} · {reb.people.toLocaleString()} of {agg.totalPeople.toLocaleString()} people
+              {finding.ratio != null ? `, carrying ${finding.ratio.toFixed(1)}× its population share of the effort.` : '.'}
+              {budgetLinkNote}
+            </span>
+          </>
+        )}
+        {finding.mode === 'broad' && (
+          <>
+            <b>{pct(finding.highPopShare)} of the population sits in the two highest-intervention tiers.</b> This is a whole-organisation
+            change, not a targeted one: plan for capacity, not triage.
+            <span className="src">
+              {finding.highRoles} roles across Rebuild and Enable · {finding.highPeople.toLocaleString()} of {agg.totalPeople.toLocaleString()} people,
+              {' '}carrying {pct(finding.highBudgetShare)} of the effort.
+              {budgetLinkNote}
+            </span>
+          </>
+        )}
+        {finding.mode === 'between' && (
+          <>
+            <b>{pct(reb.popShare)} of the population absorbs {pct(reb.budgetShare)} of the effort.</b> Not a small targeted group, and not the whole organisation either.
+            <span className="src">
+              {reb.roles} Rebuild {reb.roles === 1 ? 'role' : 'roles'} · {reb.people.toLocaleString()} of {agg.totalPeople.toLocaleString()} people.
+              {budgetLinkNote}
+            </span>
+          </>
+        )}
       </div>
 
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
@@ -3846,7 +4007,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         </div>
         <RoleTable roles={filtered} incomplete={filteredIncomplete} selectedId={selectedId} onSelect={onSelect} />
       </div>
-      <p className="footnote">All figures illustrative. All data synthetic. {NOTE.dataset}</p>
+      <p className="footnote">All figures illustrative. All data synthetic. {datasetProvenanceNote(scored.length + incomplete.length, sourceNamedRoleCount)}</p>
     </>
   );
 }
@@ -3892,7 +4053,7 @@ function AxisBreakdown({ name, factors, values, score }) {
   );
 }
 
-function onePagerText(role) {
+function onePagerText(role, comboExample, citeDeck) {
   const L = [];
   L.push(`${role.role}: ${role.tier}`);
   L.push(`${role.siteArchetype} · ${role.siteCount} site(s) · ${role.headcount} people${role.deskless ? ' · deskless' : ''}`);
@@ -3914,9 +4075,7 @@ function onePagerText(role) {
   L.push(`  The source deck defines no point on the 1-5 scale. Frequency and volume is ours end to end - no source measures it.`);
   L.push('');
   L.push(`Weights are ours: our default, and tunable. The source deck states no weights and no aggregation method.`);
-  L.push(`Unit of analysis: role x site scope. One row is one role at one site scope, where a`);
-  L.push(`site scope is either a single archetype or a named combination of them (e.g. Plant + DC). That scope is what a curriculum,`);
-  L.push(`a comms message and a named accountable manager attach to.`);
+  L.push(noteUnit(comboExample, citeDeck));
   L.push('');
   L.push(`Tasks: ${role.tasksRemoved} removed · ${role.tasksChanged} changed · ${role.tasksNew} new · FTE delta ${role.fteDelta}`);
   L.push('');
@@ -4004,7 +4163,7 @@ function DeliveryDetail({ role }) {
   );
 }
 
-function OnePager({ role, onBack, backLabel }) {
+function OnePager({ role, onBack, backLabel, comboExample, citeDeck }) {
   const label = backLabel || 'Stakeholder Impact';
   const [copied, setCopied] = useState(false);
   const [showScore, setShowScore] = useState(false);
@@ -4035,7 +4194,7 @@ function OnePager({ role, onBack, backLabel }) {
   const mods = modifiersFor(role);
 
   const copy = async () => {
-    const txt = onePagerText(role);
+    const txt = onePagerText(role, comboExample, citeDeck);
     try { await navigator.clipboard.writeText(txt); }
     catch (e) {
       const ta = document.createElement('textarea');
@@ -4118,7 +4277,7 @@ function OnePager({ role, onBack, backLabel }) {
           <p className="footnote">{NOTE.threshold}</p>
           <p className="footnote">{NOTE.weights}</p>
           <p className="footnote">{NOTE.anchors}</p>
-          <p className="footnote">{NOTE.unit}</p>
+          <p className="footnote">{noteUnit(comboExample, citeDeck)}</p>
         </div>
       </div>
 
@@ -4219,7 +4378,7 @@ function Slider({ factor, weightFactors, value, onChange }) {
   );
 }
 
-function AddRoleView({ onCreate, project }) {
+function AddRoleView({ onCreate, project, comboExample }) {
   const [f, setF] = useState(() => JSON.parse(JSON.stringify(blankFor(project))));
   const set = (patch) => setF((s) => ({ ...s, ...patch }));
   const setSub = (axis, key, v) => setF((s) => ({ ...s, [axis]: { ...s[axis], [key]: v } }));
@@ -4264,8 +4423,8 @@ function AddRoleView({ onCreate, project }) {
         </p>
         <p className="lede unit">
           One row is one role at <b>one site scope</b>: role × site, where a site scope is either a
-          single archetype or a named combination of them, like <b>Plant + DC</b>. That scope is what a curriculum, a comms message
-          and a named accountable manager attach to.
+          single archetype{comboExample ? <> or a named combination of them, like <b>{comboExample}</b></> : null}. That scope is
+          what a curriculum, a comms message and a named accountable manager attach to.
           All six sub-factors are required: until they are set the row reads <b>incomplete</b>, with no score and no tier.
           {' '}{NOTE.threshold} {NOTE.weights}
         </p>
@@ -4281,7 +4440,7 @@ function AddRoleView({ onCreate, project }) {
               <div className="form-grid">
                 <div className="field full">
                   <label htmlFor="a-role">Role name</label>
-                  <input id="a-role" type="text" value={f.role} placeholder="e.g. Plant Buyer" required
+                  <input id="a-role" type="text" value={f.role} placeholder="e.g. Role name" required
                          onChange={(e) => set({ role: e.target.value })} />
                 </div>
                 <div className="field">
@@ -4900,6 +5059,66 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckP
   );
 }
 
+/* The panel the Stakeholder Impact tab's budget-share note links to. Turns
+   BUDGET_WEIGHTS + headcount into the same byTier[t].budgetShare numbers the
+   tier cards show, with every intermediate step printed, so a reader can
+   reproduce any one of those percentages by hand from this page alone. */
+function BudgetWeightingPanel({ agg }) {
+  const totalWeighted = TIER_ORDER.reduce((s, t) => s + agg.byTier[t].weight, 0) || 1;
+  const rebuild = agg.byTier.Rebuild;
+  const rebuildWeight = BUDGET_WEIGHT_PER_TIER.Rebuild;
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card-head">
+        <h3>Change budget weighting</h3>
+        <span className="hint">What "Share of change budget" on the Stakeholder Impact tab is computed from</span>
+      </div>
+      <div className="card-body">
+        <p className="sub" style={{ marginBottom: 12 }}>
+          A flat headcount split would say a tier's share of the change budget equals its share of the people. It doesn't:
+          a Rebuild role costs far more per head to support (role redesign, sandbox training, an on-site super-user, manager
+          coaching) than an Inform role (a broadcast). Each tier below carries a relative cost weight, so share of budget is
+          headcount × weight, not headcount alone.
+        </p>
+        <div className="table-scroll" style={{ marginBottom: 10 }}>
+          <table className="mini">
+            <thead>
+              <tr><th>Tier</th><th className="num">Cost weight</th><th className="num">People</th><th className="num">People × weight</th><th className="num">Share of budget</th></tr>
+            </thead>
+            <tbody>
+              {TIER_ORDER.map((t) => {
+                const b = agg.byTier[t];
+                return (
+                  <tr key={t}>
+                    <th scope="row"><i className="dot" style={{ '--dot': TIERS[t].hex, marginRight: 6 }} />{t}</th>
+                    <td className="num">{BUDGET_WEIGHT_PER_TIER[t]}</td>
+                    <td className="num">{b.people.toLocaleString()}</td>
+                    <td className="num">{b.weight.toFixed(1)}</td>
+                    <td className="num">{pct(b.budgetShare)}</td>
+                  </tr>
+                );
+              })}
+              <tr style={{ borderTop: '1px solid var(--hairline)', fontWeight: 500 }}>
+                <th scope="row">Total</th>
+                <td className="num">—</td>
+                <td className="num">{agg.totalPeople.toLocaleString()}</td>
+                <td className="num">{totalWeighted.toFixed(1)}</td>
+                <td className="num">100%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="formula" style={{ marginBottom: 4 }}>
+          Worked example, Rebuild: {rebuild.people.toLocaleString()} × {rebuildWeight} = {rebuild.weight.toFixed(1)},
+          {' '}over a total of {TIER_ORDER.map((t) => `${agg.byTier[t].people.toLocaleString()}×${BUDGET_WEIGHT_PER_TIER[t]}`).join(' + ')} = {totalWeighted.toFixed(1)}.
+          {' '}{rebuild.weight.toFixed(1)} ÷ {totalWeighted.toFixed(1)} = {pct(rebuild.budgetShare)} of change budget.
+        </p>
+        <p className="footnote">{NOTE.budgetWeights}</p>
+      </div>
+    </div>
+  );
+}
+
 function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate }) {
   const agg = useMemo(() => aggregate(scored), [scored]);
   const daysLive = useMemo(() => daysSince(goLiveDate), [goLiveDate]);
@@ -4923,6 +5142,8 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         <h2>Adoption: tracking since go-live</h2>
         <p className="lede">{liveLede} Status, completion and the metrics below are simulated for this demo, not measured, and each is derived from a rule printed beside it.</p>
       </div>
+
+      <BudgetWeightingPanel agg={agg} />
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-head">
@@ -5562,6 +5783,9 @@ function NewProjectWizard({ onFinish, onCancel }) {
       siteArchetypeCombos: [],
       hasDeckReproduction: false,
       goLiveDate: profile.goLiveDate || '',
+      // A brand-new engagement has no external source naming any of its
+      // roles - every one of them is captured live in this wizard.
+      seedMeta: { sourceNamedRoleCount: 0 },
       engagementProfile: profile,
       referenceFiles: files.map((f) => ({ name: f.name, size: f.size, type: f.type })),
     });
@@ -5595,6 +5819,7 @@ function App() {
   const [wizardActive, setWizardActive] = useState(false); // true = show NewProjectWizard instead of the picker
   const [raw, setRaw] = useState([]);
   const [dataSource, setDataSource] = useState('');
+  const [meta, setMeta] = useState({}); // the active project's data-file provenance fields
   const [tab, setTab] = useState('portfolio');
   const [returnTab, setReturnTab] = useState('portfolio'); // where "← Back" on the one-pager / methodology page returns to
   const [selectedId, setSelectedId] = useState(null);
@@ -5603,9 +5828,9 @@ function App() {
   useEffect(() => {
     if (!project) return;
     let live = true;
-    loadRolesForProject(project).then(({ roles, source }) => {
+    loadRolesForProject(project).then(({ roles, source, meta }) => {
       if (!live) return;
-      setRaw(roles); setDataSource(source);
+      setRaw(roles); setDataSource(source); setMeta(meta || {});
     });
     return () => { live = false; };
   }, [project]);
@@ -5616,6 +5841,9 @@ function App() {
   const scored = useMemo(() => all.filter((r) => r.complete), [all]);
   const incomplete = useMemo(() => all.filter((r) => !r.complete), [all]);
   const selected = useMemo(() => all.find((r) => r.id === selectedId) || null, [all, selectedId]);
+  // A real combined site scope from this project's own data, for the unit-of-
+  // analysis explainer - null if no role here spans more than one archetype.
+  const comboExample = useMemo(() => exampleComboScope(all), [all]);
 
   const setWeight = useCallback((key, v) => setWeights((w) => ({ ...w, [key]: v })), []);
   const resetWeights = useCallback(() => setWeights({ ...DEFAULT_WEIGHTS }), []);
@@ -5623,6 +5851,10 @@ function App() {
   // The one-pager is reachable from any of the five primary tabs, not just
   // one, so "back" has to return wherever the click came from.
   const openRole = useCallback((id) => { setReturnTab(tab); setSelectedId(id); setTab('role'); }, [tab]);
+
+  // The Stakeholder Impact tab's budget-share note is a real cross-reference,
+  // not prose: clicking it has to actually land on the panel that backs it.
+  const openBudgetWeights = useCallback(() => setTab('plan'), []);
 
   const createRole = useCallback((role) => {
     setRaw((rs) => [...rs, role]);
@@ -5637,7 +5869,7 @@ function App() {
   const enterProject = useCallback((p) => {
     setProject(p);
     setWizardActive(false);
-    setRaw([]); setDataSource('');
+    setRaw([]); setDataSource(''); setMeta({});
     setTab('portfolio'); setReturnTab('portfolio'); setSelectedId(null);
     setWeights({ ...DEFAULT_WEIGHTS });
   }, []);
@@ -5683,7 +5915,9 @@ function App() {
         {tab === 'portfolio' && (
           <PortfolioView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
                          weights={weights} onWeight={setWeight} onResetWeights={resetWeights}
-                         siteArchetypeBase={project.siteArchetypeBase} siteArchetypeCombos={project.siteArchetypeCombos} />
+                         siteArchetypeBase={project.siteArchetypeBase} siteArchetypeCombos={project.siteArchetypeCombos}
+                         comboExample={comboExample} citeDeck={project.hasDeckReproduction}
+                         sourceNamedRoleCount={meta.sourceNamedRoleCount} onOpenBudgetWeights={openBudgetWeights} />
         )}
         {tab === 'redesign' && <RedesignView all={all} selectedId={selectedId} onSelect={openRole} />}
         {tab === 'training' && (
@@ -5699,9 +5933,10 @@ function App() {
                     showDeckProvenance={project.hasDeckReproduction} goLiveDate={project.goLiveDate} />
         )}
         {tab === 'role' && (
-          <OnePager role={selected} onBack={() => setTab(returnTab)} backLabel={TAB_LABELS[returnTab] || 'Stakeholder Impact'} />
+          <OnePager role={selected} onBack={() => setTab(returnTab)} backLabel={TAB_LABELS[returnTab] || 'Stakeholder Impact'}
+                    comboExample={comboExample} citeDeck={project.hasDeckReproduction} />
         )}
-        {tab === 'add' && <AddRoleView onCreate={createRole} project={project} />}
+        {tab === 'add' && <AddRoleView onCreate={createRole} project={project} comboExample={comboExample} />}
       </main>
     </div>
   );

@@ -2,7 +2,8 @@
   "meta": {
     "totalHeadcount": 150,
     "roleCount": 10,
-    "generated": "synthetic demo data, illustrative only. Example project: Ashford Mutual Underwriting AI rollout"
+    "generated": "synthetic demo data, illustrative only. Example project: Ashford Mutual Underwriting AI rollout",
+    "sourceNamedRoleCount": 0
   },
   "roles": [
     {

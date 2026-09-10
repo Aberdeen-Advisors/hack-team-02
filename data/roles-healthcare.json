@@ -2,7 +2,8 @@
   "meta": {
     "totalHeadcount": 800,
     "roleCount": 12,
-    "generated": "synthetic demo data, illustrative only. Example project: Bellcrest Health System EHR rollout"
+    "generated": "synthetic demo data, illustrative only. Example project: Bellcrest Health System EHR rollout",
+    "sourceNamedRoleCount": 0
   },
   "roles": [
     {
