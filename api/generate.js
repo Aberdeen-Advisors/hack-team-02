@@ -111,7 +111,7 @@ const SYSTEM_PROMPT = [
   '   "I used to approve this, and now the system does".',
   '4. If the role is deskless, every intervention you describe must reach people who have no desk, no screen and no corporate inbox:',
   '   on-shift micro-training at the line, laminated job aids in local language, QR codes at the shift huddle. Never propose email or e-learning.',
-  '5. Honour the doses supplied (sandbox days, super-user ratio, coaching weeks, hypercare weeks). Do not inflate them.',
+  '5. Honor the doses supplied (sandbox days, super-user ratio, coaching weeks, hypercare weeks). Do not inflate them.',
   '5b. Hypercare is the FLOOR deliverable, not a top-tier extra: every tier gets it and only the duration scales, so include a',
   '   hypercare action sized to the supplied hypercare weeks whatever the tier — including Inform.',
   '6. Curriculum items must be built from what the work becomes, not from the ERP module list.',
@@ -258,7 +258,7 @@ function fallback(p) {
       module: 'Working inside the rules: what the system decides now',
       format: 'Manager-led, role plus line manager together',
       duration: '90m',
-      objective: 'Practise the escalation path when the system blocks something the role would previously have released.',
+      objective: 'Practice the escalation path when the system blocks something the role would previously have released.',
     });
   }
   if (aids.count > 0) {
@@ -309,7 +309,7 @@ function fallback(p) {
     adoptionActions.push({ action: `Run the manager cascade with ${d.cascadeScripts} scripts — address the fear, not the skill`, owner: 'Line manager', timing: 'Go-live minus 3 weeks' });
     adoptionActions.push({ action: 'Publish a plain answer to "why is this different from the last attempt"', owner: 'Change lead', timing: 'Go-live minus 3 weeks' });
   } else {
-    adoptionActions.push({ action: `Include in the ${d.broadcasts || 3} programme broadcasts; no role-specific effort`, owner: 'Comms lead', timing: 'Go-live minus 4, minus 1, plus 1 weeks' });
+    adoptionActions.push({ action: `Include in the ${d.broadcasts || 3} program broadcasts; no role-specific effort`, owner: 'Comms lead', timing: 'Go-live minus 4, minus 1, plus 1 weeks' });
   }
   if (drShift) {
     adoptionActions.push({ action: 'Brief the accountable supervisor line on the decision-rights shift, using the cascade script', owner: 'Line manager', timing: 'Go-live minus 2 weeks' });

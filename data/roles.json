@@ -248,7 +248,7 @@
       ],
       "after": [
         "Reviews standard variance reporting generated in-system",
-        "Analyses actual costing in real time rather than reconstructing it",
+        "Analyzes actual costing in real time rather than reconstructing it",
         "Works from one governed cost centre and allocation structure",
         "Plant and corporate report from the same ledger, so the gap conversation ends",
         "Accruals raised through workflow with system-held audit trail"
@@ -261,7 +261,7 @@
         "Month-end close timetable compresses from 8 days to 4",
         "Shadow Excel cost model is decommissioned, not migrated"
       ],
-      "deckNote": "Deck slide 10 prints adoption risk 3.6 for this role while labelling it Enable, which is self-contradictory under the stated 3.5 threshold. This dataset uses 3.4 so the quadrant rule holds and the deck's Enable label is preserved."
+      "deckNote": "Deck slide 10 prints adoption risk 3.6 for this role while labeling it Enable, which is self-contradictory under the stated 3.5 threshold. This dataset uses 3.4 so the quadrant rule holds and the deck's Enable label is preserved."
     },
     {
       "id": "plant-buyer",
@@ -588,7 +588,7 @@
       ],
       "after": [
         "Maintains pricing as condition records with validity periods",
-        "Customer deals modelled as agreements, applied automatically",
+        "Customer deals modeled as agreements, applied automatically",
         "Trade spend accrues in-system as orders are priced",
         "Claims validated against the recorded agreement, not memory",
         "Pricing enquiries answered from the single source of record"
@@ -919,14 +919,14 @@
         "Receives change requests as email forms and re-keys them",
         "Manages cases in a shared mailbox with no status visibility",
         "Produces contracts and letters from Word templates by hand",
-        "Maintains organisational structure in a drawing tool",
+        "Maintains organizational structure in a drawing tool",
         "Compiles headcount reporting manually each month"
       ],
       "after": [
         "Reviews manager-initiated transactions in the ERP workflow",
         "Works a ticketed queue with visible status and service levels",
         "Generates documents from templates driven by system data",
-        "Maintains the organisational structure as live master data",
+        "Maintains the organizational structure as live master data",
         "Headcount reporting available on demand from the same structure"
       ],
       "tasksRemoved": 7,
@@ -935,7 +935,7 @@
       "fteDelta": -0.8,
       "constraints": [
         "Manager self-service adoption determines whether volume actually shifts",
-        "Data privacy rules constrain who can see what in the new authorisation model"
+        "Data privacy rules constrain who can see what in the new authorization model"
       ]
     },
     {
@@ -1223,7 +1223,7 @@
       ],
       "after": [
         "Commercial terms recorded as agreements before they are quotable",
-        "Delivery promises come from system availability, not a favour",
+        "Delivery promises come from system availability, not a favor",
         "Goodwill sits inside a system-held approval threshold",
         "Account performance read from live customer reporting"
       ],
@@ -1427,7 +1427,7 @@
       ],
       "after": [
         "Reports on group-standard KPIs from the same live data as the centre",
-        "Delegates through configured authorisation and release strategies",
+        "Delegates through configured authorization and release strategies",
         "Performance visible continuously; the monthly narrative loses its role",
         "Approvals arrive and are recorded in workflow"
       ],
@@ -1436,7 +1436,7 @@
       "tasksNew": 4,
       "fteDelta": 0.0,
       "constraints": [
-        "Sponsorship role - their visible behaviour sets site adoption",
+        "Sponsorship role - their visible behavior sets site adoption",
         "Loses the ability to shape the story before the centre sees the numbers"
       ]
     },

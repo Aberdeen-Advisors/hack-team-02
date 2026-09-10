@@ -1,17 +1,17 @@
 /* ==========================================================================
    Change Impact Assessment Tool: Aberdeen Advisors
-   Brand design tokens. Exactly four brand colours, used everywhere outside
-   charts, Aberdeen Blue, Verdigris, White, Onyx, plus a four-colour
+   Brand design tokens. Exactly four brand colors, used everywhere outside
+   charts, Aberdeen Blue, Verdigris, White, Onyx, plus a four-color
    chart-only secondary palette (Deep Sky Blue, Jasper, Jade, Gold) reserved
-   for the heat map, tier badges and chart series. Neutral greys (--page,
+   for the heat map, tier badges and chart series. Neutral grays (--page,
    --surface-sunk, --hairline*, --ink-2/-3) are tints/shades of Onyx and White
    for structural UI (borders, subtle surface steps), not additional brand
-   colours. Verdigris is an accent only: background/border/icon use, never
-   text. At ~2.6:1 on white it fails WCAG AA as a foreground colour.
+   colors. Verdigris is an accent only: background/border/icon use, never
+   text. At ~2.6:1 on white it fails WCAG AA as a foreground color.
    Tier order (fixed): Rebuild -> Jasper, Enable -> Gold,
    Reassure -> Deep Sky Blue, Inform -> Jade. This mapping has not been
    independently re-validated for CVD deltaE the way the previous custom
-   tier palette was. Every tier is still labelled with text, never colour
+   tier palette was. Every tier is still labeled with text, never color
    alone, which is the load-bearing accessibility guarantee here.
    ========================================================================== */
 
@@ -35,7 +35,7 @@
   --ink:             var(--onyx);
   --ink-2:           #6B6B6B;
   /* #8C8C8C measured 3.1-3.4:1 against --page/--surface - below the 4.5:1
-     WCAG AA text minimum, and this token colours real running text
+     WCAG AA text minimum, and this token colors real running text
      (.footnote, .hint, tile labels), not just decoration. #707070 clears
      4.5:1 against both. */
   --ink-3:           #707070;
@@ -57,7 +57,7 @@
   --live-line:       var(--brand-line);
   --live-wash:       var(--brand-wash);
 
-  /* Tier palette: the brand's chart-only secondary colours, fixed order */
+  /* Tier palette: the brand's chart-only secondary colors, fixed order */
   --t-rebuild:       var(--chart-red);
   --t-enable:        var(--chart-gold);
   --t-reassure:      var(--chart-sky);
@@ -66,13 +66,6 @@
   --t-enable-wash:   color-mix(in srgb, var(--chart-gold) 16%, white);
   --t-reassure-wash: color-mix(in srgb, var(--chart-sky) 14%, white);
   --t-inform-wash:   color-mix(in srgb, var(--chart-jade) 10%, white);
-
-  /* Chart series (ROI view, currently unused - kept in case it is
-     reinstated): deliberately NOT the chart-only tier palette above, which
-     is reserved for tier identity. Targeted/untargeted is a different axis
-     of meaning (better/worse), so it gets its own colours. */
-  --series-targeted:   var(--verdigris);
-  --series-untargeted: var(--onyx);
 
   --radius:   10px;
   --radius-s: 6px;
@@ -163,7 +156,7 @@ a { color: var(--brand); }
    warning, not a neutral status update, so it gets a distinct tint - the
    same Verdigris-derived wash .note.warn already uses for "worth flagging"
    copy elsewhere, translucent here since it sits on the dark topbar. Not a
-   tier hue: Verdigris is its own colour, not a wash of any of the four. */
+   tier hue: Verdigris is its own color, not a wash of any of the four. */
 .weight-flash.route-notice { background: rgba(68,176,177,.3); font-weight: 500; }
 @keyframes weight-flash-in {
   from { opacity: 0; transform: translateY(-4px); }
@@ -282,7 +275,7 @@ a { color: var(--brand); }
 .score-badge.placeholder { color: var(--flag); background: var(--flag-wash); border-color: var(--flag-line); }
 
 /* Re-score cycle status: named by its label text, not by hue. Deliberately
-   shares no colour with --t-rebuild/-enable/-reassure/-inform (the tier
+   shares no color with --t-rebuild/-enable/-reassure/-inform (the tier
    palette below) so a status pill can never be misread as a tier marker. */
 .status-pill {
   flex: none; font-size: 11px; font-weight: 500; letter-spacing: .01em; white-space: nowrap;
@@ -338,6 +331,13 @@ a { color: var(--brand); }
   height: auto; overflow: visible; /* never clip: the card grows to fit its content, always */
 }
 .tile .label { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
+/* The derivation rule behind a tile's number, one hover/focus away instead
+   of printed under it competing with it. */
+.tile .label .info-ico {
+  display: inline-block; margin-left: 5px; font-style: normal; letter-spacing: 0;
+  text-transform: none; cursor: help; color: var(--ink-3);
+}
+.tile .label .info-ico:hover, .tile .label .info-ico:focus-visible { color: var(--brand); outline: none; }
 .tile .value { font-size: 27px; font-weight: 500; letter-spacing: -.02em; margin-top: 6px; line-height: 1.1; }
 .tile .meta { font-size: 12.5px; color: var(--ink-2); margin-top: 4px; }
 .tile.accent { border-left: 3px solid var(--brand); }
@@ -454,10 +454,10 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 .pt:focus-visible .mark { stroke: var(--brand); stroke-width: 3; }
 .pt:focus-visible { outline: none; } /* the thicker stroke above is the indicator; an SVG outline box looks broken */
 
-/* Fixed, AA-passing colour, not the raw tier hue: gold and sky measure
+/* Fixed, AA-passing color, not the raw tier hue: gold and sky measure
    1.5:1 and 1.9:1 against white, nowhere near the 4.5:1 an 11px label
    needs. Tier identity here comes from the marker shape and the quadrant
-   position, not this label's colour. */
+   position, not this label's color. */
 .quad-label { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; fill: var(--ink-2); }
 .axis-t { font-size: 10.5px; fill: var(--ink-3); }
 .axis-title { font-size: 11px; fill: var(--ink-2); font-weight: 500; }

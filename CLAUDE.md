@@ -9,7 +9,7 @@ external judges — not an internal prototype. Anything a client would not accep
 in a printed deck does not belong on screen: no placeholder copy, no
 lorem-ipsum plurals, no numbers that don't trace back to a stated rule.
 
-The tool scores every Role × Site in an organisation on two axes (Impact
+The tool scores every Role × Site in an organization on two axes (Impact
 Severity, Adoption Risk), assigns each row one of four intervention tiers
 (Rebuild / Enable / Reassure / Inform), and generates training, communication
 and adoption plans from those tiers. Three worked example projects ship with
@@ -50,7 +50,7 @@ runs on a hostile network or `file://`. This is deliberate — a judge can open
 the file and it works. Do not introduce a bundler, a package manager, or a
 build step to "fix" this.
 
-`index.html` is organised in numbered comment banners — search for these,
+`index.html` is organized in numbered comment banners — search for these,
 not line numbers, since the file will keep growing. Grep for
 `===========` to see the current list; each banner's own comment states
 what it covers in more detail than a static summary here would stay
@@ -123,7 +123,7 @@ load time — never stored in the data file.
 - `adoptionRisk = 0.40×decisionRights + 0.35×capabilityDelta + 0.25×localReadiness`
 - Weights live on the `IMPACT_FACTORS`/`RISK_FACTORS` factor objects themselves
   and are mutated live by `applyWeights()` when a UI slider moves; `effWeight`
-  re-normalises per axis so a zeroed axis degrades to an equal split instead of
+  re-normalizes per axis so a zeroed axis degrades to an equal split instead of
   dividing by zero, and a score can never leave 1–5. Round to one decimal
   before comparing to the threshold.
 - **Completeness gating**: `scoreRole` returns `complete:false, tier:null,
@@ -191,7 +191,7 @@ their own `siteArchetypeBase` in their `PROJECTS` entry instead.
   it, and that rule must be true.** If copy says "see the X tab", tab X must
   actually contain X — check this explicitly; `showDeckProvenance` is a
   cautionary example of copy/wiring that outlived the feature it pointed to.
-- **Tier colours are fixed and mean one thing only**: Rebuild = red (`#DB504A`
+- **Tier colors are fixed and mean one thing only**: Rebuild = red (`#DB504A`
   / `--t-rebuild-*`), Enable = yellow (`#F7D002` / `--t-enable-*`), Reassure =
   blue (`#5CC8FF` / `--t-reassure-*`), Inform = green (`#00A676` /
   `--t-inform-*`). Never reuse these hues to encode anything else (status,

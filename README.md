@@ -23,7 +23,7 @@ live, with AI-assisted scoring suggestions from a free-text role description.
 | Screen | What it gives you |
 |---|---|
 | **Project picker** | Three worked examples (same engine, three different scales/industries/change types) plus **Start new project**, which opens a two-step wizard: an engagement profile (company, sites, go-live date, sponsor), then role data — imported from a CSV template, added one at a time, or both. Each role gets a free-text description of what changes, and an **AI-suggested** first pass at the six sub-factor scores (or a flagged **placeholder** if no model is reachable) that a human reviews and edits before anything is added to the portfolio. |
-| **Stakeholder Impact** (heat map) | Every role plotted on impact severity × adoption risk, with the 3.5 gridlines and four labelled quadrants. Points sized by headcount, coloured by tier. Filters by site archetype. A **Weighting — ours, and tunable** panel that re-tiers the whole portfolio live. Summary tiles for roles, people and share of change budget per tier, plus a sortable role table that shows incomplete rows as *incomplete* rather than scoring them. |
+| **Stakeholder Impact** (heat map) | Every role plotted on impact severity × adoption risk, with the 3.5 gridlines and four labeled quadrants. Points sized by headcount, colored by tier. Filters by site archetype. A **Weighting — ours, and tunable** panel that re-tiers the whole portfolio live. Summary tiles for roles, people and share of change budget per tier, plus a sortable role table that shows incomplete rows as *incomplete* rather than scoring them. |
 | **Redesign** | Before/after task counts (removed, changed, new) and the net FTE delta, scanned across the whole portfolio at once, filterable by tier. |
 | **Training** | Method, duration and job-aid count per role, derived from tier, complexity and deskless status, next to the Aberdeen-derived delivery standards (method table, job-aid bands) those choices are built from. |
 | **Communication** | A timed milestone plan per tier, anchored to the project's go-live date where one is set, plus the per-role go-live channel and whether a manager-cascade script is needed. |
@@ -62,7 +62,7 @@ adoptionRisk   = 0.40 × change in decision rights
 aggregation method, so nothing in this repository may cite it as their source, and nothing on screen
 does. The Portfolio tab carries a **Weighting — ours, and tunable** panel: drag any of the six and the
 whole portfolio re-tiers live, with a one-click reset back to the default above. Weights are
-normalised per axis, so a score can never leave the 1–5 scale, and zeroing an entire axis degrades to
+normalized per axis, so a score can never leave the 1–5 scale, and zeroing an entire axis degrades to
 an equal split rather than dividing by zero.
 
 ### What a score means — the 1–5 anchors
@@ -84,7 +84,7 @@ the honest label, not decoration:
 | **Share of daily tasks changing** | Aberdeen's own process-change band wording, on a generic low-to-high magnitude ladder; **the percentage cut-offs are ours** — no source expresses task share as a percentage. |
 | **Change in decision rights** | **Our ladder**, over Aberdeen's driver vocabulary at 1, 2 and 4, with our own deck's sentence as the anchor at 5. No instrument in the evidence base scores decision rights as its own dimension — which is why it is in our model. |
 | **Local readiness gap** | The four limbs — site-leadership capacity, change fatigue and change history, digital maturity, deskless access — are **our own deck's definition** (slide 7); **all five band descriptions are our wording**, written against the construct rather than lifted from an instrument. The limbs are unevenly evidenced: leadership capacity and change fatigue are measured by published instruments (whose licensed wording we do not reproduce), **digital maturity is scored by no source**, and deskless access rests on a single Aberdeen sentence. Score each limb and take the highest, not the mean — that recommendation is ours. |
-| **Frequency and volume** | **Ours end to end.** The least grounded of the six: no source in the evidence base scores task frequency or volume. Team 2 added this sub-factor. The honest defence is that it is countable from the system transaction lists our deck already names as an input — and it is the one most likely to be challenged. |
+| **Frequency and volume** | **Ours end to end.** The least grounded of the six: no source in the evidence base scores task frequency or volume. Team 2 added this sub-factor. The honest defense is that it is countable from the system transaction lists our deck already names as an input — and it is the one most likely to be challenged. |
 
 If someone asks where a 4 comes from, that table is the answer, and the tool prints it rather than
 hiding it. See `docs/source-synthesis.md` §2 for the full derivation of every ladder.
@@ -121,7 +121,7 @@ These are what make the output specific rather than generic:
 
 Every dose the tool prescribes lives in one object, `DOSES`, near the top of the `<script>` block in
 `index.html` — sandbox days, super-user ratio, coaching weeks, hypercare weeks, job aids, cascade
-scripts, re-score cadence. Programme-level costing assumptions live next to it in `ASSUMPTIONS`.
+scripts, re-score cadence. Planning assumptions not specific to one tier (supervisor span of control, sandbox seat ratio) live next to it in `ASSUMPTIONS`.
 Rebuild's numbers are the deck's own (3-day sandbox, 1 super-user per site, 1:15 in Rebuild roles,
 6 weeks floor coaching, 8 weeks hypercare); Enable / Reassure / Inform are proportionally smaller.
 The per-head cost weights used for share-of-change-budget are ours too, calibrated on the shipped
@@ -236,7 +236,7 @@ The LLM is used for two things, both of them assistive, never authoritative:
    assigned tier and package, its before/after task lists and its constraints. `api/generate.js`.
 2. **A first-pass suggestion for the six sub-factor scores** in the "Start new project" wizard, from a
    free-text description of what changes for a role — pre-filling the same sliders a human would
-   otherwise set by hand, against the same anchor ladders, always labelled **"AI-suggested — review
+   otherwise set by hand, against the same anchor ladders, always labeled **"AI-suggested — review
    before finalizing"** and fully editable before the role is added. `api/suggest-scores.js`. It never
    touches `scoreRole`/`assignTier` — it only proposes numbers for the sliders.
 
@@ -268,7 +268,7 @@ switches to deskless delivery where the population has no inbox.
 `api/suggest-scores.js` follows the same shape — `claude-sonnet-5`, strict JSON schema,
 `"source": "anthropic" | "fallback"` — but its fallback is honestly a flat 3.0 across all six
 sub-factors, not a deterministic estimate: there is no principled way to infer a score from free text
-without a model, so it is labelled **placeholder** rather than passed off as an assessment.
+without a model, so it is labeled **placeholder** rather than passed off as an assessment.
 
 ---
 
@@ -320,7 +320,7 @@ deck behind them at all — they are entirely our own synthetic illustration of 
 different scale and industry, and the app does not claim otherwise (`hasDeckReproduction` is `false`
 for both).
 
-### Licence hygiene
+### License hygiene
 
 The shipped tool reproduces **no third-party licensed change-management content**. The assessment
 sub-factors, the anchor and item wording, the tier packages and the tactic lists are our own or
@@ -335,7 +335,7 @@ Aberdeen's own delivery material; the dataset is synthetic.
   data.
 - **The new-project wizard is the money moment now.** Type a company, a couple of sites, and one role
   with a free-text description of what changes — the assistant proposes the six sub-factor scores
-  against the same anchor ladders the manual sliders use, labelled **AI-suggested: review before
+  against the same anchor ladders the manual sliders use, labeled **AI-suggested: review before
   finalizing**, and you can still drag every slider before finishing. Finish drops you straight onto
   that project's heat map.
 - **If someone asks what a 4.2 on capability delta means, drag that slider** (on the one-pager, or in
@@ -355,7 +355,7 @@ Aberdeen's own delivery material; the dataset is synthetic.
   is ours**, and the 1:15 super-user ratio is from our own deck, not Aberdeen's.
 - **Plant Controller** (consumer-products example) carries an adoption risk of 3.4 in the dataset, so
   the fixed 3.5 threshold puts it in **Enable** — the tier the source deck's slide 10 assigns. Slide
-  10's own 3.6 would tier it Rebuild; the dataset resolves the deck's internal inconsistency in favour
+  10's own 3.6 would tier it Rebuild; the dataset resolves the deck's internal inconsistency in favor
   of the tier the deck itself shows.
 - **Warehouse Team Lead is the best role to demo.** It is the only role that trips both modifiers at
   once — deskless *and* a decision-rights shift — so the one-pager visibly rewrites the package:

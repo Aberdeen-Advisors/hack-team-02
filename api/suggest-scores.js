@@ -15,7 +15,7 @@
  * marks it "AI-suggested — review before finalizing".
  *
  * Same fallback philosophy as api/generate.js: if ANTHROPIC_API_KEY is absent
- * or the call fails for any reason, this returns a flat, clearly-labelled
+ * or the call fails for any reason, this returns a flat, clearly-labeled
  * placeholder with HTTP 200 and "source": "fallback" rather than an error —
  * but unlike the narrative endpoint's fallback (which is a real deterministic
  * template), there is no honest deterministic way to infer a score from free

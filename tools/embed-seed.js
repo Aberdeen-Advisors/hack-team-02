@@ -29,7 +29,10 @@ if (!Array.isArray(roles) || !roles.length) {
 }
 
 const html = fs.readFileSync(htmlPath, 'utf8');
-const marker = /const SEED_ROLES = \/\*__SEED__\*\/[\s\S]*?;\n/;
+// \r?\n, not \n: index.html is checked out CRLF on Windows, and a bare \n
+// here never matches, so the marker silently "isn't found" on every
+// Windows checkout.
+const marker = /const SEED_ROLES = \/\*__SEED__\*\/[\s\S]*?;\r?\n/;
 if (!marker.test(html)) {
   console.error('marker "const SEED_ROLES = /*__SEED__*/...;" not found in index.html');
   process.exit(1);
