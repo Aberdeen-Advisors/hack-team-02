@@ -239,7 +239,7 @@
       "deskless": false,
       "isNewRole": true,
       "summary": "A net-new role created to run and monitor the underwriting AI model in production: tracking accuracy and drift, managing retraining, and being the technical point of contact for underwriters and compliance questioning a specific model output.",
-      "impact": { "taskShare": 4.0, "frequencyVolume": 3.6, "errorConsequence": 3.4 },
+      "impact": { "taskShare": 5.0, "frequencyVolume": 3.6, "errorConsequence": 3.4 },
       "risk": { "decisionRights": 2.4, "capabilityDelta": 3.8, "localReadiness": 2.2 },
       "before": [
         "Role does not exist prior to the AI-assisted underwriting rollout"

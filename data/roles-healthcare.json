@@ -335,7 +335,7 @@
       "deskless": false,
       "isNewRole": true,
       "summary": "A net-new role created to support the EHR rollout: builds order sets and documentation templates, monitors alert-override rates, and is the first line of triage between clinical staff and IT once the system is live.",
-      "impact": { "taskShare": 4.0, "frequencyVolume": 3.5, "errorConsequence": 3.0 },
+      "impact": { "taskShare": 5.0, "frequencyVolume": 3.5, "errorConsequence": 3.0 },
       "risk": { "decisionRights": 2.5, "capabilityDelta": 4.0, "localReadiness": 2.5 },
       "before": [
         "Role does not exist prior to the EHR rollout"

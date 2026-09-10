@@ -312,11 +312,25 @@ function weightsAreDefault(w) {
   return ALL_FACTORS.every((f) => Math.abs((w[f.key] ?? f.weight) - DEFAULT_WEIGHTS[f.key]) < 1e-9);
 }
 
+/* Net-new roles score 5.0 on "share of daily tasks changing" by definition:
+   ANCHORS.taskShare's band 5 reads "Over 75% of daily tasks change, or the
+   role is net-new" - the net-new clause IS the rule, not a data-entry value
+   someone can get wrong. So this is derived from role.isNewRole and never
+   trusted from the raw record: whatever taskShare the data happens to carry
+   is overridden, not merely validated. tools/validate-data.js checks that
+   the data files agree with this rule too, so a JSON edit can't quietly
+   drift from it again. */
+function withDerivedTaskShare(role) {
+  if (!role.isNewRole) return role;
+  return { ...role, impact: { ...role.impact, taskShare: 5 } };
+}
+
 /* Completeness gating: a half-filled row must never look authoritative. */
 function missingFactors(role) {
+  const r = withDerivedTaskShare(role);
   return [
-    ...IMPACT_FACTORS.filter((f) => !isScore((role.impact || {})[f.key])),
-    ...RISK_FACTORS.filter((f) => !isScore((role.risk || {})[f.key])),
+    ...IMPACT_FACTORS.filter((f) => !isScore((r.impact || {})[f.key])),
+    ...RISK_FACTORS.filter((f) => !isScore((r.risk || {})[f.key])),
   ].map((f) => f.label);
 }
 
@@ -325,13 +339,14 @@ function assignTier(impact, risk) {
   return risk >= THRESHOLD ? 'Reassure' : 'Inform';
 }
 function scoreRole(role) {
-  const missing = missingFactors(role);
+  const effective = withDerivedTaskShare(role);
+  const missing = missingFactors(effective);
   if (missing.length) {
-    return { ...role, scores: { impact: null, risk: null }, tier: null, complete: false, missing };
+    return { ...effective, scores: { impact: null, risk: null }, tier: null, complete: false, missing };
   }
-  const impact = impactSeverity(role.impact);
-  const risk = adoptionRisk(role.risk);
-  return { ...role, scores: { impact, risk }, tier: assignTier(impact, risk), complete: true, missing: [] };
+  const impact = impactSeverity(effective.impact);
+  const risk = adoptionRisk(effective.risk);
+  return { ...effective, scores: { impact, risk }, tier: assignTier(impact, risk), complete: true, missing: [] };
 }
 
 /* ===========================================================================
@@ -4016,7 +4031,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
    8. ROLE ONE-PAGER
    =========================================================================== */
 
-function AxisBreakdown({ name, factors, values, score }) {
+function AxisBreakdown({ name, factors, values, score, newRole }) {
   return (
     <div className="score-block">
       <div className="score-head">
@@ -4028,6 +4043,10 @@ function AxisBreakdown({ name, factors, values, score }) {
         {factors.map((f) => {
           const hit = anchorFor(f.key, values[f.key]);
           const ours = /^OURS/.test(ANCHORS[f.key].origin);
+          // taskShare is forced to 5 for a net-new role by scoreRole/withDerivedTaskShare,
+          // not read from data entry - say so on this row instead of citing the anchor's
+          // usual provenance, since the real "origin" of this 5 is the isNewRole flag.
+          const forced = newRole && f.key === 'taskShare';
           return (
             <div className="sf" key={f.key}>
               <span className="lbl" title={f.hint}>{f.label}</span>
@@ -4035,10 +4054,14 @@ function AxisBreakdown({ name, factors, values, score }) {
               <span className="v">{values[f.key].toFixed(1)}</span>
               <span className="bar"><i style={{ width: `${(values[f.key] / 5) * 100}%` }} /></span>
               {hit && (
-                <span className="sf-an" title={hit.note}>
+                <span className="sf-an" title={forced ? 'Derived from isNewRole, not entered as data.' : hit.note}>
                   <b>{hit.exact ? hit.n : `~${hit.n}`}</b>
-                  <span className="t">{hit.text}</span>
-                  <i className={'prov' + (ours ? ' ours' : '')}>{hit.origin}</i>
+                  <span className="t">{forced ? `${hit.text} — net-new role (rule applied automatically)` : hit.text}</span>
+                  {forced ? (
+                    <i className="prov ours">rule, not data entry</i>
+                  ) : (
+                    <i className={'prov' + (ours ? ' ours' : '')}>{hit.origin}</i>
+                  )}
                 </span>
               )}
             </div>
@@ -4069,8 +4092,9 @@ function onePagerText(role, comboExample, citeDeck) {
     const v = (IMPACT_FACTORS.includes(f) ? role.impact : role.risk)[f.key];
     const a = anchorFor(f.key, v);
     if (!a) return;
-    L.push(`  ${f.label} ${v.toFixed(1)}: anchor ${a.n}${a.exact ? '' : ' (nearest)'}: ${a.text}`);
-    L.push(`    provenance: ${a.origin}`);
+    const forced = role.isNewRole && f.key === 'taskShare';
+    L.push(`  ${f.label} ${v.toFixed(1)}: anchor ${a.n}${a.exact ? '' : ' (nearest)'}: ${a.text}${forced ? ' -- net-new role (rule applied automatically)' : ''}`);
+    L.push(`    provenance: ${forced ? 'rule, not data entry' : a.origin}`);
   });
   L.push(`  The source deck defines no point on the 1-5 scale. Frequency and volume is ours end to end - no source measures it.`);
   L.push('');
@@ -4268,7 +4292,7 @@ function OnePager({ role, onBack, backLabel, comboExample, citeDeck }) {
           </button>
         </div>
         <div className={'card-body score-detail' + (showScore ? '' : ' collapsed')}>
-          <AxisBreakdown name="Impact severity" factors={IMPACT_FACTORS} values={role.impact} score={role.scores.impact} />
+          <AxisBreakdown name="Impact severity" factors={IMPACT_FACTORS} values={role.impact} score={role.scores.impact} newRole={role.isNewRole} />
           <AxisBreakdown name="Adoption risk" factors={RISK_FACTORS} values={role.risk} score={role.scores.risk} />
           <div className="sf-total" style={{ borderTop: '1px solid var(--hairline)', marginTop: 14, paddingTop: 12 }}>
             impact {role.scores.impact.toFixed(1)} {role.scores.impact >= THRESHOLD ? '≥' : '<'} 3.5 and risk {role.scores.risk.toFixed(1)} {role.scores.risk >= THRESHOLD ? '≥' : '<'} 3.5
