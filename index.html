@@ -597,6 +597,27 @@ function fmtWeeksFromGoLive(weeks) {
   return r > 0 ? `Go-live +${r}w` : `Go-live ${r}w`;
 }
 
+/* Marks each milestone in one tier's timeline past or upcoming against
+   today, and inserts a "Today" divider at the point it actually falls -
+   which milestones have already happened is different per tier (a tier
+   with an 8-week hypercare tail can still have its last milestone ahead of
+   us on a go-live that is otherwise long past) and different per project
+   (three different go-live dates). daysLive is daysSince(goLiveDate); null
+   when no go-live date is set, in which case nothing is markable as past. */
+function timelineWithToday(timeline, daysLive) {
+  if (daysLive === null) return timeline.map((s) => ({ ...s, past: false }));
+  const out = [];
+  let inserted = false;
+  timeline.forEach((s) => {
+    const milestoneDay = Math.round(s.weeksFromGoLive * 7);
+    const past = daysLive >= milestoneDay;
+    if (!inserted && !past) { out.push({ today: true }); inserted = true; }
+    out.push({ ...s, past });
+  });
+  if (!inserted) out.push({ today: true });
+  return out;
+}
+
 /* Programme-level planning + costing assumptions. All visible on screen.
    The per-head cost weights are ours, not the deck's. */
 const ASSUMPTIONS = {
@@ -655,34 +676,34 @@ function packageFor(role) {
   const d = DOSES[role.tier];
   const t = trainingDesign(role);
   const sites = Math.max(1, role.siteCount || 1);
-  const aids = `${t.aids.count} aids (${t.aids.band}: ${t.aids.range}) · ${t.jobAidMethod.duration} each`;
+  const aids = `${pluralize(t.aids.count, 'aid')} (${t.aids.band}: ${t.aids.range}) · ${t.jobAidMethod.duration} each`;
   const method = `${t.primary.method} · ${t.primary.duration}`;
   switch (role.tier) {
     case 'Rebuild': return [
-      { text: 'Role redesign',       dose: `${role.tasksRemoved + role.tasksChanged + role.tasksNew} tasks re-mapped · 1 workshop per site` },
-      { text: 'Sandbox training',    dose: `${d.sandboxDays}-day sandbox · ${Math.max(1, Math.ceil(role.headcount * d.sandboxSeatsPerHead))} seats` },
+      { text: 'Role redesign',       dose: `${pluralize(role.tasksRemoved + role.tasksChanged + role.tasksNew, 'task')} re-mapped · 1 workshop per site` },
+      { text: 'Sandbox training',    dose: `${d.sandboxDays}-day sandbox · ${pluralize(Math.max(1, Math.ceil(role.headcount * d.sandboxSeatsPerHead)), 'seat')}` },
       { text: 'Role-based training', dose: `${method} · ${t.complexity} complexity` },
       { text: 'Job aids',            dose: aids },
       { text: 'On-site super-user',  dose: `${d.superUsersPerSite} per site (${sites}) · 1:${d.superUserRatio}` },
-      { text: 'Manager coaching',    dose: `${d.managerCoachingSessions} sessions · ${d.floorCoachingWeeks} weeks floor presence` },
-      { text: 'Hypercare',           dose: `${d.hypercareWeeks} weeks · 4-layer escalation · re-score every ${d.rescoreDays} days` },
+      { text: 'Manager coaching',    dose: `${pluralize(d.managerCoachingSessions, 'session')} · ${pluralize(d.floorCoachingWeeks, 'week')} floor presence` },
+      { text: 'Hypercare',           dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
     case 'Enable': return [
       { text: 'Role-based training',   dose: `${method} · ${t.complexity} complexity` },
       { text: 'Job aids',              dose: aids },
-      { text: 'Recruit as champions',  dose: `${Math.max(1, Math.ceil(role.headcount / d.superUserRatio))} champions · 1:${d.superUserRatio}` },
-      { text: 'Hypercare',             dose: `${d.hypercareWeeks} weeks · 4-layer escalation · re-score every ${d.rescoreDays} days` },
+      { text: 'Recruit as champions',  dose: `${pluralize(Math.max(1, Math.ceil(role.headcount / d.superUserRatio)), 'champion')} · 1:${d.superUserRatio}` },
+      { text: 'Hypercare',             dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
     case 'Reassure': return [
-      { text: 'Manager cascade',                  dose: `${d.cascadeScripts} scripts · ${d.managerCoachingSessions} briefings` },
+      { text: 'Manager cascade',                  dose: `${pluralize(d.cascadeScripts, 'script')} · ${pluralize(d.managerCoachingSessions, 'briefing')}` },
       { text: 'Address the fear, not the skill',  dose: `${method} awareness` },
       { text: 'Job aids',                         dose: aids },
-      { text: 'Hypercare',                        dose: `${d.hypercareWeeks} weeks · 4-layer escalation · re-score every ${d.rescoreDays} days` },
+      { text: 'Hypercare',                        dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
     default: return [
-      { text: 'Broadcast comms only', dose: `${d.broadcasts} broadcasts · ${method}` },
+      { text: 'Broadcast comms only', dose: `${pluralize(d.broadcasts, 'broadcast')} · ${method}` },
       { text: 'Job aids',             dose: aids },
-      { text: 'Hypercare',            dose: `${d.hypercareWeeks} week · 4-layer escalation · re-score every ${d.rescoreDays} days` },
+      { text: 'Hypercare',            dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
   }
 }
@@ -950,33 +971,42 @@ function resourcedPlan(scored) {
       group: 'Training',
       rows: [
         { n: rebuild.length + enableArchetypes.size, txt: 'role-based curricula',
-          rule: `1 per Rebuild role (${rebuild.length}) + 1 shared per site archetype in Enable (${enableArchetypes.size})` },
+          rule: `1 per Rebuild role (${rebuild.length}) + 1 shared per site archetype in Enable (${enableArchetypes.size})`,
+          emptyNote: 'No Rebuild or Enable roles in this population: no curriculum to build.' },
         { n: Math.ceil(rebuildHeads / ASSUMPTIONS.sandboxSeatRatio), txt: 'sandbox seats',
-          rule: `1 seat per ${ASSUMPTIONS.sandboxSeatRatio} people in Rebuild roles (${rebuildHeads.toLocaleString()})` },
+          rule: `1 seat per ${ASSUMPTIONS.sandboxSeatRatio} people in Rebuild roles (${rebuildHeads.toLocaleString()})`,
+          emptyNote: 'No Rebuild roles in this population: no sandbox to seat.' },
         { n: desklessFormats, txt: 'deskless on-shift formats',
-          rule: 'one per deskless role: no inbox, so no channel that assumes one' },
+          rule: 'one per deskless role: no inbox, so no channel that assumes one',
+          emptyNote: 'No deskless roles in this population.' },
       ],
     },
     {
       group: 'Communication',
       rows: [
-        { n: tiersPresent.length, txt: 'message tracks', rule: 'one per intervention tier present in the population' },
+        { n: tiersPresent.length, txt: 'message tracks', rule: 'one per intervention tier present in the population',
+          emptyNote: 'No scored roles in this population yet.' },
         { n: cascadeScripts, txt: 'manager cascade scripts',
-          rule: `1 per Rebuild role + 1 per non-Rebuild role with decision-rights ≥ 4` },
+          rule: `1 per Rebuild role + 1 per non-Rebuild role with decision-rights ≥ 4`,
+          emptyNote: 'No Rebuild roles, and no other role with a decision-rights shift of 4 or more: no cascade script is needed.' },
         { n: Math.ceil(heads([...rebuild, ...enable, ...reassure]) / ASSUMPTIONS.supervisorSpanOfControl), txt: 'supervisors briefed on decision rights',
-          rule: `1 per ${ASSUMPTIONS.supervisorSpanOfControl} people in Rebuild, Enable or Reassure roles` },
+          rule: `1 per ${ASSUMPTIONS.supervisorSpanOfControl} people in Rebuild, Enable or Reassure roles`,
+          emptyNote: 'No Rebuild, Enable or Reassure roles in this population: no decision-rights briefing is needed.' },
       ],
     },
     {
       group: 'Adoption',
       rows: [
         { n: Math.ceil(rebuildHeads / DOSES.Rebuild.superUserRatio), txt: 'super-users',
-          rule: `1:${DOSES.Rebuild.superUserRatio} in Rebuild roles (${rebuildHeads.toLocaleString()} people)` },
+          rule: `1:${DOSES.Rebuild.superUserRatio} in Rebuild roles (${pluralize(rebuildHeads, 'person', 'people')})`,
+          emptyNote: 'No Rebuild roles in this population: no super-user network to build.' },
         { n: siteCoaches, txt: 'site change coaches',
-          rule: 'one per site carrying a Rebuild role' },
+          rule: 'one per site carrying a Rebuild role',
+          emptyNote: 'No Rebuild roles in this population: no site carries one.' },
         { n: tiersPresent.length ? Math.max(...tiersPresent.map((t) => DOSES[t].hypercareWeeks)) : 0, txt: 'weeks hypercare',
           rule: `hypercare is the floor in every tier (${TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks); `
-              + 'this is the longest dose present, staffed to predicted ticket concentration' },
+              + 'this is the longest dose present, staffed to predicted ticket concentration',
+          emptyNote: 'No scored roles in this population yet.' },
       ],
     },
   ];
@@ -3601,6 +3631,16 @@ async function suggestScoresForRole({ name, siteArchetype, headcount, summary })
    =========================================================================== */
 
 const pct = (x) => `${Math.round(x * 100)}%`;
+
+/* Every count-plus-noun string in the app runs through this, so a count of
+   exactly 1 (a small Enable role's champion count, a single sandbox seat)
+   can never render as "1 champions". Pass the irregular plural (e.g.
+   'person'/'people') for nouns that don't just take a trailing s. */
+function pluralize(n, singular, plural) {
+  const word = n === 1 ? singular : (plural || `${singular}s`);
+  return `${n.toLocaleString()} ${word}`;
+}
+
 const money = (n) => {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
@@ -3616,7 +3656,20 @@ function TierBadge({ tier, large }) {
   );
 }
 
-function Tile({ label, value, meta, accent }) {
+/* emptyNote marks a structural zero: not "0 by coincidence" (a rounding or
+   a filter) but "this project genuinely has none of this," e.g. no deskless
+   roles at all. A big bold 0 reads as a KPI regressing; a dash and a stated
+   reason reads as a deliberate finding. */
+function Tile({ label, value, meta, accent, emptyNote }) {
+  if (emptyNote) {
+    return (
+      <div className="tile tile-empty">
+        <div className="label">{label}</div>
+        <div className="value dash">—</div>
+        <div className="meta">{emptyNote}</div>
+      </div>
+    );
+  }
   return (
     <div className={'tile' + (accent ? ' accent' : '')}>
       <div className="label">{label}</div>
@@ -3697,7 +3750,7 @@ function HeatMap({ roles, selectedId, onSelect }) {
              onMouseMove={(e) => move(e, r)} onMouseLeave={() => setTip(null)}
              onClick={() => onSelect(r.id)} tabIndex="0"
              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(r.id); } }}
-             role="button" aria-label={`${r.role}. Impact ${r.scores.impact}, risk ${r.scores.risk}, tier ${r.tier}, ${r.headcount} people.`}>
+             role="button" aria-label={`${r.role}. Impact ${r.scores.impact}, risk ${r.scores.risk}, tier ${r.tier}, ${pluralize(r.headcount, 'person', 'people')}.`}>
             <circle className="mark" cx={px(r.scores.impact)} cy={py(r.scores.risk)} r={rad(r.headcount)}
                     fill={TIERS[r.tier].hex} fillOpacity="0.78" />
           </g>
@@ -3707,7 +3760,7 @@ function HeatMap({ roles, selectedId, onSelect }) {
       {tip && (
         <div className="tip" style={{ left: Math.min(tip.x + 14, MAP.w - 40), top: Math.max(tip.y - 12, 4) }}>
           <b>{tip.r.role}</b><br />
-          <span className="r">{tip.r.siteArchetype} · {tip.r.headcount.toLocaleString()} people</span><br />
+          <span className="r">{tip.r.siteArchetype} · {pluralize(tip.r.headcount, 'person', 'people')}</span><br />
           impact {axisFormula(IMPACT_FACTORS, tip.r.impact, tip.r.scores.impact)}<br />
           risk {axisFormula(RISK_FACTORS, tip.r.risk, tip.r.scores.risk)}<br />
           <b>{tip.r.tier}</b>
@@ -3875,6 +3928,10 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
                           siteArchetypeBase, siteArchetypeCombos, comboExample, citeDeck, sourceNamedRoleCount,
                           onOpenBudgetWeights }) {
   const [sa, setSa] = useState('All');
+  // A filter with one real choice is not a filter: Ashford has one site
+  // archetype and no combos, so the control is hidden rather than showing
+  // "All site archetypes" next to a single, redundant second option.
+  const siteScopeOptionCount = siteArchetypeBase.length + siteArchetypeCombos.length;
 
   const match = (r) => archetypeMatches(r.siteArchetype, sa);
   const filtered = useMemo(() => scored.filter(match), [scored, sa]);
@@ -3918,22 +3975,24 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         </p>
       </div>
 
-      <div className="filters no-print">
-        <div className="field">
-          <label htmlFor="f-sa">Site archetype</label>
-          <select id="f-sa" value={sa} onChange={(e) => setSa(e.target.value)}>
-            <option value="All">All site archetypes</option>
-            <optgroup label="Archetype (includes roles that span it)">
-              {siteArchetypeBase.map((v) => <option key={v} value={v}>{v}</option>)}
-            </optgroup>
-            {siteArchetypeCombos.length > 0 && (
-              <optgroup label="Spans more than one archetype">
-                {siteArchetypeCombos.map((v) => <option key={v} value={v}>{v}</option>)}
+      {siteScopeOptionCount > 1 && (
+        <div className="filters no-print">
+          <div className="field">
+            <label htmlFor="f-sa">Site archetype</label>
+            <select id="f-sa" value={sa} onChange={(e) => setSa(e.target.value)}>
+              <option value="All">All site archetypes</option>
+              <optgroup label="Archetype (includes roles that span it)">
+                {siteArchetypeBase.map((v) => <option key={v} value={v}>{v}</option>)}
               </optgroup>
-            )}
-          </select>
+              {siteArchetypeCombos.length > 0 && (
+                <optgroup label="Spans more than one archetype">
+                  {siteArchetypeCombos.map((v) => <option key={v} value={v}>{v}</option>)}
+                </optgroup>
+              )}
+            </select>
+          </div>
         </div>
-      </div>
+      )}
 
       <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} />
 
@@ -3951,7 +4010,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
           <>
             <b>{pct(reb.popShare)} of the population absorbs {pct(reb.budgetShare)} of the effort.</b> That concentration is the deliverable.
             <span className="src">
-              {reb.roles} Rebuild {reb.roles === 1 ? 'role' : 'roles'} · {reb.people.toLocaleString()} of {agg.totalPeople.toLocaleString()} people
+              {pluralize(reb.roles, 'Rebuild role')} · {reb.people.toLocaleString()} of {agg.totalPeople.toLocaleString()} people
               {finding.ratio != null ? `, carrying ${finding.ratio.toFixed(1)}× its population share of the effort.` : '.'}
               {budgetLinkNote}
             </span>
@@ -3962,7 +4021,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
             <b>{pct(finding.highPopShare)} of the population sits in the two highest-intervention tiers.</b> This is a whole-organisation
             change, not a targeted one: plan for capacity, not triage.
             <span className="src">
-              {finding.highRoles} roles across Rebuild and Enable · {finding.highPeople.toLocaleString()} of {agg.totalPeople.toLocaleString()} people,
+              {pluralize(finding.highRoles, 'role')} across Rebuild and Enable · {finding.highPeople.toLocaleString()} of {agg.totalPeople.toLocaleString()} people,
               {' '}carrying {pct(finding.highBudgetShare)} of the effort.
               {budgetLinkNote}
             </span>
@@ -3972,7 +4031,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
           <>
             <b>{pct(reb.popShare)} of the population absorbs {pct(reb.budgetShare)} of the effort.</b> Not a small targeted group, and not the whole organisation either.
             <span className="src">
-              {reb.roles} Rebuild {reb.roles === 1 ? 'role' : 'roles'} · {reb.people.toLocaleString()} of {agg.totalPeople.toLocaleString()} people.
+              {pluralize(reb.roles, 'Rebuild role')} · {reb.people.toLocaleString()} of {agg.totalPeople.toLocaleString()} people.
               {budgetLinkNote}
             </span>
           </>
@@ -4079,7 +4138,7 @@ function AxisBreakdown({ name, factors, values, score, newRole }) {
 function onePagerText(role, comboExample, citeDeck) {
   const L = [];
   L.push(`${role.role}: ${role.tier}`);
-  L.push(`${role.siteArchetype} · ${role.siteCount} site(s) · ${role.headcount} people${role.deskless ? ' · deskless' : ''}`);
+  L.push(`${role.siteArchetype} · ${pluralize(role.siteCount, 'site')} · ${pluralize(role.headcount, 'person', 'people')}${role.deskless ? ' · deskless' : ''}`);
   L.push('');
   L.push(role.summary || '');
   L.push('');
@@ -4117,9 +4176,9 @@ function onePagerText(role, comboExample, citeDeck) {
   L.push('  Communications milestones:');
   commsPlan(role).forEach((m) => L.push(`    - ${m.name}: ${m.objective} · ${m.channel}`));
   L.push('  Support escalation: ' + SUPPORT_LAYERS.join(' -> '));
-  L.push(`  Hypercare: ${DOSES[role.tier].hypercareWeeks} week(s), the floor in every tier `
+  L.push(`  Hypercare: ${pluralize(DOSES[role.tier].hypercareWeeks, 'week')}, the floor in every tier `
        + `(${TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks); only the duration scales.`);
-  L.push(`  Cadence: readiness reassessed every ${CADENCE.readinessReassessMonths} months; role re-scored every ${DOSES[role.tier].rescoreDays} days`);
+  L.push(`  Cadence: readiness reassessed every ${CADENCE.readinessReassessMonths} months; role re-scored every ${pluralize(DOSES[role.tier].rescoreDays, 'day')}`);
   L.push(`  Adoption measured over a ${CADENCE.adoptionWindowMonths}-month window on: ${ADOPTION_METRICS.join(', ')}`);
   L.push('  The 1:15 super-user ratio is from Team 2\'s own deck (slide 13); Aberdeen\'s material states no ratio.');
   L.push(''); L.push('Aberdeen Advisors · Change Impact Assessment Tool · illustrative figures, synthetic data');
@@ -4141,7 +4200,7 @@ function DeliveryDetail({ role }) {
           {' '}Fits {t.primary.fits}. Delivered {t.trainTheTrainer ? 'by train-the-trainer participants' : 'self-driven'}.
         </p>
         <p style={{ marginBottom: 0 }}>
-          <b>{t.aids.count} job aids</b> at the point of work: {t.aids.band} band, {t.aids.range} aids,
+          <b>{pluralize(t.aids.count, 'job aid')}</b> at the point of work: {t.aids.band} band, {t.aids.range} aids,
           {' '}{t.jobAidMethod.duration} each.
         </p>
       </div>
@@ -4245,7 +4304,7 @@ function OnePager({ role, onBack, backLabel, comboExample, citeDeck }) {
             <div className="crumbs">
               <span>{role.siteArchetype}</span>
               <span>{role.siteCount} {role.siteCount === 1 ? 'site' : 'sites'}</span>
-              <span>{role.headcount.toLocaleString()} people</span>
+              <span>{pluralize(role.headcount, 'person', 'people')}</span>
               {role.deskless && <span>deskless</span>}
             </div>
           </div>
@@ -4887,7 +4946,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
 
       {trainingGroup && (
         <div className="grid cols-4" style={{ marginBottom: 16 }}>
-          {trainingGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} meta={r.rule} />)}
+          {trainingGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} meta={r.rule} emptyNote={r.n === 0 ? r.emptyNote : null} />)}
         </div>
       )}
 
@@ -4981,6 +5040,7 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckP
   const [tierFilter, setTierFilter] = useState('All');
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const commsGroup = plan.find((g) => g.group === 'Communication');
+  const daysLive = useMemo(() => daysSince(goLiveDate), [goLiveDate]);
   const rows = useMemo(() => scored
     .filter((r) => tierFilter === 'All' || r.tier === tierFilter)
     .map((r) => ({ role: r, milestones: commsPlan(r) })), [scored, tierFilter]);
@@ -4989,17 +5049,25 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckP
     const roles = scored.filter((r) => r.tier === t);
     const deskCount = roles.filter((r) => !r.deskless).length;
     const desklessCount = roles.filter((r) => r.deskless).length;
-    return { tier: t, roles, deskCount, desklessCount, timeline: tierCommsTimeline(t, deskCount, desklessCount) };
-  }).filter((g) => g.roles.length > 0), [scored]);
+    return { tier: t, roles, deskCount, desklessCount, timeline: timelineWithToday(tierCommsTimeline(t, deskCount, desklessCount), daysLive) };
+  }).filter((g) => g.roles.length > 0), [scored, daysLive]);
+
+  // A go-live already behind us reads as unmaintained if the page still
+  // talks about "the target go-live" ahead of it. Same daysSince() basis as
+  // the Adoption tab, so the two tabs never disagree about whether go-live
+  // has happened.
+  const goLiveLede = !goLiveDate
+    ? 'No target go-live date set: timing below is shown relative to go-live. Set a date on the engagement profile for calendar dates. '
+    : (daysLive !== null && daysLive >= 0)
+      ? `Anchored to the ${fmtShortDate(new Date(goLiveDate + 'T00:00:00'))} go-live, ${daysLive === 0 ? 'today' : `${pluralize(daysLive, 'day')} ago`}. Milestones already reached are marked done below. `
+      : `Anchored to the ${fmtShortDate(new Date(goLiveDate + 'T00:00:00'))} target go-live, working backward. `;
 
   return (
     <>
       <div className="view-head">
         <h2>Communication: a timed plan by intervention tier</h2>
         <p className="lede">
-          {goLiveDate
-            ? `Anchored to the ${fmtShortDate(new Date(goLiveDate + 'T00:00:00'))} target go-live, working backward. `
-            : 'No target go-live date set: timing below is shown relative to go-live. Set a date on the engagement profile for calendar dates. '}
+          {goLiveLede}
           Lead time before go-live mirrors each tier's own hypercare tail after it ({TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}w`).join(' · ')}),
           and the channel for each stop follows the same deskless vs. desk-based split used for training and job aids.
         </p>
@@ -5007,7 +5075,7 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckP
 
       {commsGroup && (
         <div className="grid cols-4" style={{ marginBottom: 16 }}>
-          {commsGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} meta={r.rule} />)}
+          {commsGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} meta={r.rule} emptyNote={r.n === 0 ? r.emptyNote : null} />)}
         </div>
       )}
 
@@ -5015,20 +5083,28 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckP
         <div className="card" key={g.tier} style={{ marginBottom: 16 }}>
           <div className="card-head">
             <h3><i className="dot" style={{ '--dot': TIERS[g.tier].hex, display: 'inline-block', marginRight: 7 }} />{g.tier}</h3>
-            <span className="hint">{g.roles.length} role{g.roles.length === 1 ? '' : 's'} · {g.roles.reduce((s, r) => s + r.headcount, 0).toLocaleString()} people</span>
+            <span className="hint">{pluralize(g.roles.length, 'role')} · {g.roles.reduce((s, r) => s + r.headcount, 0).toLocaleString()} people</span>
           </div>
           <div className="card-body">
             <p className="sub" style={{ marginTop: 0 }}>{TIERS[g.tier].quadrant}: {TIERS[g.tier].package.join(', ')}.</p>
             <table className="mini milestones">
               <tbody>
-                {g.timeline.map((s) => (
-                  <tr key={s.label}>
-                    <th scope="row">{s.label}</th>
-                    <td className="ch" style={{ whiteSpace: 'nowrap' }}>
-                      {goLiveDate ? fmtShortDate(dateFromGoLive(goLiveDate, s.weeksFromGoLive)) : fmtWeeksFromGoLive(s.weeksFromGoLive)}
-                    </td>
-                    <td className="ch">{s.channel || '—'}</td>
-                  </tr>
+                {g.timeline.map((s, i) => (
+                  s.today ? (
+                    <tr key="today" className="today-marker">
+                      <td colSpan={3}>
+                        ◆ Today{daysLive !== null ? ` · ${daysLive < 0 ? `${pluralize(-daysLive, 'day')} before go-live` : daysLive === 0 ? 'go-live day' : `${pluralize(daysLive, 'day')} since go-live`}` : ''}
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={s.label} className={s.past ? 'past' : ''}>
+                      <th scope="row">{s.past && <span className="done-mark" aria-hidden="true">✓ </span>}{s.label}</th>
+                      <td className="ch" style={{ whiteSpace: 'nowrap' }}>
+                        {goLiveDate ? fmtShortDate(dateFromGoLive(goLiveDate, s.weeksFromGoLive)) : fmtWeeksFromGoLive(s.weeksFromGoLive)}
+                      </td>
+                      <td className="ch">{s.channel || '—'}</td>
+                    </tr>
+                  )
                 ))}
               </tbody>
             </table>
@@ -5520,7 +5596,7 @@ function DraftRoleRow({ draft, onUpdate, onRemove }) {
     <div className={'draft-row' + (complete ? '' : ' incomplete')}>
       <button type="button" className="draft-row-head" onClick={() => setOpen((o) => !o)}>
         <span className="drn">{draft.role || '(untitled role)'}</span>
-        <span className="drm">{draft.site || draft.siteArchetype || 'N/A'} · {draft.headcount || 'N/A'} people</span>
+        <span className="drm">{draft.site || draft.siteArchetype || 'N/A'} · {draft.headcount ? pluralize(parseInt(draft.headcount, 10) || 0, 'person', 'people') : 'N/A'}</span>
         {statusBadge}
         <span className="drx" aria-hidden="true">{open ? '▲' : '▼'}</span>
       </button>
@@ -5916,8 +5992,8 @@ function App() {
           <h1>Change Impact Assessment Tool</h1>
           <span className="project-tag">{project.name}{project.industry ? ` · ${project.industry}` : ''}</span>
           <span className="sub">
-            {all.length} roles · {all.reduce((s, r) => s + (r.headcount || 0), 0).toLocaleString()} people
-            {incomplete.length ? ` · ${incomplete.length} incomplete` : ''} · {dataSource}
+            {pluralize(all.length, 'role')} · {pluralize(all.reduce((s, r) => s + (r.headcount || 0), 0), 'person', 'people')}
+            {incomplete.length ? ` · ${pluralize(incomplete.length, 'incomplete role')}` : ''}
             {weightsAreDefault(weights) ? '' : ' · weights changed from our default'}
           </span>
           <button className="btn" onClick={backToProjects}>← All projects</button>
