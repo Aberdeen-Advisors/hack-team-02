@@ -63,9 +63,12 @@
   --t-reassure-wash: color-mix(in srgb, var(--chart-sky) 14%, white);
   --t-inform-wash:   color-mix(in srgb, var(--chart-jade) 10%, white);
 
-  /* Chart series (ROI view): same chart-only palette */
-  --series-targeted:   var(--chart-jade);
-  --series-untargeted: var(--chart-red);
+  /* Chart series (ROI view, currently unused - kept in case it is
+     reinstated): deliberately NOT the chart-only tier palette above, which
+     is reserved for tier identity. Targeted/untargeted is a different axis
+     of meaning (better/worse), so it gets its own colours. */
+  --series-targeted:   var(--verdigris);
+  --series-untargeted: var(--onyx);
 
   --radius:   10px;
   --radius-s: 6px;
@@ -240,6 +243,18 @@ a { color: var(--brand); }
 .score-badge.none { color: var(--ink-3); background: var(--surface-sunk); border-color: var(--hairline); }
 .score-badge.ai { color: var(--live); background: var(--live-wash); border-color: var(--live-line); }
 .score-badge.placeholder { color: var(--flag); background: var(--flag-wash); border-color: var(--flag-line); }
+
+/* Re-score cycle status: named by its label text, not by hue. Deliberately
+   shares no colour with --t-rebuild/-enable/-reassure/-inform (the tier
+   palette below) so a status pill can never be misread as a tier marker. */
+.status-pill {
+  flex: none; font-size: 11px; font-weight: 500; letter-spacing: .01em; white-space: nowrap;
+  padding: 3px 10px; border-radius: 999px; border: 1px solid transparent;
+}
+.status-pill.pending  { color: var(--ink-3); background: var(--surface-sunk); border-color: var(--hairline); }
+.status-pill.ontrack  { color: var(--ink-2); background: var(--surface-sunk); border-color: var(--hairline); }
+.status-pill.duesoon  { color: var(--flag); background: var(--flag-wash); border-color: var(--flag-line); }
+.status-pill.overdue  { color: #fff; background: var(--ink); border-color: var(--ink); font-weight: 600; }
 
 .ai-rationale { font-size: 12px; color: var(--ink-2); margin-top: 5px; line-height: 1.4; }
 

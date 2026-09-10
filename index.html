@@ -832,11 +832,12 @@ function aggregate(scored) {
 }
 
 /* Chart.js paints to a canvas, which cannot read CSS custom properties,
-   these must stay literal. They mirror --series-* in styles.css. */
-/* Literal hex, mirrors --series-* in styles.css, a canvas context cannot
-   resolve CSS custom properties. Aberdeen brand's chart-only palette:
-   untargeted (worse) -> Jasper, targeted (better) -> Jade. */
-const SERIES = { untargeted: '#DB504A', targeted: '#00A676', band: 'rgba(0,166,118,.13)' };
+   these must stay literal. They mirror --series-* in styles.css.
+   Deliberately NOT TIERS[*].hex (Jasper/Gold/Sky/Jade): that palette is
+   reserved for tier identity, and targeted-vs-untargeted productivity is a
+   different axis of meaning entirely - reusing a tier colour here would be
+   the same collision this app had on the Adoption tab's re-score status. */
+const SERIES = { untargeted: '#404040', targeted: '#44B0B1', band: 'rgba(68,176,177,.13)' };
 
 /* Slide 14: illustrative productivity curves, values from the deck workbook. */
 const ROI_WEEKS      = [0, 2, 4, 6, 8, 10, 12, 14, 16];
@@ -901,7 +902,17 @@ function rescoreStatus(tier, daysLive) {
   const status = frac < 0.6 ? 'green' : frac < 0.85 ? 'yellow' : 'red';
   return { status, cadence, daysIntoCycle, daysToNext: Math.round(cadence - daysIntoCycle), cyclesCompleted };
 }
-const RESCORE_STATUS_COLOR = { green: '#00A676', yellow: '#F7D002', red: '#DB504A', upcoming: 'var(--ink-3)', pending: 'var(--ink-3)' };
+/* Named, not colour-coded: the tier palette (red/gold/sky/jade) is reserved
+   for tier identity everywhere in this app, so re-score status - a different
+   thing entirely - never borrows it. The label text is the signal; the pill
+   class is a secondary reinforcement in a palette that shares no hue with
+   TIERS[*].hex, so a status pill can never be mistaken for a tier marker. */
+const RESCORE_STATUS_LABEL = {
+  green: 'On track', yellow: 'Due soon', red: 'Overdue', upcoming: 'Upcoming', pending: 'Not yet live',
+};
+const RESCORE_STATUS_CLASS = {
+  green: 'ontrack', yellow: 'duesoon', red: 'overdue', upcoming: 'pending', pending: 'pending',
+};
 
 /* Simulated (not measured) training-completion percentage for one tier, a
    starting point for the demo, not a claim: it ramps with days live relative
@@ -5255,15 +5266,17 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
           {tierStatus.map((s) => (
             <div key={s.tier} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid var(--hairline)', fontSize: 13.5 }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <i className="dot" style={{ '--dot': RESCORE_STATUS_COLOR[s.status] }} />
+                <i className="dot" style={{ '--dot': TIERS[s.tier].hex }} />
                 <b>{s.tier}</b>
-                <span className="hint">{s.count} role{s.count === 1 ? '' : 's'} · {s.people.toLocaleString()} people</span>
+                <span className="hint">{pluralize(s.count, 'role')} · {pluralize(s.people, 'person', 'people')}</span>
               </span>
-              <span>
-                {s.status === 'pending' && 'Not yet live'}
-                {s.status === 'upcoming' && `Go-live in ${s.daysToGoLive}d`}
-                {(s.status === 'green' || s.status === 'yellow' || s.status === 'red') &&
-                  `${s.daysIntoCycle}d into a ${s.cadence}d cycle, next due in ${s.daysToNext}d`}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span className="hint">
+                  {s.status === 'upcoming' && `Go-live in ${pluralize(s.daysToGoLive, 'day')}`}
+                  {(s.status === 'green' || s.status === 'yellow' || s.status === 'red') &&
+                    `${s.daysIntoCycle}d into a ${s.cadence}d cycle, next due in ${pluralize(s.daysToNext, 'day')}`}
+                </span>
+                <span className={`status-pill ${RESCORE_STATUS_CLASS[s.status]}`}>{RESCORE_STATUS_LABEL[s.status]}</span>
               </span>
             </div>
           ))}
