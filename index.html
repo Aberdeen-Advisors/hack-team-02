@@ -3991,19 +3991,24 @@ function saveScenarios(list) {
   catch (e) { /* quota, private mode, or locked down - the scenario just doesn't persist */ }
 }
 
-function TierBadge({ tier, large }) {
+/* Memoised: TierBadge is a leaf rendered dozens of times per table (once a
+   row), and its own inputs (tier, large) almost never change even when its
+   parent row re-renders for an unrelated reason. */
+const TierBadge = React.memo(function TierBadge({ tier, large }) {
   return (
     <span className={'tier-badge' + (large ? ' lg' : '')} style={{ '--wash': TIERS[tier].wash }}>
       <i className="dot" style={{ '--dot': TIERS[tier].hex }} />{tier}
     </span>
   );
-}
+});
 
 /* emptyNote marks a structural zero: not "0 by coincidence" (a rounding or
    a filter) but "this project genuinely has none of this," e.g. no deskless
    roles at all. A big bold 0 reads as a KPI regressing; a dash and a stated
-   reason reads as a deliberate finding. */
-function Tile({ label, value, meta, accent, emptyNote, simulated }) {
+   reason reads as a deliberate finding.
+   Memoised for the same reason as TierBadge: cheap to render once, wasteful
+   to re-render on every unrelated parent update across a 4-8 tile grid. */
+const Tile = React.memo(function Tile({ label, value, meta, accent, emptyNote, simulated }) {
   if (emptyNote) {
     return (
       <div className="tile tile-empty">
@@ -4020,7 +4025,7 @@ function Tile({ label, value, meta, accent, emptyNote, simulated }) {
       {meta && <div className="meta">{meta}</div>}
     </div>
   );
-}
+});
 
 /* Every tab downstream of the weight sliders shows this under its heading
    whenever weights differ from default, so a reader who lands here first -
@@ -4042,7 +4047,14 @@ function WeightNote({ weights, onReset }) {
 
 const MAP = { w: 940, h: 500, l: 62, r: 26, t: 24, b: 54 };
 
-function HeatMap({ roles, selectedId, onSelect }) {
+/* Memoised: an SVG scatter plus tooltip logic over the full role set,
+   sitting inside PortfolioView next to four other panels (weight tuner,
+   rate card, threshold sensitivity, scenarios) that all live in the same
+   component. Without this, editing the rate card or naming a scenario -
+   neither of which changes `roles`, `selectedId` or `onSelect` - forced a
+   full re-render of the chart anyway. Its own hover state stays local
+   (`tip`), so memoising the outer shell doesn't touch that. */
+const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
   const [tip, setTip] = useState(null);
   const wrap = useRef(null);
 
@@ -4139,7 +4151,7 @@ function HeatMap({ roles, selectedId, onSelect }) {
       </div>
     </div>
   );
-}
+});
 
 const COLUMNS = [
   { key: 'role', label: 'Role' },
@@ -4153,7 +4165,11 @@ const COLUMNS = [
   { key: 'tier', label: 'Tier' },
 ];
 
-function RoleTable({ roles, incomplete, selectedId, onSelect }) {
+/* Memoised for the same reason as HeatMap: 38 sortable rows re-diffing on
+   every keystroke in the rate card or the scenario name field, none of
+   which touch `roles`/`incomplete`/`selectedId`/`onSelect`, was the
+   single biggest avoidable render cost on the Stakeholder Impact tab. */
+const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId, onSelect }) {
   const [sort, setSort] = useState({ key: 'impact', dir: -1 });
   const sorted = useMemo(() => {
     const val = (r, k) => (k === 'impact' ? r.scores.impact : k === 'risk' ? r.scores.risk
@@ -4225,7 +4241,7 @@ function RoleTable({ roles, incomplete, selectedId, onSelect }) {
       </table>
     </div>
   );
-}
+});
 
 /* Weight tuning. The weights are ours, so they are ours to move, and the demo
    is stronger for showing that the line is a choice, not a fact. Weights are
@@ -5486,7 +5502,12 @@ function RoiTrendChart({ points, todayWeek }) {
    lives on the role record; nothing is re-derived.
    =========================================================================== */
 
-function RedesignRow({ role, onOpen }) {
+/* Memoised, and note onSelect (not a per-row onOpen closure) is what's
+   passed in: a fresh () => onSelect(r.id) built on every RedesignView
+   render would give React.memo a new prop reference every time regardless
+   of whether this specific role changed, defeating the memoisation below
+   before it does anything. */
+const RedesignRow = React.memo(function RedesignRow({ role, onSelect }) {
   const [open, setOpen] = useState(false);
   const fte = role.fteDelta || 0;
   return (
@@ -5514,13 +5535,13 @@ function RedesignRow({ role, onOpen }) {
           </div>
           {fteConsequenceLine(fte) && <p className="sub">{fteConsequenceLine(fte)}</p>}
           <div className="btn-row">
-            <button type="button" className="btn" onClick={onOpen}>Open full one-pager →</button>
+            <button type="button" className="btn" onClick={() => onSelect(role.id)}>Open full one-pager →</button>
           </div>
         </div>
       )}
     </div>
   );
-}
+});
 
 function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tierFilter, setTierFilter }) {
   const rows = useMemo(
@@ -5596,7 +5617,7 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
       </div>
 
       <div className="draft-list">
-        {rows.map((r) => <RedesignRow key={r.id} role={r} onOpen={() => onSelect(r.id)} />)}
+        {rows.map((r) => <RedesignRow key={r.id} role={r} onSelect={onSelect} />)}
         {!rows.length && <p className="sub">No roles match this filter.</p>}
       </div>
     </>
@@ -6799,27 +6820,42 @@ function App() {
   // so the header (and the tier tiles) can show it moving, not just having
   // moved.
   const flashTimerRef = useRef(null);
+  const diffTimerRef = useRef(null);
+  const beforeSnapshotRef = useRef(null); // the figures as of the start of the current burst of ticks
   const [weightDeltas, setWeightDeltas] = useState(null);
+  // setWeights/setThreshold fire immediately below, every tick, for instant
+  // visual re-tiering - that part is cheap (one scoring pass, already
+  // memoised into `all`). What ISN'T cheap is the diff: a second full
+  // scoring pass plus an object-key comparison, run here on every single
+  // tick of a slider drag (which fires dozens of onChange events a
+  // second) before this fix. Debounced so a whole drag does that work
+  // once, ~150ms after it settles, against a snapshot taken at the start
+  // of the burst - not once per tick.
   const applyAndDiff = useCallback((nextWeights, nextThreshold, scenarioName) => {
     const th = nextThreshold != null ? nextThreshold : threshold;
-    const before = computeKeyFigures(raw, weights, threshold);
-    const after = computeKeyFigures(raw, nextWeights, th);
-    const deltas = Object.keys(after)
-      .filter((k) => before[k] !== undefined && before[k] !== after[k])
-      .map((k) => ({ label: k, from: before[k], to: after[k] }));
+    if (!diffTimerRef.current) beforeSnapshotRef.current = computeKeyFigures(raw, weights, threshold);
     setWeights(nextWeights);
     if (nextThreshold != null) setThresholdState(nextThreshold);
     // A manual slider nudge is no longer "the scenario", exactly; loading
     // one explicitly passes its own name back in.
     setActiveScenarioName(scenarioName || null);
     syncRoute({ weights: nextWeights, threshold: th }, 'replace');
-    clearTimeout(flashTimerRef.current);
-    if (deltas.length) {
-      setWeightDeltas(deltas);
-      flashTimerRef.current = setTimeout(() => setWeightDeltas(null), 5000);
-    } else {
-      setWeightDeltas(null);
-    }
+    clearTimeout(diffTimerRef.current);
+    diffTimerRef.current = setTimeout(() => {
+      diffTimerRef.current = null;
+      const before = beforeSnapshotRef.current;
+      const after = computeKeyFigures(raw, nextWeights, th);
+      const deltas = Object.keys(after)
+        .filter((k) => before[k] !== undefined && before[k] !== after[k])
+        .map((k) => ({ label: k, from: before[k], to: after[k] }));
+      clearTimeout(flashTimerRef.current);
+      if (deltas.length) {
+        setWeightDeltas(deltas);
+        flashTimerRef.current = setTimeout(() => setWeightDeltas(null), 5000);
+      } else {
+        setWeightDeltas(null);
+      }
+    }, 150);
   }, [raw, weights, threshold, syncRoute]);
   const setWeight = useCallback((key, v) => applyAndDiff({ ...weights, [key]: v }), [applyAndDiff, weights]);
   const resetWeights = useCallback(() => applyAndDiff({ ...DEFAULT_WEIGHTS }), [applyAndDiff]);
