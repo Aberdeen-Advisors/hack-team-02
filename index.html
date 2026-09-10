@@ -78,11 +78,6 @@ const NOTE = {
       + 'go-live communications and hypercare, so every tier here carries hypercare and only the duration scales. The 8 weeks at the top of the '
       + 'range is our own deck’s number (slide 13); how it steps down across the other three tiers is ours.',
   incomplete: 'A role scores only when all six sub-factors are set. Anything less shows as incomplete, never as a score or a tier.',
-  budgetWeights: 'These four weights are ours, not the deck’s or Aberdeen’s. The source deck states Thornwood’s final split '
-      + '(55% / 27% / 13% / 5%) but no method for deriving it from headcount, and Aberdeen’s OCM material states no per-tier cost figures at all. '
-      + 'We built them from what each tier’s own package actually costs to run: Rebuild (role redesign, sandbox training, an on-site super-user, '
-      + 'manager coaching) is the most expensive per head and is the 1.0 reference every other tier is priced against. Calibrated so Thornwood’s '
-      + 'dataset reproduces the deck’s split within a rounding point; the same four weights apply unchanged to every project.',
   anchors: 'Every sub-factor carries a 1–5 anchor, so a score reads as a description rather than a number. The source deck states the '
       + '1–5 scale and never defines a single point on it, so these ladders are ours to own: where Aberdeen’s or the client plan’s band text '
       + 'exists we use it and say so, and where it does not the wording is ours. They are not equally well grounded, and each one says which it is: '
@@ -4025,7 +4020,7 @@ function WeightTuner({ weights, onChange, onReset }) {
   return (
     <details className="tuner no-print">
       <summary>
-        <span className="lbl">Weighting: <b>ours</b>, and tunable</span>
+        <span className="lbl">Weighting</span>
         <span className="state">{isDefault ? 'our default: 0.45 / 0.25 / 0.30 and 0.40 / 0.35 / 0.25' : 'changed from our default'}</span>
       </summary>
       <div className="tuner-body">
@@ -4124,7 +4119,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       <div className="banner headline" style={{ marginBottom: 20 }}>
         {finding.mode === 'concentrated' && (
           <>
-            <b>{pct(reb.popShare)} of the population absorbs {pct(reb.budgetShare)} of the effort.</b> That concentration is the deliverable.
+            <b>{pct(reb.popShare)} of the population absorbs {pct(reb.budgetShare)} of the effort.</b>
             <span className="src">
               {pluralize(reb.roles, 'Rebuild role')} · {reb.people.toLocaleString()} of {agg.totalPeople.toLocaleString()} people
               {finding.ratio != null ? `, carrying ${finding.ratio.toFixed(1)}× its population share of the effort.` : '.'}
@@ -5402,7 +5397,6 @@ function BudgetWeightingPanel({ agg }) {
           {' '}over a total of {TIER_ORDER.map((t) => `${agg.byTier[t].people.toLocaleString()}×${BUDGET_WEIGHT_PER_TIER[t]}`).join(' + ')} = {totalWeighted.toFixed(1)}.
           {' '}{rebuild.weight.toFixed(1)} ÷ {totalWeighted.toFixed(1)} = {pct(rebuild.budgetShare)} of change budget.
         </p>
-        <p className="footnote">{NOTE.budgetWeights}</p>
       </div>
     </div>
   );
