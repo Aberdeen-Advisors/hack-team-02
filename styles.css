@@ -159,6 +159,12 @@ a { color: var(--brand); }
   border-radius: var(--radius-s) var(--radius-s) 0 0; padding: 6px 12px;
   animation: weight-flash-in .25s ease-out;
 }
+/* Same slot and motion as the weight flash, but a stale/mistyped link is a
+   warning, not a neutral status update, so it gets a distinct tint - the
+   same Verdigris-derived wash .note.warn already uses for "worth flagging"
+   copy elsewhere, translucent here since it sits on the dark topbar. Not a
+   tier hue: Verdigris is its own colour, not a wash of any of the four. */
+.weight-flash.route-notice { background: rgba(68,176,177,.3); font-weight: 500; }
 @keyframes weight-flash-in {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }

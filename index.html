@@ -75,7 +75,13 @@ function applyThreshold(t) { if (isScore(t) && t >= 1 && t <= 5) THRESHOLD = t; 
 /* Short, honest provenance strings. Used verbatim on screen so the claims the
    tool makes on stage are the claims it can defend. */
 const NOTE = {
-  weights: 'The six sub-factor weights are ours: our default, and tunable. The source deck states no weights and no aggregation method, so nothing here is inherited from it.',
+  // Both this and .anchors below cite "the source deck" unconditionally -
+  // true only for a project that has one (Thornwood). Functions of
+  // citeDeck, like noteThreshold/noteUnit, not plain strings.
+  weights: (citeDeck) => 'The six sub-factor weights are ours: our default, and tunable. '
+      + (citeDeck
+          ? 'The source deck states no weights and no aggregation method, so nothing here is inherited from it.'
+          : 'No external source for this project states weights or an aggregation method, so nothing here is inherited from anywhere.'),
   mapping: 'Provenance: the tier → tactic mapping is OURS. Aberdeen’s OCM delivery material supplies the training method table, job-aid ranges, '
       + 'communications milestones, four-layer support escalation and cadences. It contains no tier-to-tactic mapping, so the mapping is our extension of it, not something inherited.',
   ratio: 'The 1:15 super-user ratio comes from Team 2’s own deck (slide 13). Aberdeen’s material states no ratio.',
@@ -83,9 +89,11 @@ const NOTE = {
       + 'go-live communications and hypercare, so every tier here carries hypercare and only the duration scales. The 8 weeks at the top of the '
       + 'range is our own deck’s number (slide 13); how it steps down across the other three tiers is ours.',
   incomplete: 'A role scores only when all six sub-factors are set. Anything less shows as incomplete, never as a score or a tier.',
-  anchors: 'Every sub-factor carries a 1–5 anchor, so a score reads as a description rather than a number. The source deck states the '
-      + '1–5 scale and never defines a single point on it, so these ladders are ours to own: where Aberdeen’s or the client plan’s band text '
-      + 'exists we use it and say so, and where it does not the wording is ours. They are not equally well grounded, and each one says which it is: '
+  anchors: (citeDeck) => 'Every sub-factor carries a 1–5 anchor, so a score reads as a description rather than a number. '
+      + (citeDeck
+          ? 'The source deck states the 1–5 scale and never defines a single point on it, so these ladders are ours to own: '
+          : 'No external source for this project defines a single point on the 1–5 scale, so these ladders are ours to own: ')
+      + 'where Aberdeen’s or the client plan’s band text exists we use it and say so, and where it does not the wording is ours. They are not equally well grounded, and each one says which it is: '
       + 'capability delta is Aberdeen’s own wording at 1, 3 and 5; frequency and volume is ours end to end, because no source in the evidence base measures it.',
 };
 
@@ -224,9 +232,12 @@ const ANCHORS = {
   },
   decisionRights: {
     origin: 'Our ladder · Aberdeen driver vocabulary at 1 · 2 · 4',
-    note: 'The ladder is ours. No instrument in the evidence base scores decision rights as its own dimension, not one of '
+    // The anchor-5 sentence traces to Team 2's own deck - true only for a
+    // project with a deck to trace to (Thornwood); every other project gets
+    // the same fact without inventing a source that doesn't exist for it.
+    note: (citeDeck) => 'The ladder is ours. No instrument in the evidence base scores decision rights as its own dimension, not one of '
         + 'Prosci’s 28 risk items and none of its 10 impact aspects, which is precisely why it is in our model. The vocabulary at '
-        + '1, 2 and 4 is Aberdeen’s driver wording; the anchor at 5 is our own deck’s sentence.',
+        + `1, 2 and 4 is Aberdeen’s driver wording; the anchor at 5 is ${citeDeck ? 'our own deck’s sentence' : 'ours'}.`,
     bands: [
       'No change to what the role may approve, release or override',
       'The same approvals, but new evidence or an audit trail is required: a reason code, a second signature',
@@ -236,9 +247,12 @@ const ANCHORS = {
     ],
   },
   localReadiness: {
-    origin: 'Construct from our own deck · all five bands our wording',
-    note: 'Four limbs, one score: site-leadership capacity, change fatigue and the history of change at the site, digital maturity, '
-        + 'and deskless access. The four limbs are our own source deck’s definition of local readiness (slide 7); every word of the five '
+    // Both fields cite a specific deck slide for the four-limb construct -
+    // true only for the project that deck actually describes (Thornwood);
+    // every other project owns the same construct without the false citation.
+    origin: (citeDeck) => `Construct from our own${citeDeck ? ' deck' : ''} · all five bands our wording`,
+    note: (citeDeck) => 'Four limbs, one score: site-leadership capacity, change fatigue and the history of change at the site, digital maturity, '
+        + `and deskless access. The four limbs are our own ${citeDeck ? 'source deck’s ' : ''}definition of local readiness${citeDeck ? ' (slide 7)' : ''}; every word of the five `
         + 'band descriptions below is ours, written against the construct rather than lifted from an instrument. Licensed assessment '
         + 'wording is not reproduced anywhere in this tool (docs/source-synthesis.md §8.8). Worth knowing how unevenly the limbs are '
         + 'evidenced: leadership capacity and change fatigue are measured by published instruments, digital maturity is scored by no '
@@ -255,10 +269,14 @@ const ANCHORS = {
   },
   frequencyVolume: {
     origin: 'OURS end to end: no source measures this',
-    note: 'This ladder is ours, every word of it. This is the least grounded of the six sub-factors: no source in the evidence base '
+    // "Team 2 added this sub-factor" and "our own deck already names as an
+    // input" are both claims about Thornwood's own deck - true only there.
+    note: (citeDeck) => 'This ladder is ours, every word of it. This is the least grounded of the six sub-factors: no source in the evidence base '
         + 'scores task frequency or volume. The nearest items measure the frequency of communications and the size of the '
-        + 'population, which are different things and are not offered as equivalents. Team 2 added this sub-factor. The honest defence '
-        + 'is that it is directly countable from the system transaction lists our own deck already names as an input, and it is the '
+        + `population, which are different things and are not offered as equivalents. ${citeDeck ? 'Team 2 added this sub-factor. ' : ''}The honest defence `
+        + (citeDeck
+            ? 'is that it is directly countable from the system transaction lists our own deck already names as an input, and it is the '
+            : 'is that it is directly countable from the system transaction lists this kind of rollout already generates, and it is the ')
         + 'sub-factor most likely to be challenged.',
     bands: [
       'The changed task runs less than monthly for a given post-holder',
@@ -270,13 +288,21 @@ const ANCHORS = {
   },
 };
 
+// A handful of ANCHORS origin/note fields cite Team 2's own deck and are
+// only true for a project that traces to one; those fields are functions of
+// citeDeck instead of plain strings, everything else is unconditional.
+function resolveAnchorField(v, citeDeck) {
+  return typeof v === 'function' ? v(citeDeck) : v;
+}
+
 /* A 1-5 slider moves in 0.1 steps, so a value usually sits between two
    anchors. We show the nearest one and say when it is only the nearest. */
-function anchorFor(key, value) {
+function anchorFor(key, value, citeDeck) {
   const a = ANCHORS[key];
   if (!a || !isScore(value)) return null;
   const n = Math.min(5, Math.max(1, Math.round(value)));
-  return { n, text: a.bands[n - 1], exact: Math.abs(value - n) < 0.05, origin: a.origin, note: a.note };
+  return { n, text: a.bands[n - 1], exact: Math.abs(value - n) < 0.05,
+           origin: resolveAnchorField(a.origin, citeDeck), note: resolveAnchorField(a.note, citeDeck) };
 }
 
 const ALL_FACTORS = [...IMPACT_FACTORS, ...RISK_FACTORS];
@@ -447,14 +473,24 @@ const DOSES = {
    metrics are Aberdeen's. Which tier gets which of them is ours.
    --------------------------------------------------------------------------- */
 
+// Every duration here is a typical SESSION length, not the total curriculum
+// hours a role is required to complete - that total is set by tier alone
+// (DOSES[tier].curriculumHours, shown as "Total required hours" wherever a
+// role's own plan is rendered) and never appears in this table. onShift is
+// the modality override for deskless roles: same required hours as its
+// tier, just delivered on shift instead of in a classroom or online, so its
+// "session length" is necessarily the tier's own total rather than a fixed
+// range like the other methods - trainingDesign() builds that duration
+// string per role and spreads the rest of this entry in unchanged.
 const TRAINING_METHODS = {
   instructorLed: { method: 'Instructor-led',         duration: '1-4 hrs',     fits: 'high/medium complexity, centralised, small-to-medium audience', delivery: 'train-the-trainer' },
   virtual:       { method: 'Virtual instructor-led', duration: '0.5-1.5 hrs', fits: 'low/medium complexity',                                        delivery: 'train-the-trainer' },
   webBased:      { method: 'Web-based',              duration: '15-90 min',   fits: 'low complexity, large audience',                                delivery: 'self-driven' },
+  onShift:       { method: 'On-shift delivery',      duration: 'same as tier’s required hours',  fits: 'deskless roles, any tier except Inform',    delivery: 'train-the-trainer' },
   nano:          { method: 'Nano-learning',          duration: '1-5 min',     fits: 'reinforcement in the flow of work',                             delivery: 'self-driven' },
   jobAids:       { method: 'Job aids',               duration: '1-30 min',    fits: 'point-of-work reference',                                       delivery: 'self-driven' },
 };
-const METHOD_ORDER = ['instructorLed', 'virtual', 'webBased', 'nano', 'jobAids'];
+const METHOD_ORDER = ['instructorLed', 'virtual', 'webBased', 'onShift', 'nano', 'jobAids'];
 
 /* Job-aid volume scales with the impact rating. Ranges are Aberdeen's; the
    band cut-offs on our 1-5 impact-severity scale, and the single number picked
@@ -565,8 +601,9 @@ function trainingDesign(role) {
     // shadowing, sandbox rotated into shift time - this just states the
     // hours and the reinforcement).
     primary = {
-      method: 'On-shift delivery', duration: `${pluralize(hours, 'hour')} total, plus nano-learning reinforcement`,
-      fits: 'deskless: no classroom or screen access', delivery: 'train-the-trainer',
+      ...TRAINING_METHODS.onShift,
+      duration: `${pluralize(hours, 'hour')} total, plus nano-learning reinforcement`,
+      fits: 'deskless: no classroom or screen access',
     };
     why = `deskless: the same ${pluralize(hours, 'hour')} ${role.tier} requires everywhere, delivered on shift instead of in a classroom or online`;
   } else {
@@ -3818,14 +3855,16 @@ async function loadRolesForProject(project) {
 /* ===========================================================================
    4b. PROJECTS. The picker's registry. Three worked examples plus a blank
    starting point. Each entry carries its own dataset, site-archetype
-   vocabulary, and hasDeckReproduction - which gates only the handful of
-   citations that trace to Team 2's original deck (the unit-of-analysis note
-   and the Rebuild super-user ratio, both in the Stakeholder Impact tab and
-   the one-pager). Those citations would be misleading for a dataset with no
-   corresponding deck, so they only show for the consumer-products example.
-   showDeckProvenance is a separate, dead prop threaded into TrainingView/
-   CommunicationView/PlanView from this same flag - see CLAUDE.md - and gates
-   nothing; do not describe it here as showing anything.
+   vocabulary, and hasDeckReproduction - which gates every citation that
+   traces to Team 2's original deck: the unit-of-analysis note and the
+   Rebuild super-user ratio (Stakeholder Impact tab and the one-pager), the
+   weights/anchors provenance footnotes (also Training and Communication,
+   as `citeDeck`), and the add-a-role site-scope capacity hint. Those
+   citations would be misleading for a dataset with no corresponding deck,
+   so they only show for the consumer-products example. PlanView still
+   receives this same flag as `showDeckProvenance` and still reads nothing
+   from it - that one prop is genuinely dead; do not describe it here as
+   showing anything.
    =========================================================================== */
 
 const PROJECTS = [
@@ -3920,7 +3959,15 @@ async function suggestScoresForRole({ name, siteArchetype, headcount, summary })
    6. SMALL PRESENTATION HELPERS
    =========================================================================== */
 
-const pct = (x) => `${Math.round(x * 100)}%`;
+// A share that's genuinely 0 and a share that's merely too small to round
+// to a whole percent are different findings - Bellcrest's Inform tier is
+// 0.2% of the change budget, not 0% of it, and its programme cost is very
+// much not zero. Only an exact 0 renders as "0%"; anything above that,
+// however small, renders as "<1%" rather than rounding itself away.
+const pct = (x) => {
+  const r = Math.round(x * 100);
+  return r === 0 && x > 0 ? '<1%' : `${r}%`;
+};
 
 /* Every count-plus-noun string in the app runs through this, so a count of
    exactly 1 (a small Enable role's champion count, a single sandbox seat)
@@ -4302,7 +4349,7 @@ const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId,
 /* Weight tuning. The weights are ours, so they are ours to move, and the demo
    is stronger for showing that the line is a choice, not a fact. Weights are
    normalised per axis, so scores stay on the 1-5 scale at any setting. */
-function WeightTuner({ weights, onChange, onReset }) {
+function WeightTuner({ weights, onChange, onReset, citeDeck }) {
   const isDefault = weightsAreDefault(weights);
   const eff = (factors, f) => {
     const sum = factors.reduce((s, x) => s + Math.max(0, weights[x.key]), 0);
@@ -4329,7 +4376,7 @@ function WeightTuner({ weights, onChange, onReset }) {
         <span className="state">{isDefault ? 'our default: 0.45 / 0.25 / 0.30 and 0.40 / 0.35 / 0.25' : 'changed from our default'}</span>
       </summary>
       <div className="tuner-body">
-        <p className="sub">{NOTE.weights} Weights are normalised per axis, so every score stays on the 1–5 scale, and the tiering moves in front of the room.</p>
+        <p className="sub">{NOTE.weights(citeDeck)} Weights are normalised per axis, so every score stays on the 1–5 scale, and the tiering moves in front of the room.</p>
         <div className="wt-grid">
           {axis('Impact severity', IMPACT_FACTORS)}
           {axis('Adoption risk', RISK_FACTORS)}
@@ -4351,7 +4398,7 @@ function rateCardIsDefault(rc) {
    dollar figure. Editable in front of the room on purpose: a judge who
    says "your day rate is too high" should see costModel's output reprice
    the instant a field changes, not on the next slide. */
-function RateCardPanel({ rateCard, onChange, onReset, cost }) {
+function RateCardPanel({ rateCard, onChange, onReset, cost, citeDeck }) {
   const isDefault = rateCardIsDefault(rateCard);
   return (
     <details className="tuner no-print">
@@ -4362,7 +4409,9 @@ function RateCardPanel({ rateCard, onChange, onReset, cost }) {
       <div className="tuner-body">
         <p className="sub">
           None of these seven rates is an Aberdeen benchmark: Aberdeen's OCM material gives methods and durations, never a
-          dollar figure, and the source deck's own ROI number carries no cost breakdown under it. Every rate below is ours,
+          dollar figure, {citeDeck
+            ? "and the source deck's own ROI number carries no cost breakdown under it"
+            : 'and no external source for this project gives a cost breakdown for its ROI figure either'}. Every rate below is ours,
           an illustrative placeholder tuned to look reasonable, not a client's real rate card - that is exactly why it is
           editable here rather than fixed in the model.
         </p>
@@ -4722,7 +4771,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         })}
       </div>
 
-      <RateCardPanel rateCard={rateCard} onChange={onRate} onReset={onResetRateCard} cost={cost} />
+      <RateCardPanel rateCard={rateCard} onChange={onRate} onReset={onResetRateCard} cost={cost} citeDeck={citeDeck} />
 
       {/* 3. THE QUADRANT CHART. The weighting panel sits right after it: it's
           the control that moves what the chart plots and how roles tier. */}
@@ -4734,7 +4783,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
       </div>
 
-      <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} />
+      <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} citeDeck={citeDeck} />
       <ThresholdSensitivityPanel scored={scored} threshold={threshold} onChange={onThreshold} onReset={onResetThreshold} />
       <ScenariosPanel weights={weights} threshold={threshold} activeScenarioName={activeScenarioName} scenarios={scenarios}
                       onSave={onSaveScenario} onLoad={onLoadScenario} onDelete={onDeleteScenario} rawAll={rawAll} rateCard={rateCard} />
@@ -4791,7 +4840,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
             Adoption risk = {RISK_FACTORS.map((f) => `${effWeight(RISK_FACTORS, f).toFixed(2)}×${f.label.toLowerCase()}`).join(' + ')}
           </p>
           <p className="footnote" style={{ marginTop: 8 }}>{noteThreshold(threshold)}</p>
-          <p className="footnote">{NOTE.weights}</p>
+          <p className="footnote">{NOTE.weights(citeDeck)}</p>
         </div>
       </details>
 
@@ -4804,7 +4853,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
    8. ROLE ONE-PAGER
    =========================================================================== */
 
-function AxisBreakdown({ name, factors, values, score, newRole }) {
+function AxisBreakdown({ name, factors, values, score, newRole, citeDeck }) {
   return (
     <div className="score-block">
       <div className="score-head">
@@ -4814,8 +4863,8 @@ function AxisBreakdown({ name, factors, values, score, newRole }) {
       </div>
       <div className="subfactors">
         {factors.map((f) => {
-          const hit = anchorFor(f.key, values[f.key]);
-          const ours = /^OURS/.test(ANCHORS[f.key].origin);
+          const hit = anchorFor(f.key, values[f.key], citeDeck);
+          const ours = /^OURS/.test(resolveAnchorField(ANCHORS[f.key].origin, citeDeck));
           // taskShare is forced to 5 for a net-new role by scoreRole/withDerivedTaskShare,
           // not read from data entry - say so on this row instead of citing the anchor's
           // usual provenance, since the real "origin" of this 5 is the isNewRole flag.
@@ -4863,15 +4912,15 @@ function onePagerText(role, comboExample, citeDeck) {
   L.push('WHAT EACH SCORE MEANS (1-5 anchors, with their provenance)');
   ALL_FACTORS.forEach((f) => {
     const v = (IMPACT_FACTORS.includes(f) ? role.impact : role.risk)[f.key];
-    const a = anchorFor(f.key, v);
+    const a = anchorFor(f.key, v, citeDeck);
     if (!a) return;
     const forced = role.isNewRole && f.key === 'taskShare';
     L.push(`  ${f.label} ${v.toFixed(1)}: anchor ${a.n}${a.exact ? '' : ' (nearest)'}: ${a.text}${forced ? ' -- net-new role (rule applied automatically)' : ''}`);
     L.push(`    provenance: ${forced ? 'rule, not data entry' : a.origin}`);
   });
-  L.push(`  The source deck defines no point on the 1-5 scale. Frequency and volume is ours end to end - no source measures it.`);
+  L.push(`  ${NOTE.anchors(citeDeck)}`);
   L.push('');
-  L.push(`Weights are ours: our default, and tunable. The source deck states no weights and no aggregation method.`);
+  L.push(NOTE.weights(citeDeck));
   L.push(noteUnit(comboExample, citeDeck));
   L.push('');
   L.push(`Tasks: ${role.tasksRemoved} removed · ${role.tasksChanged} changed · ${role.tasksNew} new · FTE delta ${signed(role.fteDelta)}`);
@@ -5091,15 +5140,15 @@ function OnePager({ role, onBack, backLabel, comboExample, citeDeck }) {
           </button>
         </div>
         <div className={'card-body score-detail' + (showScore ? '' : ' collapsed')}>
-          <AxisBreakdown name="Impact severity" factors={IMPACT_FACTORS} values={role.impact} score={role.scores.impact} newRole={role.isNewRole} />
-          <AxisBreakdown name="Adoption risk" factors={RISK_FACTORS} values={role.risk} score={role.scores.risk} />
+          <AxisBreakdown name="Impact severity" factors={IMPACT_FACTORS} values={role.impact} score={role.scores.impact} newRole={role.isNewRole} citeDeck={citeDeck} />
+          <AxisBreakdown name="Adoption risk" factors={RISK_FACTORS} values={role.risk} score={role.scores.risk} citeDeck={citeDeck} />
           <div className="sf-total" style={{ borderTop: '1px solid var(--hairline)', marginTop: 14, paddingTop: 12 }}>
             impact {role.scores.impact.toFixed(1)} {role.scores.impact >= THRESHOLD ? '≥' : '<'} {THRESHOLD.toFixed(1)} and risk {role.scores.risk.toFixed(1)} {role.scores.risk >= THRESHOLD ? '≥' : '<'} {THRESHOLD.toFixed(1)}
             <b>→ {role.tier}</b>
           </div>
           <p className="footnote">{noteThreshold(THRESHOLD)}</p>
-          <p className="footnote">{NOTE.weights}</p>
-          <p className="footnote">{NOTE.anchors}</p>
+          <p className="footnote">{NOTE.weights(citeDeck)}</p>
+          <p className="footnote">{NOTE.anchors(citeDeck)}</p>
           <p className="footnote">{noteUnit(comboExample, citeDeck)}</p>
         </div>
       </div>
@@ -5156,12 +5205,14 @@ function blankFor(project) {
   };
 }
 
-function Slider({ factor, weightFactors, value, onChange }) {
+function Slider({ factor, weightFactors, value, onChange, citeDeck }) {
   const unset = !isScore(value);
   const commit = (e) => { if (unset) onChange(parseFloat(e.currentTarget.value)); };
   const a = ANCHORS[factor.key];
-  const hit = anchorFor(factor.key, value);
-  const ours = /^OURS/.test(a.origin);
+  const origin = resolveAnchorField(a.origin, citeDeck);
+  const note = resolveAnchorField(a.note, citeDeck);
+  const hit = anchorFor(factor.key, value, citeDeck);
+  const ours = /^OURS/.test(origin);
   return (
     <div className={'slider' + (unset ? ' unset' : '')}>
       <div className="top">
@@ -5188,14 +5239,14 @@ function Slider({ factor, weightFactors, value, onChange }) {
       <details className="anchor-all">
         <summary>
           All five anchors
-          <span className={'prov' + (ours ? ' ours' : '')}>{a.origin}</span>
+          <span className={'prov' + (ours ? ' ours' : '')}>{origin}</span>
         </summary>
         <ol className="anchor-list">
           {a.bands.map((b, i) => (
             <li key={i} className={hit && hit.n === i + 1 ? 'on' : ''}><b>{i + 1}</b><span>{b}</span></li>
           ))}
         </ol>
-        <p className="anchor-note">{a.note}</p>
+        <p className="anchor-note">{note}</p>
       </details>
     </div>
   );
@@ -5254,9 +5305,9 @@ function AddRoleView({ onCreate, project, comboExample }) {
           single archetype{comboExample ? <> or a named combination of them, like <b>{comboExample}</b></> : null}. That scope is
           what a curriculum, a comms message and a named accountable manager attach to.
           All six sub-factors are required: until they are set the row reads <b>incomplete</b>, with no score and no tier.
-          {' '}{noteThreshold(THRESHOLD)} {NOTE.weights}
+          {' '}{noteThreshold(THRESHOLD)} {NOTE.weights(project.hasDeckReproduction)}
         </p>
-        <p className="lede unit">{NOTE.anchors}</p>
+        <p className="lede unit">{NOTE.anchors(project.hasDeckReproduction)}</p>
       </div>
 
       <form onSubmit={submit}>
@@ -5366,7 +5417,7 @@ function AddRoleView({ onCreate, project, comboExample }) {
               <div className="card-body">
                 <div className="slider-grid">
                   {IMPACT_FACTORS.map((fa) => (
-                    <Slider key={fa.key} factor={fa} weightFactors={IMPACT_FACTORS} value={f.impact[fa.key]} onChange={(v) => setSub('impact', fa.key, v)} />
+                    <Slider key={fa.key} factor={fa} weightFactors={IMPACT_FACTORS} value={f.impact[fa.key]} onChange={(v) => setSub('impact', fa.key, v)} citeDeck={project.hasDeckReproduction} />
                   ))}
                 </div>
               </div>
@@ -5377,7 +5428,7 @@ function AddRoleView({ onCreate, project, comboExample }) {
               <div className="card-body">
                 <div className="slider-grid">
                   {RISK_FACTORS.map((fa) => (
-                    <Slider key={fa.key} factor={fa} weightFactors={RISK_FACTORS} value={f.risk[fa.key]} onChange={(v) => setSub('risk', fa.key, v)} />
+                    <Slider key={fa.key} factor={fa} weightFactors={RISK_FACTORS} value={f.risk[fa.key]} onChange={(v) => setSub('risk', fa.key, v)} citeDeck={project.hasDeckReproduction} />
                   ))}
                 </div>
               </div>
@@ -5707,7 +5758,7 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
    use, this view just presents them across the whole portfolio.
    =========================================================================== */
 
-function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, weights, onResetWeights, tierFilter, setTierFilter }) {
+function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weights, onResetWeights, tierFilter, setTierFilter }) {
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const trainingGroup = plan.find((g) => g.group === 'Training');
   const rows = useMemo(() => scored
@@ -5717,10 +5768,10 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
   return (
     <>
       <div className="view-head">
-        <h2>Training: required hours, delivery format and job aids, by role</h2>
+        <h2>Training: total required hours, delivery format and job aids, by role</h2>
         <p className="lede">
-          Required hours come from tier and complexity alone, never from deskless status: a deskless Rebuild role needs the
-          same hours a desk-based Rebuild role needs. Deskless changes the delivery format - on shift instead of a classroom
+          Total required hours come from tier alone, never from complexity or deskless status: a deskless Rebuild role needs
+          the same hours a desk-based Rebuild role needs. Deskless changes the delivery format - on shift instead of a classroom
           or e-learning, with nano-learning added as reinforcement, never substituted for the curriculum - not the volume.
           Filter by tier to plan delivery waves.
         </p>
@@ -5747,7 +5798,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
         <table className="data">
           <thead>
             <tr>
-              <th>Role</th><th>Tier</th><th className="n" title="Set by tier alone (DOSES[tier].curriculumHours) - never by deskless status">Required hours</th>
+              <th>Role</th><th>Tier</th><th className="n" title="Total curriculum hours required, set by tier alone (DOSES[tier].curriculumHours) - never by complexity or deskless status. Not the same as a session's typical length, shown in the delivery standards below.">Total required hours</th>
               <th>Method</th><th>Complexity</th><th className="n">Job aids</th>
               <th title="What shaped the delivery format, not the volume">Delivery constraint</th>
             </tr>
@@ -5784,6 +5835,9 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
             <div className="assume">
               <h4>Training methods, by complexity</h4>
               <table className="mini">
+                <thead>
+                  <tr><th>Method</th><th className="num">Typical session length</th><th className="ch">Fits</th></tr>
+                </thead>
                 <tbody>
                   {METHOD_ORDER.map((k) => (
                     <tr key={k}>
@@ -5795,7 +5849,8 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
                 </tbody>
               </table>
               <p className="footnote">
-                Our selection rule, in two parts. Required hours: set by tier alone (Rebuild {DOSES.Rebuild.curriculumHours}h,
+                “Typical session length” above is how long one sitting runs, not the total curriculum - that total is set by tier
+                {' '}alone, shown as “Total required hours” in the roles table above (Rebuild {DOSES.Rebuild.curriculumHours}h,
                 {' '}Enable {DOSES.Enable.curriculumHours}h, Reassure {DOSES.Reassure.curriculumHours}h, Inform {DOSES.Inform.curriculumHours}h) -
                 {' '}deskless status never changes this number. Delivery format: high complexity → instructor-led, medium → virtual, low →
                 {' '}web-based above {LARGE_AUDIENCE} people and virtual below it; deskless → the same hours delivered on shift instead,
@@ -5817,7 +5872,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
           </div>
         </div>
       </div>
-      <p className="footnote">All figures illustrative. All data synthetic. {NOTE.weights}</p>
+      <p className="footnote">All figures illustrative. All data synthetic. {NOTE.weights(citeDeck)}</p>
     </>
   );
 }
@@ -5826,7 +5881,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, showDeckProven
    10c. COMMUNICATION: milestones, channel, cascade scripts, by role.
    =========================================================================== */
 
-function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate, weights, onResetWeights, tierFilter, setTierFilter }) {
+function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck, goLiveDate, weights, onResetWeights, tierFilter, setTierFilter }) {
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const commsGroup = plan.find((g) => g.group === 'Communication');
   const daysLive = useMemo(() => daysSince(goLiveDate), [goLiveDate]);
@@ -5946,7 +6001,7 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, showDeckP
           </table>
         </div>
       </div>
-      <p className="footnote">All figures illustrative. All data synthetic. {NOTE.weights}</p>
+      <p className="footnote">All figures illustrative. All data synthetic. {NOTE.weights(citeDeck)}</p>
     </>
   );
 }
@@ -6198,9 +6253,18 @@ function parseHash(hash) {
     }
   }
   const thRaw = parseFloat(q.get('th'));
+  // No tab segment at all (a bare project link) is a normal, silent
+  // default. A tab segment that names something real but wrong - a stale
+  // link, a typo, an old bookmark from before a tab was renamed - is a
+  // different case: the reader clicked something specific and got a
+  // screen that doesn't match it, so the caller surfaces this one instead
+  // of only falling back quietly.
+  const tabIdValid = !tabId || ALL_TABS.some((t) => t.id === tabId);
   return {
     projectId: projectId || null,
-    tabId: (tabId && ALL_TABS.some((t) => t.id === tabId)) ? tabId : null,
+    tabId: (tabId && tabIdValid) ? tabId : null,
+    unknownTab: !!(tabId && !tabIdValid),
+    rawTabId: tabId || null,
     roleId: roleWord === 'role' ? (roleId || null) : null,
     sa: q.get('sa') || 'All',
     tier: q.get('tier') || 'All',
@@ -6497,7 +6561,7 @@ function DraftRoleRow({ draft, onUpdate, onRemove }) {
               <div className="slider-grid">
                 {IMPACT_FACTORS.map((fa) => (
                   <div key={fa.key}>
-                    <Slider factor={fa} weightFactors={IMPACT_FACTORS} value={draft.impact[fa.key]} onChange={(v) => setSub('impact', fa.key, v)} />
+                    <Slider factor={fa} weightFactors={IMPACT_FACTORS} value={draft.impact[fa.key]} onChange={(v) => setSub('impact', fa.key, v)} citeDeck={false} />
                     {draft.rationale && draft.rationale[fa.key] && <p className="ai-rationale">{draft.rationale[fa.key]}</p>}
                   </div>
                 ))}
@@ -6508,7 +6572,7 @@ function DraftRoleRow({ draft, onUpdate, onRemove }) {
               <div className="slider-grid">
                 {RISK_FACTORS.map((fa) => (
                   <div key={fa.key}>
-                    <Slider factor={fa} weightFactors={RISK_FACTORS} value={draft.risk[fa.key]} onChange={(v) => setSub('risk', fa.key, v)} />
+                    <Slider factor={fa} weightFactors={RISK_FACTORS} value={draft.risk[fa.key]} onChange={(v) => setSub('risk', fa.key, v)} citeDeck={false} />
                     {draft.rationale && draft.rationale[fa.key] && <p className="ai-rationale">{draft.rationale[fa.key]}</p>}
                   </div>
                 ))}
@@ -6814,6 +6878,25 @@ function App() {
   const [activeScenarioName, setActiveScenarioName] = useState(null); // display only; cleared by any manual weight/threshold edit
   const [rateCard, setRateCard] = useState(() => ({ ...DEFAULT_RATE_CARD }));
   const [filters, setFilters] = useState({ sa: 'All', tier: 'All' }); // site-archetype and tier filters, URL-encoded
+  // A stale/mistyped tab slug in the URL (e.g. a link built against an old
+  // tab id) - shown once, briefly, and the address bar is corrected to
+  // match what's actually on screen, rather than the two silently
+  // disagreeing. Null when nothing needed correcting.
+  const [routeNotice, setRouteNotice] = useState(null);
+  const routeNoticeTimerRef = useRef(null);
+  const flagUnknownTab = useCallback((matched, route) => {
+    if (!route.unknownTab) return;
+    const landedOn = route.roleId ? 'the role one-pager' : TAB_LABELS.portfolio;
+    clearTimeout(routeNoticeTimerRef.current);
+    setRouteNotice(`This link's "${route.rawTabId}" tab isn't one this project has - showing ${landedOn} instead.`);
+    routeNoticeTimerRef.current = setTimeout(() => setRouteNotice(null), 8000);
+    // Correct the address bar to match what's actually rendered (same
+    // roleId-or-portfolio resolution the boot/popstate effects use), so a
+    // reload or a re-share of this link lands somewhere real instead of
+    // reproducing the same silent mismatch.
+    const corrected = buildHash(matched, route.roleId ? 'role' : 'portfolio', 'portfolio', route.roleId, route.weights, { sa: route.sa, tier: route.tier }, route.threshold, route.scenarioName);
+    history.replaceState(null, '', corrected);
+  }, []);
 
   // Boot: a shared link should reproduce exactly what the sender saw, so
   // the very first render reads it, before anything else has a chance to
@@ -6830,6 +6913,7 @@ function App() {
     if (route.weights) setWeights(route.weights);
     if (route.threshold != null) setThresholdState(route.threshold);
     if (route.scenarioName) setActiveScenarioName(route.scenarioName);
+    flagUnknownTab(matched, route);
   }, []);
 
   // Back and Forward navigate the hash directly; re-sync every piece of
@@ -6848,10 +6932,11 @@ function App() {
       setThresholdState(route.threshold != null ? route.threshold : DEFAULT_THRESHOLD);
       setActiveScenarioName(route.scenarioName || null);
       setRateCard({ ...DEFAULT_RATE_CARD });
+      flagUnknownTab(matched, route);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, []);
+  }, [flagUnknownTab]);
 
   // Writes the URL to match state that already changed. 'push' for real
   // navigation (a new tab, a new role, a new project - Back should undo
@@ -7037,10 +7122,12 @@ function App() {
     setActiveScenarioName(null);
     setRateCard({ ...DEFAULT_RATE_CARD });
     setFilters({ sa: 'All', tier: 'All' });
-    // A leftover flash from the previous project's weights must never
-    // bleed into this one.
+    // A leftover flash from the previous project's weights, or a leftover
+    // bad-link notice, must never bleed into this one.
     clearTimeout(flashTimerRef.current);
     setWeightDeltas(null);
+    clearTimeout(routeNoticeTimerRef.current);
+    setRouteNotice(null);
     history.pushState(null, '', buildHash(p, 'portfolio', 'portfolio', null, DEFAULT_WEIGHTS, { sa: 'All', tier: 'All' }, DEFAULT_THRESHOLD, null));
   }, []);
 
@@ -7073,6 +7160,9 @@ function App() {
           )}
           <button className="btn" onClick={backToProjects}>← All projects</button>
         </div>
+        {routeNotice && (
+          <div className="weight-flash route-notice">{routeNotice}</div>
+        )}
         {weightDeltas && (
           <div className="weight-flash">
             Just moved: {weightDeltas.map(formatWeightDelta).join(' · ')}
@@ -7112,12 +7202,12 @@ function App() {
         )}
         {tab === 'training' && (
           <TrainingView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
-                        showDeckProvenance={project.hasDeckReproduction} weights={weights} onResetWeights={resetWeights}
+                        citeDeck={project.hasDeckReproduction} weights={weights} onResetWeights={resetWeights}
                         tierFilter={filters.tier} setTierFilter={setFilterTier} />
         )}
         {tab === 'comms' && (
           <CommunicationView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
-                              showDeckProvenance={project.hasDeckReproduction} goLiveDate={project.goLiveDate}
+                              citeDeck={project.hasDeckReproduction} goLiveDate={project.goLiveDate}
                               weights={weights} onResetWeights={resetWeights}
                               tierFilter={filters.tier} setTierFilter={setFilterTier} />
         )}
