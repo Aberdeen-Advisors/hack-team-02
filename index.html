@@ -63,7 +63,14 @@ const { useState, useMemo, useEffect, useRef, useCallback } = React;
    THRESHOLD: 3.5 on both axes, inclusive: exactly 3.5 counts as above.
    =========================================================================== */
 
-const THRESHOLD = 3.5;
+const DEFAULT_THRESHOLD = 3.5;
+/* Mutable, like IMPACT_FACTORS/RISK_FACTORS's own .weight fields: scoreRole
+   and assignTier read this module-level value, and applyThreshold sets it
+   before a scoring pass, so a slider can move it and every tier assignment
+   in the app moves with it live - the same mechanism weight tuning already
+   uses, not a second one. */
+let THRESHOLD = DEFAULT_THRESHOLD;
+function applyThreshold(t) { if (isScore(t) && t >= 1 && t <= 5) THRESHOLD = t; }
 
 /* Short, honest provenance strings. Used verbatim on screen so the claims the
    tool makes on stage are the claims it can defend. */
@@ -1135,8 +1142,9 @@ function resourcedPlan(scored) {
    tabs the reader isn't even looking at yet. Always computed against the
    whole, unfiltered roster (raw), never a site-scoped subset, since the
    header indicator is project-wide. */
-function computeKeyFigures(rawRoles, weightsObj) {
+function computeKeyFigures(rawRoles, weightsObj, threshold) {
   applyWeights(weightsObj);
+  applyThreshold(threshold != null ? threshold : THRESHOLD);
   const scoredNow = rawRoles.map(scoreRole).filter((r) => r.complete);
   const agg = aggregate(scoredNow);
   const plan = resourcedPlan(scoredNow);
@@ -1150,6 +1158,69 @@ function computeKeyFigures(rawRoles, weightsObj) {
 function formatWeightDelta(d) {
   const tier = TIER_ORDER.find((t) => d.label === `${t} roles`);
   return tier ? `${tier} ${d.from}→${d.to} roles` : `${d.label} ${d.from}→${d.to}`;
+}
+
+/* The 3.5 cut is justified by analogy, not by a source that measures this
+   tool's own data - the weakest link in the chain, and every tier
+   assignment depends on it. This is the visible version of that fragility:
+   every role within `band` of the current threshold on either axis, and
+   the tier it would carry if that axis crossed the line, so the reader can
+   see how much of the tiering rests on roles that are barely on one side
+   of a debatable cut rather than clearly on either side of an obvious one. */
+function thresholdSensitivity(scored, threshold, band) {
+  return scored
+    .map((r) => {
+      const axes = ['impact', 'risk']
+        .filter((axis) => Math.abs(r.scores[axis] - threshold) <= band)
+        .map((axis) => {
+          const impact = axis === 'impact' ? (r.scores.impact >= threshold ? threshold - 0.1 : threshold + 0.1) : r.scores.impact;
+          const risk = axis === 'risk' ? (r.scores.risk >= threshold ? threshold - 0.1 : threshold + 0.1) : r.scores.risk;
+          return { axis, value: r.scores[axis], wouldBeTier: assignTier(impact, risk) };
+        });
+      return { role: r, axes };
+    })
+    .filter((x) => x.axes.length > 0);
+}
+
+/* Runs the whole scoring + costing pipeline for one (weights, threshold)
+   pair against the given roster, temporarily - the same trick
+   computeKeyFigures already uses (mutate the shared factor/threshold
+   globals, score, read the result back out) so a scenario comparison never
+   needs a second, parallel scoring engine that could drift from the real
+   one. Restores the currently-applied weights/threshold before returning,
+   so calling this to preview scenario B never leaves scenario A's numbers
+   showing anywhere else on screen. */
+function computeScenarioResult(rawRoles, weights, threshold, rateCard, restoreWeights, restoreThreshold) {
+  applyWeights(weights);
+  applyThreshold(threshold);
+  const scoredNow = rawRoles.map(scoreRole).filter((r) => r.complete);
+  const agg = aggregate(scoredNow);
+  const cost = costModel(scoredNow, rateCard);
+  if (restoreWeights) applyWeights(restoreWeights);
+  if (restoreThreshold != null) applyThreshold(restoreThreshold);
+  return { scored: scoredNow, agg, cost };
+}
+
+/* Diffs two scenario results by role id: which roles changed tier, and by
+   how much each tier's population moved. */
+function compareScenarios(resultA, resultB) {
+  const tierOf = (result) => { const m = {}; result.scored.forEach((r) => { m[r.id] = r.tier; }); return m; };
+  const tiersA = tierOf(resultA);
+  const tiersB = tierOf(resultB);
+  const ids = new Set([...Object.keys(tiersA), ...Object.keys(tiersB)]);
+  const moved = [];
+  ids.forEach((id) => {
+    if (tiersA[id] && tiersB[id] && tiersA[id] !== tiersB[id]) {
+      const role = resultB.scored.find((r) => r.id === id) || resultA.scored.find((r) => r.id === id);
+      moved.push({ role, from: tiersA[id], to: tiersB[id] });
+    }
+  });
+  const tierPop = TIER_ORDER.map((t) => ({
+    tier: t,
+    a: resultA.agg.byTier[t].roles, b: resultB.agg.byTier[t].roles,
+    peopleA: resultA.agg.byTier[t].people, peopleB: resultB.agg.byTier[t].people,
+  }));
+  return { moved, tierPop, costA: resultA.cost.total, costB: resultB.cost.total };
 }
 
 /* Total programme cost, split by tier and by workstream (training, comms,
@@ -3901,6 +3972,25 @@ function downloadCSV(filename, csv) {
   URL.revokeObjectURL(url);
 }
 
+/* Named scenarios (weighting + threshold), persisted to localStorage.
+   Private browsing, a full quota or a locked-down browser can all make
+   localStorage throw on read OR write - every call here is wrapped, and
+   failure degrades to "the scenario just isn't saved", never a crash. */
+const SCENARIOS_KEY = 'ciat-scenarios-v1';
+function loadScenarios() {
+  try {
+    const raw = window.localStorage.getItem(SCENARIOS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+function saveScenarios(list) {
+  try { window.localStorage.setItem(SCENARIOS_KEY, JSON.stringify(list)); }
+  catch (e) { /* quota, private mode, or locked down - the scenario just doesn't persist */ }
+}
+
 function TierBadge({ tier, large }) {
   return (
     <span className={'tier-badge' + (large ? ' lg' : '')} style={{ '--wash': TIERS[tier].wash }}>
@@ -4230,6 +4320,168 @@ function RateCardPanel({ rateCard, onChange, onReset, cost }) {
   );
 }
 
+/* The 3.5 cut is the weakest link in the whole chain - justified by
+   analogy to a sponsor competency assessment, not by any source that
+   measures this tool's own data - and every tier assignment depends on
+   it. Adjustable and live, same mechanism as the weight sliders. */
+function ThresholdSensitivityPanel({ scored, threshold, onChange, onReset }) {
+  const isDefault = threshold === DEFAULT_THRESHOLD;
+  const near = useMemo(() => thresholdSensitivity(scored, threshold, 0.2), [scored, threshold]);
+  const nearRows = [];
+  near.forEach(({ role, axes }) => axes.forEach((a) => nearRows.push({ role, ...a })));
+  return (
+    <details className="tuner no-print">
+      <summary>
+        <span className="lbl">Threshold sensitivity</span>
+        <span className="state">{isDefault ? `our default: ${DEFAULT_THRESHOLD.toFixed(1)}, inclusive` : `moved to ${threshold.toFixed(1)}`}</span>
+      </summary>
+      <div className="tuner-body">
+        <p className="sub">
+          {NOTE.threshold} Move it and watch which roles are close enough to flip - that fragility is real, and hiding it
+          would be worse than showing it.
+        </p>
+        <div className="wt-row">
+          <span className="lbl">Threshold, both axes</span>
+          <input type="range" min="2.5" max="4.5" step="0.1" value={threshold}
+                 aria-label="Tier threshold" onChange={(e) => onChange(parseFloat(e.target.value))} />
+          <span className="v num">{threshold.toFixed(1)}</span>
+        </div>
+        <div className="btn-row" style={{ marginTop: 10, marginBottom: 12 }}>
+          <button className="btn" type="button" onClick={onReset} disabled={isDefault}>Reset to our default</button>
+          <span className="sub">Roles within ±0.2 of the current threshold on either axis, and the tier that axis crossing it would give them.</span>
+        </div>
+        {nearRows.length === 0 ? (
+          <p className="sub">No role sits within 0.2 of {threshold.toFixed(1)} on either axis right now.</p>
+        ) : (
+          <div className="table-scroll">
+            <table className="mini">
+              <thead><tr><th>Role</th><th>Axis</th><th className="num">Value</th><th>Tier now</th><th>Would move to</th></tr></thead>
+              <tbody>
+                {nearRows.map((r) => (
+                  <tr key={r.role.id + r.axis}>
+                    <th scope="row">{r.role.role}</th>
+                    <td>{r.axis === 'impact' ? 'Impact' : 'Risk'}</td>
+                    <td className="num">{r.value.toFixed(1)}</td>
+                    <td><TierBadge tier={r.role.tier} /></td>
+                    <td><TierBadge tier={r.wouldBeTier} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+/* Named (weighting, threshold) scenarios: save, load, delete, and compare
+   any two side by side. localStorage-backed (loadScenarios/saveScenarios
+   already wrap every read and write), global across projects since a
+   weighting choice isn't a fact about one client's data. */
+function ScenariosPanel({ weights, threshold, activeScenarioName, scenarios, onSave, onLoad, onDelete,
+                           rawAll, rateCard }) {
+  const [name, setName] = useState('');
+  const [compareA, setCompareA] = useState('current');
+  const [compareB, setCompareB] = useState('');
+
+  const resolve = (key) => (key === 'current' ? { name: 'Current', weights, threshold } : scenarios.find((s) => s.name === key));
+
+  const comparison = useMemo(() => {
+    const a = resolve(compareA);
+    const b = resolve(compareB);
+    if (!a || !b || !rawAll.length) return null;
+    const resultA = computeScenarioResult(rawAll, a.weights, a.threshold, rateCard, weights, threshold);
+    const resultB = computeScenarioResult(rawAll, b.weights, b.threshold, rateCard, weights, threshold);
+    return { a, b, ...compareScenarios(resultA, resultB) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compareA, compareB, scenarios, rawAll, rateCard, weights, threshold]);
+
+  return (
+    <details className="tuner no-print">
+      <summary>
+        <span className="lbl">Scenarios</span>
+        <span className="state">{activeScenarioName ? `active: ${activeScenarioName}` : 'unsaved weighting'}</span>
+      </summary>
+      <div className="tuner-body">
+        <p className="sub">
+          Save the current weighting and threshold under a name ("Client's weighting", "Safety-weighted"), switch
+          between saved scenarios, and compare any two - which roles change tier, how tier populations shift, how
+          total programme cost moves. Saved to this browser only, not to the project.
+        </p>
+        <div className="btn-row" style={{ marginBottom: 12 }}>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name this scenario"
+                 style={{ flex: '1 1 200px' }} />
+          <button className="btn" type="button" onClick={() => { onSave(name); setName(''); }} disabled={!name.trim()}>
+            Save current as…
+          </button>
+        </div>
+        {scenarios.length === 0 ? (
+          <p className="sub">No scenarios saved yet.</p>
+        ) : (
+          <div className="rate-grid">
+            {scenarios.map((s) => (
+              <div className="rate-row" key={s.name} style={{ gridTemplateColumns: '1fr auto auto' }}>
+                <span className="lbl">{s.name}{activeScenarioName === s.name ? ' (active)' : ''}</span>
+                <button className="btn" type="button" onClick={() => onLoad(s)} disabled={activeScenarioName === s.name}>Load</button>
+                <button className="btn" type="button" onClick={() => onDelete(s.name)}>Delete</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {scenarios.length > 0 && (
+          <>
+            <h5 style={{ marginTop: 16, marginBottom: 8, fontSize: 11.5, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>
+              Compare two scenarios
+            </h5>
+            <div className="btn-row" style={{ marginBottom: 10 }}>
+              <select value={compareA} onChange={(e) => setCompareA(e.target.value)} aria-label="Scenario A">
+                <option value="current">Current</option>
+                {scenarios.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+              </select>
+              <span className="sub">vs.</span>
+              <select value={compareB} onChange={(e) => setCompareB(e.target.value)} aria-label="Scenario B">
+                <option value="">Choose a scenario…</option>
+                <option value="current">Current</option>
+                {scenarios.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+              </select>
+            </div>
+            {comparison && (
+              <div>
+                <div className="table-scroll">
+                  <table className="mini">
+                    <thead><tr><th>Tier</th><th className="num">{comparison.a.name}</th><th className="num">{comparison.b.name}</th></tr></thead>
+                    <tbody>
+                      {comparison.tierPop.map((t) => (
+                        <tr key={t.tier}>
+                          <th scope="row"><i className="dot" style={{ '--dot': TIERS[t.tier].hex, marginRight: 6 }} />{t.tier}</th>
+                          <td className="num">{pluralize(t.a, 'role')} · {t.peopleA.toLocaleString()} people</td>
+                          <td className="num">{pluralize(t.b, 'role')} · {t.peopleB.toLocaleString()} people</td>
+                        </tr>
+                      ))}
+                      <tr style={{ borderTop: '1px solid var(--hairline)', fontWeight: 500 }}>
+                        <th scope="row">Programme cost</th>
+                        <td className="num">{money(comparison.costA)}</td>
+                        <td className="num">{money(comparison.costB)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p className="sub" style={{ marginTop: 10 }}>
+                  {comparison.moved.length === 0
+                    ? 'No role changes tier between these two scenarios.'
+                    : `${pluralize(comparison.moved.length, 'role')} change tier: ${comparison.moved.map((m) => `${m.role.role} (${m.from} → ${m.to})`).join(', ')}.`}
+                </p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
 /* Whether Rebuild is a small slice of the population or most of it changes
    the story entirely, and both are real findings depending on the project: a
    manufacturer's ERP rollout can be 9 roles out of 5,000 people (Thornwood);
@@ -4260,7 +4512,9 @@ function concentrationFinding(agg) {
 
 function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights, weightDeltas,
                           siteArchetypeBase, siteArchetypeCombos, comboExample, citeDeck, sourceNamedRoleCount,
-                          onOpenBudgetWeights, rateCard, onRate, onResetRateCard, sa, setSa, projectName }) {
+                          onOpenBudgetWeights, rateCard, onRate, onResetRateCard, sa, setSa, projectName,
+                          threshold, onThreshold, onResetThreshold, rawAll, scenarios, activeScenarioName,
+                          onSaveScenario, onLoadScenario, onDeleteScenario }) {
   // A filter with one real choice is not a filter: Ashford has one site
   // archetype and no combos, so the control is hidden rather than showing
   // "All site archetypes" next to a single, redundant second option.
@@ -4398,6 +4652,9 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       </div>
 
       <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} />
+      <ThresholdSensitivityPanel scored={scored} threshold={threshold} onChange={onThreshold} onReset={onResetThreshold} />
+      <ScenariosPanel weights={weights} threshold={threshold} activeScenarioName={activeScenarioName} scenarios={scenarios}
+                      onSave={onSaveScenario} onLoad={onLoadScenario} onDelete={onDeleteScenario} rawAll={rawAll} rateCard={rateCard} />
 
       {/* 4. THE ROLE x SITE TABLE. */}
       <div className="card" style={{ marginBottom: 16 }}>
@@ -5810,7 +6067,7 @@ const TAB_LABELS = ALL_TABS.reduce((o, t) => { o[t.id] = t.label; return o; }, {
    Forward through tabs and one-pagers, a URL that reproduces exactly what
    the sender saw) without breaking that one.
    Shape: #/<projectId>/<tabId>[/role/<roleId>][?sa=..&tier=..&w=..] */
-function buildHash(project, tab, returnTab, selectedId, weights, filters) {
+function buildHash(project, tab, returnTab, selectedId, weights, filters, threshold, scenarioName) {
   if (!project) return '#/';
   const baseTab = tab === 'role' ? (returnTab || 'portfolio') : tab;
   let path = `#/${project.id}/${baseTab}`;
@@ -5819,6 +6076,8 @@ function buildHash(project, tab, returnTab, selectedId, weights, filters) {
   if (filters && filters.sa && filters.sa !== 'All') q.set('sa', filters.sa);
   if (filters && filters.tier && filters.tier !== 'All') q.set('tier', filters.tier);
   if (weights && !weightsAreDefault(weights)) q.set('w', ALL_FACTORS.map((f) => weights[f.key]).join(','));
+  if (threshold != null && threshold !== DEFAULT_THRESHOLD) q.set('th', threshold);
+  if (scenarioName) q.set('sn', scenarioName);
   const qs = q.toString();
   return qs ? `${path}?${qs}` : path;
 }
@@ -5837,6 +6096,7 @@ function parseHash(hash) {
       ALL_FACTORS.forEach((f, i) => { weights[f.key] = nums[i]; });
     }
   }
+  const thRaw = parseFloat(q.get('th'));
   return {
     projectId: projectId || null,
     tabId: (tabId && ALL_TABS.some((t) => t.id === tabId)) ? tabId : null,
@@ -5844,6 +6104,8 @@ function parseHash(hash) {
     sa: q.get('sa') || 'All',
     tier: q.get('tier') || 'All',
     weights,
+    threshold: (isFinite(thRaw) && thRaw >= 1 && thRaw <= 5) ? thRaw : null,
+    scenarioName: q.get('sn') || null,
   };
 }
 
@@ -6446,6 +6708,8 @@ function App() {
   const [returnTab, setReturnTab] = useState('portfolio'); // where "← Back" on the one-pager / methodology page returns to
   const [selectedId, setSelectedId] = useState(null);
   const [weights, setWeights] = useState(() => ({ ...DEFAULT_WEIGHTS }));
+  const [threshold, setThresholdState] = useState(DEFAULT_THRESHOLD);
+  const [activeScenarioName, setActiveScenarioName] = useState(null); // display only; cleared by any manual weight/threshold edit
   const [rateCard, setRateCard] = useState(() => ({ ...DEFAULT_RATE_CARD }));
   const [filters, setFilters] = useState({ sa: 'All', tier: 'All' }); // site-archetype and tier filters, URL-encoded
 
@@ -6462,6 +6726,8 @@ function App() {
     if (route.roleId) setSelectedId(route.roleId);
     setFilters({ sa: route.sa, tier: route.tier });
     if (route.weights) setWeights(route.weights);
+    if (route.threshold != null) setThresholdState(route.threshold);
+    if (route.scenarioName) setActiveScenarioName(route.scenarioName);
   }, []);
 
   // Back and Forward navigate the hash directly; re-sync every piece of
@@ -6477,6 +6743,8 @@ function App() {
       setSelectedId(route.roleId || null);
       setFilters({ sa: route.sa, tier: route.tier });
       setWeights(route.weights || { ...DEFAULT_WEIGHTS });
+      setThresholdState(route.threshold != null ? route.threshold : DEFAULT_THRESHOLD);
+      setActiveScenarioName(route.scenarioName || null);
       setRateCard({ ...DEFAULT_RATE_CARD });
     };
     window.addEventListener('popstate', onPop);
@@ -6494,12 +6762,14 @@ function App() {
       returnTab: 'returnTab' in overrides ? overrides.returnTab : returnTab,
       selectedId: 'selectedId' in overrides ? overrides.selectedId : selectedId,
       weights: 'weights' in overrides ? overrides.weights : weights,
+      threshold: 'threshold' in overrides ? overrides.threshold : threshold,
       filters: 'filters' in overrides ? overrides.filters : filters,
+      scenarioName: 'scenarioName' in overrides ? overrides.scenarioName : activeScenarioName,
     };
-    const hash = buildHash(s.project, s.tab, s.returnTab, s.selectedId, s.weights, s.filters);
+    const hash = buildHash(s.project, s.tab, s.returnTab, s.selectedId, s.weights, s.filters, s.threshold, s.scenarioName);
     if (mode === 'push') history.pushState(null, '', hash);
     else history.replaceState(null, '', hash);
-  }, [project, tab, returnTab, selectedId, weights, filters]);
+  }, [project, tab, returnTab, selectedId, weights, threshold, filters, activeScenarioName]);
 
   useEffect(() => {
     if (!project) return;
@@ -6513,7 +6783,7 @@ function App() {
 
   // The factor objects carry the live weights, so they are synced before any
   // scoring happens, every displayed weight matches the arithmetic behind it.
-  const all = useMemo(() => { applyWeights(weights); return raw.map(scoreRole); }, [raw, weights]);
+  const all = useMemo(() => { applyWeights(weights); applyThreshold(threshold); return raw.map(scoreRole); }, [raw, weights, threshold]);
   const scored = useMemo(() => all.filter((r) => r.complete), [all]);
   const incomplete = useMemo(() => all.filter((r) => !r.complete), [all]);
   const selected = useMemo(() => all.find((r) => r.id === selectedId) || null, [all, selectedId]);
@@ -6530,14 +6800,19 @@ function App() {
   // moved.
   const flashTimerRef = useRef(null);
   const [weightDeltas, setWeightDeltas] = useState(null);
-  const applyAndDiff = useCallback((nextWeights) => {
-    const before = computeKeyFigures(raw, weights);
-    const after = computeKeyFigures(raw, nextWeights);
+  const applyAndDiff = useCallback((nextWeights, nextThreshold, scenarioName) => {
+    const th = nextThreshold != null ? nextThreshold : threshold;
+    const before = computeKeyFigures(raw, weights, threshold);
+    const after = computeKeyFigures(raw, nextWeights, th);
     const deltas = Object.keys(after)
       .filter((k) => before[k] !== undefined && before[k] !== after[k])
       .map((k) => ({ label: k, from: before[k], to: after[k] }));
     setWeights(nextWeights);
-    syncRoute({ weights: nextWeights }, 'replace');
+    if (nextThreshold != null) setThresholdState(nextThreshold);
+    // A manual slider nudge is no longer "the scenario", exactly; loading
+    // one explicitly passes its own name back in.
+    setActiveScenarioName(scenarioName || null);
+    syncRoute({ weights: nextWeights, threshold: th }, 'replace');
     clearTimeout(flashTimerRef.current);
     if (deltas.length) {
       setWeightDeltas(deltas);
@@ -6545,9 +6820,44 @@ function App() {
     } else {
       setWeightDeltas(null);
     }
-  }, [raw, weights, syncRoute]);
+  }, [raw, weights, threshold, syncRoute]);
   const setWeight = useCallback((key, v) => applyAndDiff({ ...weights, [key]: v }), [applyAndDiff, weights]);
   const resetWeights = useCallback(() => applyAndDiff({ ...DEFAULT_WEIGHTS }), [applyAndDiff]);
+  const setThreshold = useCallback((t) => applyAndDiff(weights, t), [applyAndDiff, weights]);
+  const resetThreshold = useCallback(() => applyAndDiff(weights, DEFAULT_THRESHOLD), [applyAndDiff, weights]);
+
+  // Named scenarios: a saved (weighting, threshold) pair a user can name,
+  // reload and compare later. Global across projects (a weighting choice
+  // isn't a fact about one client's data), persisted to localStorage.
+  const [scenarios, setScenarios] = useState(() => loadScenarios());
+  const saveScenario = useCallback((name) => {
+    const trimmed = (name || '').trim();
+    if (!trimmed) return;
+    const next = [...scenarios.filter((s) => s.name !== trimmed), { name: trimmed, weights, threshold }];
+    setScenarios(next);
+    saveScenarios(next);
+    setActiveScenarioName(trimmed);
+    syncRoute({ weights, threshold }, 'replace'); // sn is added by the effect below, once activeScenarioName lands
+  }, [scenarios, weights, threshold, syncRoute]);
+  const loadScenario = useCallback((scenario) => {
+    applyAndDiff({ ...scenario.weights }, scenario.threshold, scenario.name);
+  }, [applyAndDiff]);
+  const deleteScenario = useCallback((name) => {
+    const next = scenarios.filter((s) => s.name !== name);
+    setScenarios(next);
+    saveScenarios(next);
+    if (activeScenarioName === name) setActiveScenarioName(null);
+  }, [scenarios, activeScenarioName]);
+
+  // The active scenario's name is URL state too (P15/16): once it lands in
+  // state (from saveScenario, loadScenario, or the boot/popstate parse),
+  // this keeps the address bar in sync without every other syncRoute call
+  // site needing to know about scenarios.
+  useEffect(() => {
+    if (!project) return;
+    syncRoute({}, 'replace');
+    // eslint-disable-next-line
+  }, [activeScenarioName]);
 
   const setRate = useCallback((key, v) => setRateCard((rc) => ({ ...rc, [key]: v })), []);
   const resetRateCard = useCallback(() => setRateCard({ ...DEFAULT_RATE_CARD }), []);
@@ -6606,13 +6916,15 @@ function App() {
     setRaw([]); setDataSource(''); setMeta({});
     setTab('portfolio'); setReturnTab('portfolio'); setSelectedId(null);
     setWeights({ ...DEFAULT_WEIGHTS });
+    setThresholdState(DEFAULT_THRESHOLD);
+    setActiveScenarioName(null);
     setRateCard({ ...DEFAULT_RATE_CARD });
     setFilters({ sa: 'All', tier: 'All' });
     // A leftover flash from the previous project's weights must never
     // bleed into this one.
     clearTimeout(flashTimerRef.current);
     setWeightDeltas(null);
-    history.pushState(null, '', buildHash(p, 'portfolio', 'portfolio', null, DEFAULT_WEIGHTS, { sa: 'All', tier: 'All' }));
+    history.pushState(null, '', buildHash(p, 'portfolio', 'portfolio', null, DEFAULT_WEIGHTS, { sa: 'All', tier: 'All' }, DEFAULT_THRESHOLD, null));
   }, []);
 
   const backToProjects = useCallback(() => enterProject(null), [enterProject]);
@@ -6672,7 +6984,10 @@ function App() {
                          comboExample={comboExample} citeDeck={project.hasDeckReproduction}
                          sourceNamedRoleCount={meta.sourceNamedRoleCount} onOpenBudgetWeights={openBudgetWeights}
                          rateCard={rateCard} onRate={setRate} onResetRateCard={resetRateCard}
-                         sa={filters.sa} setSa={setFilterSa} projectName={project.name} />
+                         sa={filters.sa} setSa={setFilterSa} projectName={project.name}
+                         threshold={threshold} onThreshold={setThreshold} onResetThreshold={resetThreshold}
+                         rawAll={raw} scenarios={scenarios} activeScenarioName={activeScenarioName}
+                         onSaveScenario={saveScenario} onLoadScenario={loadScenario} onDeleteScenario={deleteScenario} />
         )}
         {tab === 'redesign' && (
           <RedesignView all={all} selectedId={selectedId} onSelect={openRole} weights={weights} onResetWeights={resetWeights}
