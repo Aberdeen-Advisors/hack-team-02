@@ -663,6 +663,36 @@ const ASSUMPTIONS = {
 
 const TIER_ORDER = ['Rebuild', 'Enable', 'Reassure', 'Inform'];
 
+/* COST MODEL RATE CARD. None of these seven numbers is an Aberdeen
+   benchmark: Aberdeen's OCM material gives methods, durations and job-aid
+   ranges, never a dollar rate, and the source deck gives no cost breakdown
+   under its own headline ROI figure. Every rate here is ours, an
+   illustrative placeholder, not a client's real rate card - which is why
+   it is editable on screen (RateCardPanel): the point is that the whole
+   plan reprices live the moment someone in the room disagrees with a
+   number, not that these seven numbers are the right ones.
+   loadedHourlyRate is derived from ASSUMPTIONS.loadedCostPerHeadPerYear
+   (100000 / 52 weeks / 40 hours), so it agrees with the ROI model's own
+   cost-per-head rather than being an independent second guess. */
+const DEFAULT_RATE_CARD = {
+  curriculumDevCost: 8000,      // per curriculum developed (design + build, one-time)
+  sandboxSeatCost: 350,         // per sandbox seat
+  jobAidCost: 250,               // per job aid produced
+  instructorLedDayCost: 1800,   // per instructor-led delivery day
+  superUserWeekCost: 1200,      // per super-user, per week of floor-coaching presence
+  hypercareWeekCost: 4000,      // per week of hypercare support-desk staffing, per tier
+  loadedHourlyRate: Math.round(ASSUMPTIONS.loadedCostPerHeadPerYear / ASSUMPTIONS.weeksPerYear / 40),
+};
+const RATE_CARD_FIELDS = [
+  { key: 'curriculumDevCost',   label: 'Curriculum developed',        unit: 'per curriculum' },
+  { key: 'sandboxSeatCost',     label: 'Sandbox seat',                unit: 'per seat' },
+  { key: 'jobAidCost',          label: 'Job aid',                     unit: 'per aid' },
+  { key: 'instructorLedDayCost', label: 'Instructor-led delivery',   unit: 'per day' },
+  { key: 'superUserWeekCost',  label: 'Super-user',                   unit: 'per week' },
+  { key: 'hypercareWeekCost',  label: 'Hypercare support desk',      unit: 'per week, per tier' },
+  { key: 'loadedHourlyRate',   label: 'Participant time (blended, loaded)', unit: 'per hour' },
+];
+
 /* BUDGET_WEIGHTS: the relative cost of supporting one person in each tier,
    the only input "Share of change budget" is built from (aggregate() below).
    Same shape and same status as IMPACT_FACTORS/RISK_FACTORS: a named,
@@ -1120,6 +1150,71 @@ function computeKeyFigures(rawRoles, weightsObj) {
 function formatWeightDelta(d) {
   const tier = TIER_ORDER.find((t) => d.label === `${t} roles`);
   return tier ? `${tier} ${d.from}→${d.to} roles` : `${d.label} ${d.from}→${d.to}`;
+}
+
+/* Total programme cost, split by tier and by workstream (training, comms,
+   support), denominated in the rate card instead of left as a percentage
+   nobody can approve. Every count here is one this app already computes
+   and shows elsewhere (resourcedPlan's rows, trainingDesign's per-role
+   design) - costModel only prices them. Participant time (headcount x
+   required hours x the loaded hourly rate) is kept as its own bucket,
+   never folded silently into "training", because on a population this
+   size it is usually the largest line in the plan and the one this tool
+   never showed before. */
+function costModel(scored, rateCard) {
+  const byTier = {};
+  TIER_ORDER.forEach((t) => { byTier[t] = { training: 0, comms: 0, support: 0, participantTime: 0 }; });
+
+  const rebuild = scored.filter((r) => r.tier === 'Rebuild');
+  const enable = scored.filter((r) => r.tier === 'Enable');
+  const reassure = scored.filter((r) => r.tier === 'Reassure');
+  const enableArchetypes = new Set(enable.map((r) => r.siteArchetype));
+  const rebuildHeads = rebuild.reduce((s, r) => s + r.headcount, 0);
+
+  // Training: job aids and instructor-led delivery days apply per role,
+  // whichever tier it's in; curriculum development and sandbox seats are
+  // scoped the same way resourcedPlan's own Training tiles scope them.
+  scored.forEach((r) => {
+    const design = trainingDesign(r);
+    const t = byTier[r.tier];
+    t.training += design.aids.count * rateCard.jobAidCost;
+    if (design.primary.method === 'Instructor-led') {
+      t.training += Math.ceil(design.hours / 4) * rateCard.instructorLedDayCost;
+    }
+    t.participantTime += r.headcount * design.hours * rateCard.loadedHourlyRate;
+  });
+  byTier.Rebuild.training += rebuild.length * rateCard.curriculumDevCost;
+  byTier.Enable.training += enableArchetypes.size * rateCard.curriculumDevCost;
+  byTier.Rebuild.training += Math.ceil(rebuildHeads / ASSUMPTIONS.sandboxSeatRatio) * rateCard.sandboxSeatCost;
+
+  // Support: super-users are a Rebuild-only dose, present through Rebuild's
+  // own floor-coaching weeks; hypercare staffs a support desk through each
+  // present tier's own hypercare tail.
+  const superUsers = Math.ceil(rebuildHeads / DOSES.Rebuild.superUserRatio);
+  byTier.Rebuild.support += superUsers * DOSES.Rebuild.floorCoachingWeeks * rateCard.superUserWeekCost;
+  TIER_ORDER.forEach((t) => {
+    if (scored.some((r) => r.tier === t)) byTier[t].support += DOSES[t].hypercareWeeks * rateCard.hypercareWeekCost;
+  });
+
+  // Comms: cascade scripts and decision-rights supervisor briefings have no
+  // rate card line of their own - they cost delivery time, valued at the
+  // same loaded hourly rate as participant training time. One hour each:
+  // ours, illustrative, the same status as every other default here.
+  scored.forEach((r) => {
+    if (r.tier === 'Rebuild' || r.risk.decisionRights >= 4) byTier[r.tier].comms += 1 * rateCard.loadedHourlyRate;
+  });
+  [...rebuild, ...enable, ...reassure].forEach((r) => {
+    byTier[r.tier].comms += (r.headcount / ASSUMPTIONS.supervisorSpanOfControl) * rateCard.loadedHourlyRate;
+  });
+
+  const totals = { training: 0, comms: 0, support: 0, participantTime: 0, total: 0 };
+  TIER_ORDER.forEach((t) => {
+    const b = byTier[t];
+    b.total = b.training + b.comms + b.support + b.participantTime;
+    totals.training += b.training; totals.comms += b.comms; totals.support += b.support;
+    totals.participantTime += b.participantTime; totals.total += b.total;
+  });
+  return { byTier, ...totals };
 }
 
 /* ===========================================================================
@@ -4038,6 +4133,55 @@ function WeightTuner({ weights, onChange, onReset }) {
   );
 }
 
+function rateCardIsDefault(rc) {
+  return RATE_CARD_FIELDS.every((f) => rc[f.key] === DEFAULT_RATE_CARD[f.key]);
+}
+
+/* The rate card that turns every count the app already computes into a
+   dollar figure. Editable in front of the room on purpose: a judge who
+   says "your day rate is too high" should see costModel's output reprice
+   the instant a field changes, not on the next slide. */
+function RateCardPanel({ rateCard, onChange, onReset, cost }) {
+  const isDefault = rateCardIsDefault(rateCard);
+  return (
+    <details className="tuner no-print">
+      <summary>
+        <span className="lbl">Cost model</span>
+        <span className="state">{isDefault ? 'our defaults, illustrative' : 'rate card changed from our defaults'}</span>
+      </summary>
+      <div className="tuner-body">
+        <p className="sub">
+          None of these seven rates is an Aberdeen benchmark: Aberdeen's OCM material gives methods and durations, never a
+          dollar figure, and the source deck's own ROI number carries no cost breakdown under it. Every rate below is ours,
+          an illustrative placeholder tuned to look reasonable, not a client's real rate card - that is exactly why it is
+          editable here rather than fixed in the model.
+        </p>
+        <div className="rate-grid">
+          {RATE_CARD_FIELDS.map((f) => (
+            <div className="rate-row" key={f.key}>
+              <span className="lbl">{f.label}</span>
+              <span className="rate-input">
+                $<input type="number" min="0" step="1" value={rateCard[f.key]}
+                        aria-label={f.label}
+                        onChange={(e) => onChange(f.key, Math.max(0, parseFloat(e.target.value) || 0))} />
+              </span>
+              <span className="unit">{f.unit}</span>
+            </div>
+          ))}
+        </div>
+        <div className="btn-row" style={{ marginTop: 12 }}>
+          <button className="btn" type="button" onClick={onReset} disabled={isDefault}>Reset to our defaults</button>
+        </div>
+        <p className="calc" style={{ marginTop: 12, marginBottom: 0 }}>
+          Programme total {money(cost.total)}: training {money(cost.training)} · comms {money(cost.comms)} ·
+          {' '}support {money(cost.support)} · <b>participant time {money(cost.participantTime)}</b> - computed
+          separately (headcount × required hours × the loaded hourly rate), usually the largest line in the plan.
+        </p>
+      </div>
+    </details>
+  );
+}
+
 /* Whether Rebuild is a small slice of the population or most of it changes
    the story entirely, and both are real findings depending on the project: a
    manufacturer's ERP rollout can be 9 roles out of 5,000 people (Thornwood);
@@ -4068,7 +4212,7 @@ function concentrationFinding(agg) {
 
 function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights, weightDeltas,
                           siteArchetypeBase, siteArchetypeCombos, comboExample, citeDeck, sourceNamedRoleCount,
-                          onOpenBudgetWeights }) {
+                          onOpenBudgetWeights, rateCard, onRate, onResetRateCard }) {
   const [sa, setSa] = useState('All');
   // A filter with one real choice is not a filter: Ashford has one site
   // archetype and no combos, so the control is hidden rather than showing
@@ -4086,6 +4230,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
   const filteredIncomplete = useMemo(() => incomplete.filter(match), [incomplete, sa]);
 
   const agg = useMemo(() => aggregate(filtered), [filtered]);
+  const cost = useMemo(() => costModel(filtered, rateCard), [filtered, rateCard]);
   const finding = useMemo(() => concentrationFinding(agg), [agg]);
   // One real cross-reference, reused by all three banner variants below, so
   // the link destination and its wording can never drift out of sync.
@@ -4174,6 +4319,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
         {TIER_ORDER.map((t) => {
           const b = agg.byTier[t];
+          const tc = cost.byTier[t];
           return (
             <div className={'tile tier-tile' + (changedTiers.has(t) ? ' tile-flash' : '')} key={t} style={{ '--tier-color': TIERS[t].hex }}>
               <div className="tier-name"><i className="dot" style={{ '--dot': TIERS[t].hex }} />{t}</div>
@@ -4183,11 +4329,16 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
                 <div className="row"><span>People</span><b>{b.people.toLocaleString()}</b></div>
                 <div className="row"><span>% of population</span><b>{pct(b.popShare)}</b></div>
                 <div className="row"><span>Share of change budget</span><b>{pct(b.budgetShare)}</b></div>
+                <div className="row" title={`Training ${money(tc.training)} · Comms ${money(tc.comms)} · Support ${money(tc.support)} · Participant time ${money(tc.participantTime)}`}>
+                  <span>Programme cost<span className="sim-tag">Placeholder rates</span></span><b>{money(tc.total)}</b>
+                </div>
               </div>
             </div>
           );
         })}
       </div>
+
+      <RateCardPanel rateCard={rateCard} onChange={onRate} onReset={onResetRateCard} cost={cost} />
 
       {/* 3. THE QUADRANT CHART. The weighting panel sits right after it: it's
           the control that moves what the chart plots and how roles tier. */}
@@ -6150,6 +6301,7 @@ function App() {
   const [returnTab, setReturnTab] = useState('portfolio'); // where "← Back" on the one-pager / methodology page returns to
   const [selectedId, setSelectedId] = useState(null);
   const [weights, setWeights] = useState(() => ({ ...DEFAULT_WEIGHTS }));
+  const [rateCard, setRateCard] = useState(() => ({ ...DEFAULT_RATE_CARD }));
 
   useEffect(() => {
     if (!project) return;
@@ -6198,6 +6350,9 @@ function App() {
   const setWeight = useCallback((key, v) => applyAndDiff({ ...weights, [key]: v }), [applyAndDiff, weights]);
   const resetWeights = useCallback(() => applyAndDiff({ ...DEFAULT_WEIGHTS }), [applyAndDiff]);
 
+  const setRate = useCallback((key, v) => setRateCard((rc) => ({ ...rc, [key]: v })), []);
+  const resetRateCard = useCallback(() => setRateCard({ ...DEFAULT_RATE_CARD }), []);
+
   // The one-pager is reachable from any of the five primary tabs, not just
   // one, so "back" has to return wherever the click came from.
   const openRole = useCallback((id) => { setReturnTab(tab); setSelectedId(id); setTab('role'); }, [tab]);
@@ -6222,6 +6377,7 @@ function App() {
     setRaw([]); setDataSource(''); setMeta({});
     setTab('portfolio'); setReturnTab('portfolio'); setSelectedId(null);
     setWeights({ ...DEFAULT_WEIGHTS });
+    setRateCard({ ...DEFAULT_RATE_CARD });
     // A leftover flash from the previous project's weights must never
     // bleed into this one.
     clearTimeout(flashTimerRef.current);
@@ -6281,7 +6437,8 @@ function App() {
                          weights={weights} onWeight={setWeight} onResetWeights={resetWeights} weightDeltas={weightDeltas}
                          siteArchetypeBase={project.siteArchetypeBase} siteArchetypeCombos={project.siteArchetypeCombos}
                          comboExample={comboExample} citeDeck={project.hasDeckReproduction}
-                         sourceNamedRoleCount={meta.sourceNamedRoleCount} onOpenBudgetWeights={openBudgetWeights} />
+                         sourceNamedRoleCount={meta.sourceNamedRoleCount} onOpenBudgetWeights={openBudgetWeights}
+                         rateCard={rateCard} onRate={setRate} onResetRateCard={resetRateCard} />
         )}
         {tab === 'redesign' && (
           <RedesignView all={all} selectedId={selectedId} onSelect={openRole} weights={weights} onResetWeights={resetWeights} />
