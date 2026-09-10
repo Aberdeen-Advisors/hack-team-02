@@ -25,12 +25,18 @@ a portfolio filter "by value stream and site archetype." **None of that exists
 in the current `index.html`.** `ALL_TABS` has exactly five entries (Stakeholder
 Impact / Redesign / Training / Communication / Adoption). `project.hasDeckReproduction`
 is threaded into components as `citeDeck` and gates every claim that traces to
-Team 2's own deck (the unit-of-analysis note, the Rebuild super-user ratio, the
-weights/anchors provenance footnotes — now including Training and Communication
-— and the add-a-role site-scope hint); `PlanView` alone still receives this same
-flag as `showDeckProvenance` and reads nothing from it — that one prop is
-genuinely dead, the rest are live. There is no "value stream" field in any data
-file and no such filter in `PortfolioView`. Verify any claim in `docs/CONTEXT.md`
+Team 2's own deck: the Rebuild super-user ratio (`onePagerText`), the
+add-a-role site-scope hint (`AddRoleView`), the weights/threshold/anchors
+provenance sentences on the weight tuner and the add-a-role form, and the
+per-sub-factor `ANCHORS` origin/note text (`AxisBreakdown`, `Slider`).
+`PlanView` alone still receives this same flag as `showDeckProvenance` and
+reads nothing from it — that one prop is genuinely dead, the rest are live.
+Every page-level "footnote" (Stakeholder Impact, Training, Communication, the
+one-pager) reads exactly `"All figures illustrative. All data synthetic."` —
+a "Method and provenance" accordion and per-tab provenance sentences used to
+live there and were removed as a simplification pass; don't reintroduce them
+without being asked. There is no "value stream" field in any data file and
+no such filter in `PortfolioView`. Verify any claim in `docs/CONTEXT.md`
 against the actual code before repeating it.
 
 ## Architecture
@@ -66,11 +72,12 @@ Other files:
 
 **State is plain React state, mirrored into the URL hash, not a router
 dependency.** `App()` owns `project`, `wizardActive`, `raw`, `dataSource`,
-`tab`, `returnTab`, `selectedId`, `weights`, `threshold`, `activeScenarioName`,
-`rateCard`, `filters` via plain `useState` — none of it lives in a routing
-library. `buildHash`/`parseHash`/`syncRoute` encode the project, tab, open
-role, filters, weights, threshold and scenario name into
-`#/:projectId/:tabId/[role/:roleId][?sa=&tier=&w=&threshold=&scenario=]` on
+`tab`, `returnTab`, `selectedId`, `weights`, `filters` via plain `useState` —
+none of it lives in a routing library. `THRESHOLD` is a fixed constant
+(3.5), not state — there is no control anywhere in the app that changes it.
+`buildHash`/`parseHash`/`syncRoute` encode the project, tab, open role,
+filters and weights into
+`#/:projectId/:tabId/[role/:roleId][?sa=&tier=&w=]` on
 every navigation (`'replace'` for continuous edits like a slider drag,
 `'push'` for a real navigation like a tab or project change), and a
 `popstate` listener re-syncs every one of those pieces of state on Back/
@@ -150,9 +157,12 @@ Aberdeen delivery tables — never a model call:
   `BUDGET_WEIGHT_PER_TIER` (derived from the `BUDGET_WEIGHTS` array, a
   module-level constant, not part of `ASSUMPTIONS`), calibrated against
   Thornwood's own 55/27/13/5 — see hard rules below on why this must not
-  silently break for the other two projects.
-- **ROI**: trapezoidal integration of `ROI_UNTARGETED`/`ROI_TARGETED` curves ×
-  loaded cost × Rebuild+Enable headcount.
+  silently break for the other two projects. This percentage is the only
+  cost-adjacent figure the app shows; there is no dollar-denominated cost
+  model, rate card, or ROI computation anywhere in `index.html` — a prior
+  version had one (`costModel`, `RateCardPanel`, `roiModel`/`RoiChart`) and
+  it was removed entirely as a simplification pass. Don't reintroduce
+  currency displays without being asked.
 
 ## `PROJECTS` registry
 

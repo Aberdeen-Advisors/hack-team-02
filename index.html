@@ -63,14 +63,7 @@ const { useState, useMemo, useEffect, useRef, useCallback } = React;
    THRESHOLD: 3.5 on both axes, inclusive: exactly 3.5 counts as above.
    =========================================================================== */
 
-const DEFAULT_THRESHOLD = 3.5;
-/* Mutable, like IMPACT_FACTORS/RISK_FACTORS's own .weight fields: scoreRole
-   and assignTier read this module-level value, and applyThreshold sets it
-   before a scoring pass, so a slider can move it and every tier assignment
-   in the app moves with it live - the same mechanism weight tuning already
-   uses, not a second one. */
-let THRESHOLD = DEFAULT_THRESHOLD;
-function applyThreshold(t) { if (isScore(t) && t >= 1 && t <= 5) THRESHOLD = t; }
+const THRESHOLD = 3.5;
 
 /* Short, honest provenance strings. Used verbatim on screen so the claims the
    tool makes on stage are the claims it can defend. */
@@ -97,63 +90,12 @@ const NOTE = {
       + 'capability delta is Aberdeen’s own wording at 1, 3 and 5; frequency and volume is ours end to end, because no source in the evidence base measures it.',
 };
 
-/* THRESHOLD is mutable (see applyThreshold above) - a slider on the
-   Adoption tab can move it off its 3.5 default - so this string, unlike the
-   rest of NOTE, has to be a function of the live value rather than a fixed
-   constant, or it goes stale (and self-contradictory next to the operators
-   that already read THRESHOLD live) the moment someone drags that slider. */
-function noteThreshold(threshold) {
-  const t = threshold.toFixed(1);
+function noteThreshold() {
+  const t = THRESHOLD.toFixed(1);
   return `Threshold ${t} on both axes, inclusive: a score of exactly ${t} counts as above the line. `
-      + (threshold === DEFAULT_THRESHOLD
-          ? `3.5 is the “good” floor used in the sponsor competency assessment we work from (70 of 100), not the midpoint of the 1–5 scale.`
-          : `Our default is ${DEFAULT_THRESHOLD.toFixed(1)}, the “good” floor used in the sponsor competency assessment we work from (70 of 100), not the midpoint of the 1–5 scale; this is a threshold moved from that default.`);
+      + `3.5 is the “good” floor used in the sponsor competency assessment we work from (70 of 100), not the midpoint of the 1–5 scale.`;
 }
 
-/* The unit-of-analysis explainer, shown on the Stakeholder Impact tab and on
-   every role one-pager. Two things in it are project-specific and must never
-   be hard-coded: the worked example of a combined site scope (a project with
-   a single site archetype and no combos, like Ashford, has none to show),
-   and the claim that "the source deck" is ambiguous about the unit of
-   analysis, which is only true of the one project (Thornwood) that actually
-   has a source deck behind it.
-     comboExample - an actual siteArchetype value from the active project's
-       own data that spans more than one archetype, or null if the project
-       has none (see exampleComboScope). Never invent one.
-     citeDeck - project.hasDeckReproduction: only Thornwood traces to a deck
-       with numbered slides to cite. */
-function noteUnit(comboExample, citeDeck) {
-  const comboClause = comboExample
-    ? `A site scope is either a single archetype or a named combination of them, like ${comboExample}, because some roles genuinely work across more than one.`
-    : 'In this project every role sits at a single site archetype: no role here spans more than one.';
-  const whyRowLevel = citeDeck
-    ? 'the source deck is ambiguous here: slides 5 and 13 describe role × process × site, while slides 9 and 10 tier at role level, so we state the unit and tier at row level.'
-    : 'we tier at row level: that is our own choice, not a rule stated by any source for this project.';
-  return `Unit of analysis: one row = one role at one site scope: role × site. ${comboClause} `
-       + `That scope is the level a curriculum, a comms message and a named accountable manager can actually be attached to, which is why we score and tier there. Our choice: ${whyRowLevel}`;
-}
-
-/* Grammatically correct at 0, 1 and n. */
-function pluralRoles(n) { return `${n} ${n === 1 ? 'role' : 'roles'}`; }
-
-/* The dataset provenance footnote on the Stakeholder Impact tab. namedCount
-   comes from the active project's own data file (meta.sourceNamedRoleCount);
-   totalRoles is the roles actually loaded right now, so the sentence stays
-   true even after a role is added live. Only Thornwood's dataset traces to
-   named roles in an external deck - Bellcrest and Ashford are illustration
-   end to end, and the sentence must say so plainly rather than citing "the
-   deck" for a project that has none. */
-function datasetProvenanceNote(totalRoles, namedCount) {
-  const named = Math.max(0, namedCount || 0);
-  const synthesized = Math.max(0, totalRoles - named);
-  if (named <= 0) {
-    return `No external source names any of this example's ${pluralRoles(totalRoles)}: all of them, and every sub-factor value, are our synthetic illustration.`;
-  }
-  if (synthesized <= 0) {
-    return `The source names all ${pluralRoles(totalRoles)} but gives no 1–5 anchor for any sub-factor, so every sub-factor value here is still our synthetic illustration.`;
-  }
-  return `The source names ${named} of the ${pluralRoles(totalRoles)} and gives no 1–5 anchors per sub-factor. The other ${pluralRoles(synthesized)} and every sub-factor value are our synthetic illustration.`;
-}
 
 const IMPACT_FACTORS = [
   { key: 'taskShare',        weight: 0.45, label: 'Share of daily tasks changing',           hint: 'How much of the daily task set is affected' },
@@ -709,44 +651,11 @@ function timelineWithToday(timeline, daysLive) {
 /* Programme-level planning + costing assumptions. All visible on screen.
    The per-head cost weights are ours, not the deck's. */
 const ASSUMPTIONS = {
-  loadedCostPerHeadPerYear: 100000,  // USD, fully loaded
-  weeksPerYear: 52,
-  recoveryThresholdPct: 94,          // "recovered" = back within 6% of baseline
   supervisorSpanOfControl: 10,       // 1 supervisor briefed per 10 people in R/E/R roles
   sandboxSeatRatio: 10,              // 1 sandbox seat per 10 Rebuild people
 };
 
 const TIER_ORDER = ['Rebuild', 'Enable', 'Reassure', 'Inform'];
-
-/* COST MODEL RATE CARD. None of these seven numbers is an Aberdeen
-   benchmark: Aberdeen's OCM material gives methods, durations and job-aid
-   ranges, never a dollar rate, and the source deck gives no cost breakdown
-   under its own headline ROI figure. Every rate here is ours, an
-   illustrative placeholder, not a client's real rate card - which is why
-   it is editable on screen (RateCardPanel): the point is that the whole
-   plan reprices live the moment someone in the room disagrees with a
-   number, not that these seven numbers are the right ones.
-   loadedHourlyRate is derived from ASSUMPTIONS.loadedCostPerHeadPerYear
-   (100000 / 52 weeks / 40 hours), so it agrees with the ROI model's own
-   cost-per-head rather than being an independent second guess. */
-const DEFAULT_RATE_CARD = {
-  curriculumDevCost: 8000,      // per curriculum developed (design + build, one-time)
-  sandboxSeatCost: 350,         // per sandbox seat
-  jobAidCost: 250,               // per job aid produced
-  instructorLedDayCost: 1800,   // per instructor-led delivery day
-  superUserWeekCost: 1200,      // per super-user, per week of floor-coaching presence
-  hypercareWeekCost: 4000,      // per week of hypercare support-desk staffing, per tier
-  loadedHourlyRate: Math.round(ASSUMPTIONS.loadedCostPerHeadPerYear / ASSUMPTIONS.weeksPerYear / 40),
-};
-const RATE_CARD_FIELDS = [
-  { key: 'curriculumDevCost',   label: 'Curriculum developed',        unit: 'per curriculum' },
-  { key: 'sandboxSeatCost',     label: 'Sandbox seat',                unit: 'per seat' },
-  { key: 'jobAidCost',          label: 'Job aid',                     unit: 'per aid' },
-  { key: 'instructorLedDayCost', label: 'Instructor-led delivery',   unit: 'per day' },
-  { key: 'superUserWeekCost',  label: 'Super-user',                   unit: 'per week' },
-  { key: 'hypercareWeekCost',  label: 'Hypercare support desk',      unit: 'per week, per tier' },
-  { key: 'loadedHourlyRate',   label: 'Participant time (blended, loaded)', unit: 'per hour' },
-];
 
 /* BUDGET_WEIGHTS: the relative cost of supporting one person in each tier,
    the only input "Share of change budget" is built from (aggregate() below).
@@ -949,55 +858,6 @@ function aggregate(scored) {
   return { byTier, totalPeople: people, totalRoles: scored.length };
 }
 
-/* Chart.js paints to a canvas, which cannot read CSS custom properties,
-   these must stay literal. They mirror --series-* in styles.css.
-   Deliberately NOT TIERS[*].hex (Jasper/Gold/Sky/Jade): that palette is
-   reserved for tier identity, and targeted-vs-untargeted productivity is a
-   different axis of meaning entirely - reusing a tier colour here would be
-   the same collision this app had on the Adoption tab's re-score status. */
-const SERIES = { untargeted: '#404040', targeted: '#44B0B1', band: 'rgba(68,176,177,.13)' };
-
-/* Slide 14: illustrative productivity curves, values from the deck workbook. */
-const ROI_WEEKS      = [0, 2, 4, 6, 8, 10, 12, 14, 16];
-const ROI_UNTARGETED = [100, 86, 79, 78, 81, 86, 90, 94, 98];
-const ROI_TARGETED   = [100, 91, 89, 94, 99, 99, 99, 99, 99];
-
-/* Trapezoidal area of lost productivity, in percentage-points x weeks. */
-function lossArea(series) {
-  let a = 0;
-  for (let i = 0; i < series.length - 1; i += 1) {
-    const w = ROI_WEEKS[i + 1] - ROI_WEEKS[i];
-    a += (((100 - series[i]) + (100 - series[i + 1])) / 2) * w;
-  }
-  return a;
-}
-function recoveryWeek(series) {
-  for (let i = 0; i < series.length; i += 1) {
-    if (i > 0 && series[i] >= ASSUMPTIONS.recoveryThresholdPct) return ROI_WEEKS[i];
-  }
-  return ROI_WEEKS[ROI_WEEKS.length - 1];
-}
-
-function roiModel(scored) {
-  const areaU = lossArea(ROI_UNTARGETED);
-  const areaT = lossArea(ROI_TARGETED);
-  // Difference in area / 100 = productive weeks per head recovered by targeting.
-  const avoidedWeeksPerHead = (areaU - areaT) / 100;
-  const affectedHeads = scored
-    .filter((r) => r.tier === 'Rebuild' || r.tier === 'Enable')
-    .reduce((s, r) => s + r.headcount, 0);
-  const weeklyCost = ASSUMPTIONS.loadedCostPerHeadPerYear / ASSUMPTIONS.weeksPerYear;
-  return {
-    areaU, areaT, avoidedWeeksPerHead, affectedHeads, weeklyCost,
-    perHead: avoidedWeeksPerHead * weeklyCost,
-    lossAvoided: affectedHeads * avoidedWeeksPerHead * weeklyCost,
-    dipUntargeted: 100 - Math.min(...ROI_UNTARGETED),
-    dipTargeted: 100 - Math.min(...ROI_TARGETED),
-    recoveryUntargeted: recoveryWeek(ROI_UNTARGETED),
-    recoveryTargeted: recoveryWeek(ROI_TARGETED),
-  };
-}
-
 /* Whole days between an ISO date string and today; null if no date is set. */
 function daysSince(isoDate) {
   if (!isoDate) return null;
@@ -1105,20 +965,6 @@ function nearestBoundaryRoles(scored, limit) {
     .slice(0, limit);
 }
 
-/* Cumulative dollars of avoided productivity loss realized as of each ROI_WEEKS
-   checkpoint, integrating the same untargeted/targeted gap curves used for the
-   headline total, just truncated at each week instead of run to week 16. Ours. */
-function roiTrend(scored) {
-  const roi = roiModel(scored);
-  const points = ROI_WEEKS.map((wk, i) => {
-    const areaU = lossArea(ROI_UNTARGETED.slice(0, i + 1));
-    const areaT = lossArea(ROI_TARGETED.slice(0, i + 1));
-    const avoidedWeeksPerHead = (areaU - areaT) / 100;
-    return { week: wk, dollars: roi.affectedHeads * avoidedWeeksPerHead * roi.weeklyCost };
-  });
-  return { ...roi, points };
-}
-
 function resourcedPlan(scored) {
   const rebuild = scored.filter((r) => r.tier === 'Rebuild');
   const enable = scored.filter((r) => r.tier === 'Enable');
@@ -1190,9 +1036,8 @@ function resourcedPlan(scored) {
    tabs the reader isn't even looking at yet. Always computed against the
    whole, unfiltered roster (raw), never a site-scoped subset, since the
    header indicator is project-wide. */
-function computeKeyFigures(rawRoles, weightsObj, threshold) {
+function computeKeyFigures(rawRoles, weightsObj) {
   applyWeights(weightsObj);
-  applyThreshold(threshold != null ? threshold : THRESHOLD);
   const scoredNow = rawRoles.map(scoreRole).filter((r) => r.complete);
   const agg = aggregate(scoredNow);
   const plan = resourcedPlan(scoredNow);
@@ -1206,134 +1051,6 @@ function computeKeyFigures(rawRoles, weightsObj, threshold) {
 function formatWeightDelta(d) {
   const tier = TIER_ORDER.find((t) => d.label === `${t} roles`);
   return tier ? `${tier} ${d.from}→${d.to} roles` : `${d.label} ${d.from}→${d.to}`;
-}
-
-/* The 3.5 cut is justified by analogy, not by a source that measures this
-   tool's own data - the weakest link in the chain, and every tier
-   assignment depends on it. This is the visible version of that fragility:
-   every role within `band` of the current threshold on either axis, and
-   the tier it would carry if that axis crossed the line, so the reader can
-   see how much of the tiering rests on roles that are barely on one side
-   of a debatable cut rather than clearly on either side of an obvious one. */
-function thresholdSensitivity(scored, threshold, band) {
-  return scored
-    .map((r) => {
-      const axes = ['impact', 'risk']
-        .filter((axis) => Math.abs(r.scores[axis] - threshold) <= band)
-        .map((axis) => {
-          const impact = axis === 'impact' ? (r.scores.impact >= threshold ? threshold - 0.1 : threshold + 0.1) : r.scores.impact;
-          const risk = axis === 'risk' ? (r.scores.risk >= threshold ? threshold - 0.1 : threshold + 0.1) : r.scores.risk;
-          return { axis, value: r.scores[axis], wouldBeTier: assignTier(impact, risk) };
-        });
-      return { role: r, axes };
-    })
-    .filter((x) => x.axes.length > 0);
-}
-
-/* Runs the whole scoring + costing pipeline for one (weights, threshold)
-   pair against the given roster, temporarily - the same trick
-   computeKeyFigures already uses (mutate the shared factor/threshold
-   globals, score, read the result back out) so a scenario comparison never
-   needs a second, parallel scoring engine that could drift from the real
-   one. Restores the currently-applied weights/threshold before returning,
-   so calling this to preview scenario B never leaves scenario A's numbers
-   showing anywhere else on screen. */
-function computeScenarioResult(rawRoles, weights, threshold, rateCard, restoreWeights, restoreThreshold) {
-  applyWeights(weights);
-  applyThreshold(threshold);
-  const scoredNow = rawRoles.map(scoreRole).filter((r) => r.complete);
-  const agg = aggregate(scoredNow);
-  const cost = costModel(scoredNow, rateCard);
-  if (restoreWeights) applyWeights(restoreWeights);
-  if (restoreThreshold != null) applyThreshold(restoreThreshold);
-  return { scored: scoredNow, agg, cost };
-}
-
-/* Diffs two scenario results by role id: which roles changed tier, and by
-   how much each tier's population moved. */
-function compareScenarios(resultA, resultB) {
-  const tierOf = (result) => { const m = {}; result.scored.forEach((r) => { m[r.id] = r.tier; }); return m; };
-  const tiersA = tierOf(resultA);
-  const tiersB = tierOf(resultB);
-  const ids = new Set([...Object.keys(tiersA), ...Object.keys(tiersB)]);
-  const moved = [];
-  ids.forEach((id) => {
-    if (tiersA[id] && tiersB[id] && tiersA[id] !== tiersB[id]) {
-      const role = resultB.scored.find((r) => r.id === id) || resultA.scored.find((r) => r.id === id);
-      moved.push({ role, from: tiersA[id], to: tiersB[id] });
-    }
-  });
-  const tierPop = TIER_ORDER.map((t) => ({
-    tier: t,
-    a: resultA.agg.byTier[t].roles, b: resultB.agg.byTier[t].roles,
-    peopleA: resultA.agg.byTier[t].people, peopleB: resultB.agg.byTier[t].people,
-  }));
-  return { moved, tierPop, costA: resultA.cost.total, costB: resultB.cost.total };
-}
-
-/* Total programme cost, split by tier and by workstream (training, comms,
-   support), denominated in the rate card instead of left as a percentage
-   nobody can approve. Every count here is one this app already computes
-   and shows elsewhere (resourcedPlan's rows, trainingDesign's per-role
-   design) - costModel only prices them. Participant time (headcount x
-   required hours x the loaded hourly rate) is kept as its own bucket,
-   never folded silently into "training", because on a population this
-   size it is usually the largest line in the plan and the one this tool
-   never showed before. */
-function costModel(scored, rateCard) {
-  const byTier = {};
-  TIER_ORDER.forEach((t) => { byTier[t] = { training: 0, comms: 0, support: 0, participantTime: 0 }; });
-
-  const rebuild = scored.filter((r) => r.tier === 'Rebuild');
-  const enable = scored.filter((r) => r.tier === 'Enable');
-  const reassure = scored.filter((r) => r.tier === 'Reassure');
-  const enableArchetypes = new Set(enable.map((r) => r.siteArchetype));
-  const rebuildHeads = rebuild.reduce((s, r) => s + r.headcount, 0);
-
-  // Training: job aids and instructor-led delivery days apply per role,
-  // whichever tier it's in; curriculum development and sandbox seats are
-  // scoped the same way resourcedPlan's own Training tiles scope them.
-  scored.forEach((r) => {
-    const design = trainingDesign(r);
-    const t = byTier[r.tier];
-    t.training += design.aids.count * rateCard.jobAidCost;
-    if (design.primary.method === 'Instructor-led') {
-      t.training += Math.ceil(design.hours / 4) * rateCard.instructorLedDayCost;
-    }
-    t.participantTime += r.headcount * design.hours * rateCard.loadedHourlyRate;
-  });
-  byTier.Rebuild.training += rebuild.length * rateCard.curriculumDevCost;
-  byTier.Enable.training += enableArchetypes.size * rateCard.curriculumDevCost;
-  byTier.Rebuild.training += Math.ceil(rebuildHeads / ASSUMPTIONS.sandboxSeatRatio) * rateCard.sandboxSeatCost;
-
-  // Support: super-users are a Rebuild-only dose, present through Rebuild's
-  // own floor-coaching weeks; hypercare staffs a support desk through each
-  // present tier's own hypercare tail.
-  const superUsers = Math.ceil(rebuildHeads / DOSES.Rebuild.superUserRatio);
-  byTier.Rebuild.support += superUsers * DOSES.Rebuild.floorCoachingWeeks * rateCard.superUserWeekCost;
-  TIER_ORDER.forEach((t) => {
-    if (scored.some((r) => r.tier === t)) byTier[t].support += DOSES[t].hypercareWeeks * rateCard.hypercareWeekCost;
-  });
-
-  // Comms: cascade scripts and decision-rights supervisor briefings have no
-  // rate card line of their own - they cost delivery time, valued at the
-  // same loaded hourly rate as participant training time. One hour each:
-  // ours, illustrative, the same status as every other default here.
-  scored.forEach((r) => {
-    if (r.tier === 'Rebuild' || r.risk.decisionRights >= 4) byTier[r.tier].comms += 1 * rateCard.loadedHourlyRate;
-  });
-  [...rebuild, ...enable, ...reassure].forEach((r) => {
-    byTier[r.tier].comms += (r.headcount / ASSUMPTIONS.supervisorSpanOfControl) * rateCard.loadedHourlyRate;
-  });
-
-  const totals = { training: 0, comms: 0, support: 0, participantTime: 0, total: 0 };
-  TIER_ORDER.forEach((t) => {
-    const b = byTier[t];
-    b.total = b.training + b.comms + b.support + b.participantTime;
-    totals.training += b.training; totals.comms += b.comms; totals.support += b.support;
-    totals.participantTime += b.participantTime; totals.total += b.total;
-  });
-  return { byTier, ...totals };
 }
 
 /* ===========================================================================
@@ -3999,13 +3716,6 @@ function fteConsequenceLine(fteDelta) {
   return null;
 }
 
-const money = (n) => {
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
-  if (n >= 1e3) return `$${Math.round(n / 1e3)}K`;
-  return `$${Math.round(n)}`;
-};
-
 /* The first thing an operations lead does with 38 scored roles is put them
    in a spreadsheet. RFC4180-ish: quote a field that contains a comma, a
    quote or a newline, double any quote inside it. */
@@ -4031,25 +3741,6 @@ function downloadCSV(filename, csv) {
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
-
-/* Named scenarios (weighting + threshold), persisted to localStorage.
-   Private browsing, a full quota or a locked-down browser can all make
-   localStorage throw on read OR write - every call here is wrapped, and
-   failure degrades to "the scenario just isn't saved", never a crash. */
-const SCENARIOS_KEY = 'ciat-scenarios-v1';
-function loadScenarios() {
-  try {
-    const raw = window.localStorage.getItem(SCENARIOS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return [];
-  }
-}
-function saveScenarios(list) {
-  try { window.localStorage.setItem(SCENARIOS_KEY, JSON.stringify(list)); }
-  catch (e) { /* quota, private mode, or locked down - the scenario just doesn't persist */ }
 }
 
 /* Memoised: TierBadge is a leaf rendered dozens of times per table (once a
@@ -4109,12 +3800,11 @@ function WeightNote({ weights, onReset }) {
 const MAP = { w: 940, h: 500, l: 62, r: 26, t: 24, b: 54 };
 
 /* Memoised: an SVG scatter plus tooltip logic over the full role set,
-   sitting inside PortfolioView next to four other panels (weight tuner,
-   rate card, threshold sensitivity, scenarios) that all live in the same
-   component. Without this, editing the rate card or naming a scenario -
-   neither of which changes `roles`, `selectedId` or `onSelect` - forced a
-   full re-render of the chart anyway. Its own hover state stays local
-   (`tip`), so memoising the outer shell doesn't touch that. */
+   sitting inside PortfolioView next to the weight tuner, which lives in the
+   same component. Without this, a re-render triggered by something that
+   doesn't change `roles`, `selectedId` or `onSelect` would still force a
+   full re-render of the chart. Its own hover state stays local (`tip`), so
+   memoising the outer shell doesn't touch that. */
 /* The scatter plot's only per-point differentiator used to be fill colour -
    a real WCAG 1.4.1 (Use of Color) failure: a colour-blind reader, or
    anyone on a bad projector, cannot tell Rebuild from Enable from Reassure
@@ -4390,219 +4080,6 @@ function WeightTuner({ weights, onChange, onReset, citeDeck }) {
   );
 }
 
-function rateCardIsDefault(rc) {
-  return RATE_CARD_FIELDS.every((f) => rc[f.key] === DEFAULT_RATE_CARD[f.key]);
-}
-
-/* The rate card that turns every count the app already computes into a
-   dollar figure. Editable in front of the room on purpose: a judge who
-   says "your day rate is too high" should see costModel's output reprice
-   the instant a field changes, not on the next slide. */
-function RateCardPanel({ rateCard, onChange, onReset, cost, citeDeck }) {
-  const isDefault = rateCardIsDefault(rateCard);
-  return (
-    <details className="tuner no-print">
-      <summary>
-        <span className="lbl">Cost model</span>
-        <span className="state">{isDefault ? 'our defaults, illustrative' : 'rate card changed from our defaults'}</span>
-      </summary>
-      <div className="tuner-body">
-        <p className="sub">
-          None of these seven rates is an Aberdeen benchmark: Aberdeen's OCM material gives methods and durations, never a
-          dollar figure, {citeDeck
-            ? "and the source deck's own ROI number carries no cost breakdown under it"
-            : 'and no external source for this project gives a cost breakdown for its ROI figure either'}. Every rate below is ours,
-          an illustrative placeholder tuned to look reasonable, not a client's real rate card - that is exactly why it is
-          editable here rather than fixed in the model.
-        </p>
-        <div className="rate-grid">
-          {RATE_CARD_FIELDS.map((f) => (
-            <div className="rate-row" key={f.key}>
-              <span className="lbl">{f.label}</span>
-              <span className="rate-input">
-                $<input type="number" min="0" step="1" value={rateCard[f.key]}
-                        aria-label={f.label}
-                        onChange={(e) => onChange(f.key, Math.max(0, parseFloat(e.target.value) || 0))} />
-              </span>
-              <span className="unit">{f.unit}</span>
-            </div>
-          ))}
-        </div>
-        <div className="btn-row" style={{ marginTop: 12 }}>
-          <button className="btn" type="button" onClick={onReset} disabled={isDefault}>Reset to our defaults</button>
-        </div>
-        <p className="calc" style={{ marginTop: 12, marginBottom: 0 }}>
-          Programme total {money(cost.total)}: training {money(cost.training)} · comms {money(cost.comms)} ·
-          {' '}support {money(cost.support)} · <b>participant time {money(cost.participantTime)}</b> - computed
-          separately (headcount × required hours × the loaded hourly rate), usually the largest line in the plan.
-        </p>
-      </div>
-    </details>
-  );
-}
-
-/* The 3.5 cut is the weakest link in the whole chain - justified by
-   analogy to a sponsor competency assessment, not by any source that
-   measures this tool's own data - and every tier assignment depends on
-   it. Adjustable and live, same mechanism as the weight sliders. */
-function ThresholdSensitivityPanel({ scored, threshold, onChange, onReset }) {
-  const isDefault = threshold === DEFAULT_THRESHOLD;
-  const near = useMemo(() => thresholdSensitivity(scored, threshold, 0.2), [scored, threshold]);
-  const nearRows = [];
-  near.forEach(({ role, axes }) => axes.forEach((a) => nearRows.push({ role, ...a })));
-  return (
-    <details className="tuner no-print">
-      <summary>
-        <span className="lbl">Threshold sensitivity</span>
-        <span className="state">{isDefault ? `our default: ${DEFAULT_THRESHOLD.toFixed(1)}, inclusive` : `moved to ${threshold.toFixed(1)}`}</span>
-      </summary>
-      <div className="tuner-body">
-        <p className="sub">
-          {noteThreshold(threshold)} Move it and watch which roles are close enough to flip - that fragility is real, and hiding it
-          would be worse than showing it.
-        </p>
-        <div className="wt-row">
-          <span className="lbl">Threshold, both axes</span>
-          <input type="range" min="2.5" max="4.5" step="0.1" value={threshold}
-                 aria-label="Tier threshold" onChange={(e) => onChange(parseFloat(e.target.value))} />
-          <span className="v num">{threshold.toFixed(1)}</span>
-        </div>
-        <div className="btn-row" style={{ marginTop: 10, marginBottom: 12 }}>
-          <button className="btn" type="button" onClick={onReset} disabled={isDefault}>Reset to our default</button>
-          <span className="sub">Roles within ±0.2 of the current threshold on either axis, and the tier that axis crossing it would give them.</span>
-        </div>
-        {nearRows.length === 0 ? (
-          <p className="sub">No role sits within 0.2 of {threshold.toFixed(1)} on either axis right now.</p>
-        ) : (
-          <div className="table-scroll">
-            <table className="mini">
-              <thead><tr><th>Role</th><th>Axis</th><th className="num">Value</th><th>Tier now</th><th>Would move to</th></tr></thead>
-              <tbody>
-                {nearRows.map((r) => (
-                  <tr key={r.role.id + r.axis}>
-                    <th scope="row">{r.role.role}</th>
-                    <td>{r.axis === 'impact' ? 'Impact' : 'Risk'}</td>
-                    <td className="num">{r.value.toFixed(1)}</td>
-                    <td><TierBadge tier={r.role.tier} /></td>
-                    <td><TierBadge tier={r.wouldBeTier} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </details>
-  );
-}
-
-/* Named (weighting, threshold) scenarios: save, load, delete, and compare
-   any two side by side. localStorage-backed (loadScenarios/saveScenarios
-   already wrap every read and write), global across projects since a
-   weighting choice isn't a fact about one client's data. */
-function ScenariosPanel({ weights, threshold, activeScenarioName, scenarios, onSave, onLoad, onDelete,
-                           rawAll, rateCard }) {
-  const [name, setName] = useState('');
-  const [compareA, setCompareA] = useState('current');
-  const [compareB, setCompareB] = useState('');
-
-  const resolve = (key) => (key === 'current' ? { name: 'Current', weights, threshold } : scenarios.find((s) => s.name === key));
-
-  const comparison = useMemo(() => {
-    const a = resolve(compareA);
-    const b = resolve(compareB);
-    if (!a || !b || !rawAll.length) return null;
-    const resultA = computeScenarioResult(rawAll, a.weights, a.threshold, rateCard, weights, threshold);
-    const resultB = computeScenarioResult(rawAll, b.weights, b.threshold, rateCard, weights, threshold);
-    return { a, b, ...compareScenarios(resultA, resultB) };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compareA, compareB, scenarios, rawAll, rateCard, weights, threshold]);
-
-  return (
-    <details className="tuner no-print">
-      <summary>
-        <span className="lbl">Scenarios</span>
-        <span className="state">{activeScenarioName ? `active: ${activeScenarioName}` : 'unsaved weighting'}</span>
-      </summary>
-      <div className="tuner-body">
-        <p className="sub">
-          Save the current weighting and threshold under a name ("Client's weighting", "Safety-weighted"), switch
-          between saved scenarios, and compare any two - which roles change tier, how tier populations shift, how
-          total programme cost moves. Saved to this browser only, not to the project.
-        </p>
-        <div className="btn-row" style={{ marginBottom: 12 }}>
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name this scenario"
-                 aria-label="Name this scenario" style={{ flex: '1 1 200px' }} />
-          <button className="btn" type="button" onClick={() => { onSave(name); setName(''); }} disabled={!name.trim()}>
-            Save current as…
-          </button>
-        </div>
-        {scenarios.length === 0 ? (
-          <p className="sub">No scenarios saved yet.</p>
-        ) : (
-          <div className="rate-grid">
-            {scenarios.map((s) => (
-              <div className="rate-row" key={s.name} style={{ gridTemplateColumns: '1fr auto auto' }}>
-                <span className="lbl">{s.name}{activeScenarioName === s.name ? ' (active)' : ''}</span>
-                <button className="btn" type="button" onClick={() => onLoad(s)} disabled={activeScenarioName === s.name}>Load</button>
-                <button className="btn" type="button" onClick={() => onDelete(s.name)}>Delete</button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {scenarios.length > 0 && (
-          <>
-            <h5 style={{ marginTop: 16, marginBottom: 8, fontSize: 11.5, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>
-              Compare two scenarios
-            </h5>
-            <div className="btn-row" style={{ marginBottom: 10 }}>
-              <select value={compareA} onChange={(e) => setCompareA(e.target.value)} aria-label="Scenario A">
-                <option value="current">Current</option>
-                {scenarios.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-              </select>
-              <span className="sub">vs.</span>
-              <select value={compareB} onChange={(e) => setCompareB(e.target.value)} aria-label="Scenario B">
-                <option value="">Choose a scenario…</option>
-                <option value="current">Current</option>
-                {scenarios.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-              </select>
-            </div>
-            {comparison && (
-              <div>
-                <div className="table-scroll">
-                  <table className="mini">
-                    <thead><tr><th>Tier</th><th className="num">{comparison.a.name}</th><th className="num">{comparison.b.name}</th></tr></thead>
-                    <tbody>
-                      {comparison.tierPop.map((t) => (
-                        <tr key={t.tier}>
-                          <th scope="row"><i className="dot" style={{ '--dot': TIERS[t.tier].hex, marginRight: 6 }} />{t.tier}</th>
-                          <td className="num">{pluralize(t.a, 'role')} · {pluralize(t.peopleA, 'person', 'people')}</td>
-                          <td className="num">{pluralize(t.b, 'role')} · {pluralize(t.peopleB, 'person', 'people')}</td>
-                        </tr>
-                      ))}
-                      <tr style={{ borderTop: '1px solid var(--hairline)', fontWeight: 500 }}>
-                        <th scope="row">Programme cost</th>
-                        <td className="num">{money(comparison.costA)}</td>
-                        <td className="num">{money(comparison.costB)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <p className="sub" style={{ marginTop: 10 }}>
-                  {comparison.moved.length === 0
-                    ? 'No role changes tier between these two scenarios.'
-                    : `${pluralize(comparison.moved.length, 'role')} ${comparison.moved.length === 1 ? 'changes' : 'change'} tier: ${comparison.moved.map((m) => `${m.role.role} (${m.from} → ${m.to})`).join(', ')}.`}
-                </p>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </details>
-  );
-}
-
 /* Whether Rebuild is a small slice of the population or most of it changes
    the story entirely, and both are real findings depending on the project: a
    manufacturer's ERP rollout can be 9 roles out of 5,000 people (Thornwood);
@@ -4636,10 +4113,8 @@ function concentrationFinding(agg) {
 }
 
 function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights, weightDeltas,
-                          siteArchetypeBase, siteArchetypeCombos, comboExample, citeDeck, sourceNamedRoleCount,
-                          onOpenBudgetWeights, rateCard, onRate, onResetRateCard, sa, setSa, projectName,
-                          threshold, onThreshold, onResetThreshold, rawAll, scenarios, activeScenarioName,
-                          onSaveScenario, onLoadScenario, onDeleteScenario }) {
+                          siteArchetypeBase, siteArchetypeCombos, comboExample, citeDeck,
+                          onOpenBudgetWeights, sa, setSa, projectName }) {
   // A filter with one real choice is not a filter: Ashford has one site
   // archetype and no combos, so the control is hidden rather than showing
   // "All site archetypes" next to a single, redundant second option.
@@ -4656,7 +4131,6 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
   const filteredIncomplete = useMemo(() => incomplete.filter(match), [incomplete, sa]);
 
   const agg = useMemo(() => aggregate(filtered), [filtered]);
-  const cost = useMemo(() => costModel(filtered, rateCard), [filtered, rateCard]);
   const finding = useMemo(() => concentrationFinding(agg), [agg]);
   // One real cross-reference, reused by all three banner variants below, so
   // the link destination and its wording can never drift out of sync.
@@ -4752,7 +4226,6 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
         {TIER_ORDER.map((t) => {
           const b = agg.byTier[t];
-          const tc = cost.byTier[t];
           return (
             <div className={'tile tier-tile' + (changedTiers.has(t) ? ' tile-flash' : '')} key={t} style={{ '--tier-color': TIERS[t].hex }}>
               <div className="tier-name"><i className="dot" style={{ '--dot': TIERS[t].hex }} />{t}</div>
@@ -4762,31 +4235,23 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
                 <div className="row"><span>People</span><b>{b.people.toLocaleString()}</b></div>
                 <div className="row"><span>% of population</span><b>{pct(b.popShare)}</b></div>
                 <div className="row"><span>Share of change budget</span><b>{pct(b.budgetShare)}</b></div>
-                <div className="row" title={`Training ${money(tc.training)} · Comms ${money(tc.comms)} · Support ${money(tc.support)} · Participant time ${money(tc.participantTime)}`}>
-                  <span>Programme cost<span className="sim-tag">Placeholder rates</span></span><b>{money(tc.total)}</b>
-                </div>
               </div>
             </div>
           );
         })}
       </div>
 
-      <RateCardPanel rateCard={rateCard} onChange={onRate} onReset={onResetRateCard} cost={cost} citeDeck={citeDeck} />
-
       {/* 3. THE QUADRANT CHART. The weighting panel sits right after it: it's
           the control that moves what the chart plots and how roles tier. */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-head">
           <h3>Impact severity × adoption risk</h3>
-          <span className="hint">{filtered.length} of {pluralize(scored.length, 'role')} · threshold {threshold.toFixed(1)} on both axes, inclusive</span>
+          <span className="hint">{filtered.length} of {pluralize(scored.length, 'role')} · threshold {THRESHOLD.toFixed(1)} on both axes, inclusive</span>
         </div>
         <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
       </div>
 
       <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} citeDeck={citeDeck} />
-      <ThresholdSensitivityPanel scored={scored} threshold={threshold} onChange={onThreshold} onReset={onResetThreshold} />
-      <ScenariosPanel weights={weights} threshold={threshold} activeScenarioName={activeScenarioName} scenarios={scenarios}
-                      onSave={onSaveScenario} onLoad={onLoadScenario} onDelete={onDeleteScenario} rawAll={rawAll} rateCard={rateCard} />
 
       {/* 4. THE ROLE x SITE TABLE. */}
       <div className="card" style={{ marginBottom: 16 }}>
@@ -4801,50 +4266,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         <RoleTable roles={filtered} incomplete={filteredIncomplete} selectedId={selectedId} onSelect={onSelect} comboExample={comboExample} />
       </div>
 
-      {/* 6. METHOD AND PROVENANCE. Every word that used to sit above the
-          fold: the intro, the unit-of-analysis argument, the source-deck
-          reconciliation, the 3.5 threshold rationale and the sub-factor
-          formulas. Closed by default, same disclosure pattern as
-          "Weighting: ours, and tunable" above - one click away, not gone. */}
-      <details className="tuner no-print" style={{ marginBottom: 16 }}>
-        <summary>
-          <span className="lbl">Method and provenance</span>
-          <span className="state">unit of analysis · threshold · weighting formulas</span>
-        </summary>
-        <div className="tuner-body">
-          <p className="lede" style={{ marginTop: 12 }}>
-            Every role scored on two axes and placed in a quadrant. The quadrant does not label the role.
-            It prescribes the intervention package, and its dose. Click any point or row to open the role one-pager.
-          </p>
-          <p className="lede unit">
-            <b>One row = one role at one site scope: role × site.</b>{' '}
-            {comboExample ? (
-              <>A site scope is either a single archetype or a named combination of them, like <b>{comboExample}</b>, because
-              some roles genuinely work across more than one. </>
-            ) : (
-              <>In this project every role sits at a single site archetype: no role here spans more than one. </>
-            )}
-            That scope is the level a curriculum, a comms message and a named accountable manager can
-            actually be attached to, which is why we score and tier there.{' '}
-            {citeDeck ? (
-              <>Ours: the source deck says role × process × site on slides 5 and 13 but tiers at role level on slides 9 and 10, so we
-              state the unit and tier at row level.</>
-            ) : (
-              <>Ours: we tier at row level. That is our own choice, not a rule stated by any source for this project.</>
-            )}
-          </p>
-          <p className="formula">
-            Impact severity = {IMPACT_FACTORS.map((f) => `${effWeight(IMPACT_FACTORS, f).toFixed(2)}×${f.label.toLowerCase()}`).join(' + ')}
-          </p>
-          <p className="formula">
-            Adoption risk = {RISK_FACTORS.map((f) => `${effWeight(RISK_FACTORS, f).toFixed(2)}×${f.label.toLowerCase()}`).join(' + ')}
-          </p>
-          <p className="footnote" style={{ marginTop: 8 }}>{noteThreshold(threshold)}</p>
-          <p className="footnote">{NOTE.weights(citeDeck)}</p>
-        </div>
-      </details>
-
-      <p className="footnote">All figures illustrative. All data synthetic. {datasetProvenanceNote(scored.length + incomplete.length, sourceNamedRoleCount)}</p>
+      <p className="footnote">All figures illustrative. All data synthetic.</p>
     </>
   );
 }
@@ -4898,7 +4320,7 @@ function AxisBreakdown({ name, factors, values, score, newRole, citeDeck }) {
   );
 }
 
-function onePagerText(role, comboExample, citeDeck) {
+function onePagerText(role, citeDeck) {
   const L = [];
   L.push(`${role.role}: ${role.tier}`);
   L.push(`${role.siteArchetype} · ${pluralize(role.siteCount, 'site')} · ${pluralize(role.headcount, 'person', 'people')}${role.deskless ? ' · deskless' : ''}`);
@@ -4918,10 +4340,6 @@ function onePagerText(role, comboExample, citeDeck) {
     L.push(`  ${f.label} ${v.toFixed(1)}: anchor ${a.n}${a.exact ? '' : ' (nearest)'}: ${a.text}${forced ? ' -- net-new role (rule applied automatically)' : ''}`);
     L.push(`    provenance: ${forced ? 'rule, not data entry' : a.origin}`);
   });
-  L.push(`  ${NOTE.anchors(citeDeck)}`);
-  L.push('');
-  L.push(NOTE.weights(citeDeck));
-  L.push(noteUnit(comboExample, citeDeck));
   L.push('');
   L.push(`Tasks: ${role.tasksRemoved} removed · ${role.tasksChanged} changed · ${role.tasksNew} new · FTE delta ${signed(role.fteDelta)}`);
   if (fteConsequenceLine(role.fteDelta)) L.push(`  ${fteConsequenceLine(role.fteDelta)}`);
@@ -5016,7 +4434,7 @@ function DeliveryDetail({ role }) {
   );
 }
 
-function OnePager({ role, onBack, backLabel, comboExample, citeDeck }) {
+function OnePager({ role, onBack, backLabel, citeDeck }) {
   const label = backLabel || 'Stakeholder Impact';
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -5048,7 +4466,7 @@ function OnePager({ role, onBack, backLabel, comboExample, citeDeck }) {
   const mods = modifiersFor(role);
 
   const copy = async () => {
-    const txt = onePagerText(role, comboExample, citeDeck);
+    const txt = onePagerText(role, citeDeck);
     try { await navigator.clipboard.writeText(txt); }
     catch (e) {
       const ta = document.createElement('textarea');
@@ -5146,10 +4564,7 @@ function OnePager({ role, onBack, backLabel, comboExample, citeDeck }) {
             impact {role.scores.impact.toFixed(1)} {role.scores.impact >= THRESHOLD ? '≥' : '<'} {THRESHOLD.toFixed(1)} and risk {role.scores.risk.toFixed(1)} {role.scores.risk >= THRESHOLD ? '≥' : '<'} {THRESHOLD.toFixed(1)}
             <b>→ {role.tier}</b>
           </div>
-          <p className="footnote">{noteThreshold(THRESHOLD)}</p>
-          <p className="footnote">{NOTE.weights(citeDeck)}</p>
-          <p className="footnote">{NOTE.anchors(citeDeck)}</p>
-          <p className="footnote">{noteUnit(comboExample, citeDeck)}</p>
+          <p className="footnote">All figures illustrative. All data synthetic.</p>
         </div>
       </div>
 
@@ -5305,7 +4720,7 @@ function AddRoleView({ onCreate, project, comboExample }) {
           single archetype{comboExample ? <> or a named combination of them, like <b>{comboExample}</b></> : null}. That scope is
           what a curriculum, a comms message and a named accountable manager attach to.
           All six sub-factors are required: until they are set the row reads <b>incomplete</b>, with no score and no tier.
-          {' '}{noteThreshold(THRESHOLD)} {NOTE.weights(project.hasDeckReproduction)}
+          {' '}{noteThreshold()} {NOTE.weights(project.hasDeckReproduction)}
         </p>
         <p className="lede unit">{NOTE.anchors(project.hasDeckReproduction)}</p>
       </div>
@@ -5438,189 +4853,6 @@ function AddRoleView({ onCreate, project, comboExample }) {
       </form>
     </>
   );
-}
-
-/* ===========================================================================
-   10. ROI MODEL (unused since the Adoption tab dropped its cost section;
-   kept here in case it is reinstated, not referenced by any current view)
-   =========================================================================== */
-
-function RoiChart() {
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!window.Chart || !ref.current) return;
-    // Direct labels placed at the widest gap between the curves, at the right
-    // edge the two series converge and stacked end-labels would collide.
-    let gapAt = 0, gapMax = -1;
-    ROI_WEEKS.forEach((w, i) => {
-      const g = ROI_TARGETED[i] - ROI_UNTARGETED[i];
-      if (g > gapMax) { gapMax = g; gapAt = i; }
-    });
-    const directLabels = {
-      id: 'directLabels',
-      afterDatasetsDraw(chart) {
-        const { ctx } = chart;
-        ctx.save();
-        // Canvas text can't wait on a webfont network request, so this stays a
-        // system-font stack rather than Poppins, weight still maps to Medium.
-        ctx.font = '500 12px system-ui, -apple-system, "Segoe UI", sans-serif';
-        ctx.textAlign = 'left';
-        [[1, -14, SERIES.targeted], [0, 20, SERIES.untargeted]].forEach(([di, dy, colour]) => {
-          const pt = chart.getDatasetMeta(di).data[gapAt];
-          if (!pt) return;
-          const label = chart.data.datasets[di].label;
-          // surface halo so the label stays legible over the shaded band
-          ctx.lineWidth = 3.5; ctx.strokeStyle = '#ffffff';
-          ctx.strokeText(label, pt.x + 10, pt.y + dy);
-          ctx.fillStyle = '#6B6B6B';
-          ctx.fillText(label, pt.x + 10, pt.y + dy);
-          ctx.beginPath();
-          ctx.arc(pt.x + 5, pt.y + dy - 4, 3, 0, Math.PI * 2);
-          ctx.fillStyle = colour; ctx.fill();
-        });
-        ctx.restore();
-      },
-    };
-    const c = new window.Chart(ref.current, {
-      type: 'line',
-      plugins: [directLabels],
-      data: {
-        labels: ROI_WEEKS,
-        datasets: [
-          {
-            label: 'Untargeted rollout', data: ROI_UNTARGETED,
-            // Literal hex: a canvas context cannot resolve CSS custom properties.
-            borderColor: SERIES.untargeted, backgroundColor: SERIES.untargeted,
-            borderWidth: 2, pointRadius: 4, pointHoverRadius: 6,
-            pointBorderColor: '#fff', pointBorderWidth: 2, tension: 0,
-          },
-          {
-            label: 'Tool-targeted rollout', data: ROI_TARGETED,
-            borderColor: SERIES.targeted, backgroundColor: SERIES.band,
-            borderWidth: 2, pointRadius: 4, pointHoverRadius: 6,
-            pointBorderColor: '#fff', pointBorderWidth: 2, tension: 0,
-            // Shade the band BETWEEN the curves, that area is literally the
-            // avoided loss the dollar figure is integrated from.
-            fill: { target: 0, above: SERIES.band, below: 'transparent' },
-          },
-        ],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        layout: { padding: { right: 24, top: 8 } },
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: {
-            position: 'top', align: 'start',
-            labels: {
-              boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle',
-              color: '#6B6B6B', font: { size: 12.5 },
-              // Take the swatch from the line colour, not the area-fill tint.
-              generateLabels: (chart) => chart.data.datasets.map((ds, i) => ({
-                text: ds.label, fillStyle: ds.borderColor, strokeStyle: ds.borderColor,
-                lineWidth: 0, pointStyle: 'circle', datasetIndex: i,
-              })),
-            },
-          },
-          tooltip: {
-            backgroundColor: '#09375F', padding: 10, cornerRadius: 7, displayColors: true, usePointStyle: true,
-            callbacks: {
-              title: (items) => `Week ${items[0].label} from go-live`,
-              label: (i) => `${i.dataset.label}: ${i.parsed.y}% of baseline`,
-            },
-          },
-        },
-        scales: {
-          x: {
-            title: { display: true, text: 'Weeks from go-live', color: '#6B6B6B', font: { size: 12.5, weight: '500' } },
-            grid: { color: '#E0E0E0', drawTicks: false }, border: { color: '#C9C9C9' },
-            ticks: { color: '#8C8C8C', font: { size: 11.5 } },
-          },
-          y: {
-            min: 70, max: 102,
-            title: { display: true, text: 'Productivity vs. baseline (%)', color: '#6B6B6B', font: { size: 12.5, weight: '500' } },
-            grid: { color: '#E0E0E0', drawTicks: false }, border: { color: '#C9C9C9' },
-            ticks: { color: '#8C8C8C', font: { size: 11.5 }, stepSize: 5, callback: (v) => `${v}%` },
-          },
-        },
-      },
-    });
-    return () => c.destroy();
-  }, []);
-  return <div className="chart-box"><canvas ref={ref} /></div>;
-}
-
-/* Same underlying curves as RoiChart, integrated cumulatively to each week
-   checkpoint instead of run once to week 16, so the dollar figure reads as a
-   trend, not a single static total. A "Today" marker lands at the project's
-   actual weeks-since-go-live, when that is known and inside the modeled window. */
-function RoiTrendChart({ points, todayWeek }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!window.Chart || !ref.current) return;
-    const todayMarker = {
-      id: 'todayMarker',
-      afterDatasetsDraw(chart) {
-        if (todayWeek === null || todayWeek === undefined) return;
-        const { ctx, chartArea, scales } = chart;
-        const x = scales.x.getPixelForValue(todayWeek);
-        ctx.save();
-        ctx.strokeStyle = '#09375F';
-        ctx.setLineDash([4, 4]);
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(x, chartArea.top);
-        ctx.lineTo(x, chartArea.bottom);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.font = '500 11px system-ui, -apple-system, "Segoe UI", sans-serif';
-        ctx.fillStyle = '#09375F';
-        ctx.textAlign = 'center';
-        ctx.fillText('Today', x, chartArea.top - 6);
-        ctx.restore();
-      },
-    };
-    const c = new window.Chart(ref.current, {
-      type: 'bar',
-      plugins: [todayMarker],
-      data: {
-        labels: points.map((p) => p.week),
-        datasets: [{
-          label: 'Cumulative avoided productivity loss',
-          data: points.map((p) => Math.round(p.dollars)),
-          backgroundColor: SERIES.targeted, borderRadius: 3, maxBarThickness: 34,
-        }],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        layout: { padding: { top: 22 } },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: '#09375F', padding: 10, cornerRadius: 7,
-            callbacks: {
-              title: (items) => `Week ${items[0].label} from go-live`,
-              label: (i) => `$${i.parsed.y.toLocaleString()} recovered so far`,
-            },
-          },
-        },
-        scales: {
-          x: {
-            title: { display: true, text: 'Weeks from go-live', color: '#6B6B6B', font: { size: 12.5, weight: '500' } },
-            grid: { display: false }, border: { color: '#C9C9C9' },
-            ticks: { color: '#8C8C8C', font: { size: 11.5 } },
-          },
-          y: {
-            title: { display: true, text: 'Cumulative $ recovered', color: '#6B6B6B', font: { size: 12.5, weight: '500' } },
-            grid: { color: '#E0E0E0', drawTicks: false }, border: { color: '#C9C9C9' },
-            ticks: { color: '#8C8C8C', font: { size: 11.5 }, callback: (v) => `$${Math.round(v / 1000)}k` },
-          },
-        },
-      },
-    });
-    return () => c.destroy();
-  }, [points, todayWeek]);
-  return <div className="chart-box"><canvas ref={ref} /></div>;
 }
 
 /* ===========================================================================
@@ -5872,7 +5104,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
           </div>
         </div>
       </div>
-      <p className="footnote">All figures illustrative. All data synthetic. {NOTE.weights(citeDeck)}</p>
+      <p className="footnote">All figures illustrative. All data synthetic.</p>
     </>
   );
 }
@@ -6001,7 +5233,7 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
           </table>
         </div>
       </div>
-      <p className="footnote">All figures illustrative. All data synthetic. {NOTE.weights(citeDeck)}</p>
+      <p className="footnote">All figures illustrative. All data synthetic.</p>
     </>
   );
 }
@@ -6223,7 +5455,7 @@ const TAB_LABELS = ALL_TABS.reduce((o, t) => { o[t.id] = t.label; return o; }, {
    Forward through tabs and one-pagers, a URL that reproduces exactly what
    the sender saw) without breaking that one.
    Shape: #/<projectId>/<tabId>[/role/<roleId>][?sa=..&tier=..&w=..] */
-function buildHash(project, tab, returnTab, selectedId, weights, filters, threshold, scenarioName) {
+function buildHash(project, tab, returnTab, selectedId, weights, filters) {
   if (!project) return '#/';
   const baseTab = tab === 'role' ? (returnTab || 'portfolio') : tab;
   let path = `#/${project.id}/${baseTab}`;
@@ -6232,8 +5464,6 @@ function buildHash(project, tab, returnTab, selectedId, weights, filters, thresh
   if (filters && filters.sa && filters.sa !== 'All') q.set('sa', filters.sa);
   if (filters && filters.tier && filters.tier !== 'All') q.set('tier', filters.tier);
   if (weights && !weightsAreDefault(weights)) q.set('w', ALL_FACTORS.map((f) => weights[f.key]).join(','));
-  if (threshold != null && threshold !== DEFAULT_THRESHOLD) q.set('th', threshold);
-  if (scenarioName) q.set('sn', scenarioName);
   const qs = q.toString();
   return qs ? `${path}?${qs}` : path;
 }
@@ -6252,7 +5482,6 @@ function parseHash(hash) {
       ALL_FACTORS.forEach((f, i) => { weights[f.key] = nums[i]; });
     }
   }
-  const thRaw = parseFloat(q.get('th'));
   // No tab segment at all (a bare project link) is a normal, silent
   // default. A tab segment that names something real but wrong - a stale
   // link, a typo, an old bookmark from before a tab was renamed - is a
@@ -6269,8 +5498,6 @@ function parseHash(hash) {
     sa: q.get('sa') || 'All',
     tier: q.get('tier') || 'All',
     weights,
-    threshold: (isFinite(thRaw) && thRaw >= 1 && thRaw <= 5) ? thRaw : null,
-    scenarioName: q.get('sn') || null,
   };
 }
 
@@ -6874,9 +6101,6 @@ function App() {
   const [returnTab, setReturnTab] = useState('portfolio'); // where "← Back" on the one-pager / methodology page returns to
   const [selectedId, setSelectedId] = useState(null);
   const [weights, setWeights] = useState(() => ({ ...DEFAULT_WEIGHTS }));
-  const [threshold, setThresholdState] = useState(DEFAULT_THRESHOLD);
-  const [activeScenarioName, setActiveScenarioName] = useState(null); // display only; cleared by any manual weight/threshold edit
-  const [rateCard, setRateCard] = useState(() => ({ ...DEFAULT_RATE_CARD }));
   const [filters, setFilters] = useState({ sa: 'All', tier: 'All' }); // site-archetype and tier filters, URL-encoded
   // A stale/mistyped tab slug in the URL (e.g. a link built against an old
   // tab id) - shown once, briefly, and the address bar is corrected to
@@ -6894,7 +6118,7 @@ function App() {
     // roleId-or-portfolio resolution the boot/popstate effects use), so a
     // reload or a re-share of this link lands somewhere real instead of
     // reproducing the same silent mismatch.
-    const corrected = buildHash(matched, route.roleId ? 'role' : 'portfolio', 'portfolio', route.roleId, route.weights, { sa: route.sa, tier: route.tier }, route.threshold, route.scenarioName);
+    const corrected = buildHash(matched, route.roleId ? 'role' : 'portfolio', 'portfolio', route.roleId, route.weights, { sa: route.sa, tier: route.tier });
     history.replaceState(null, '', corrected);
   }, []);
 
@@ -6911,8 +6135,6 @@ function App() {
     if (route.roleId) setSelectedId(route.roleId);
     setFilters({ sa: route.sa, tier: route.tier });
     if (route.weights) setWeights(route.weights);
-    if (route.threshold != null) setThresholdState(route.threshold);
-    if (route.scenarioName) setActiveScenarioName(route.scenarioName);
     flagUnknownTab(matched, route);
   }, []);
 
@@ -6929,9 +6151,6 @@ function App() {
       setSelectedId(route.roleId || null);
       setFilters({ sa: route.sa, tier: route.tier });
       setWeights(route.weights || { ...DEFAULT_WEIGHTS });
-      setThresholdState(route.threshold != null ? route.threshold : DEFAULT_THRESHOLD);
-      setActiveScenarioName(route.scenarioName || null);
-      setRateCard({ ...DEFAULT_RATE_CARD });
       flagUnknownTab(matched, route);
     };
     window.addEventListener('popstate', onPop);
@@ -6949,14 +6168,12 @@ function App() {
       returnTab: 'returnTab' in overrides ? overrides.returnTab : returnTab,
       selectedId: 'selectedId' in overrides ? overrides.selectedId : selectedId,
       weights: 'weights' in overrides ? overrides.weights : weights,
-      threshold: 'threshold' in overrides ? overrides.threshold : threshold,
       filters: 'filters' in overrides ? overrides.filters : filters,
-      scenarioName: 'scenarioName' in overrides ? overrides.scenarioName : activeScenarioName,
     };
-    const hash = buildHash(s.project, s.tab, s.returnTab, s.selectedId, s.weights, s.filters, s.threshold, s.scenarioName);
+    const hash = buildHash(s.project, s.tab, s.returnTab, s.selectedId, s.weights, s.filters);
     if (mode === 'push') history.pushState(null, '', hash);
     else history.replaceState(null, '', hash);
-  }, [project, tab, returnTab, selectedId, weights, threshold, filters, activeScenarioName]);
+  }, [project, tab, returnTab, selectedId, weights, filters]);
 
   useEffect(() => {
     if (!project) return;
@@ -6970,7 +6187,7 @@ function App() {
 
   // The factor objects carry the live weights, so they are synced before any
   // scoring happens, every displayed weight matches the arithmetic behind it.
-  const all = useMemo(() => { applyWeights(weights); applyThreshold(threshold); return raw.map(scoreRole); }, [raw, weights, threshold]);
+  const all = useMemo(() => { applyWeights(weights); return raw.map(scoreRole); }, [raw, weights]);
   const scored = useMemo(() => all.filter((r) => r.complete), [all]);
   const incomplete = useMemo(() => all.filter((r) => !r.complete), [all]);
   const selected = useMemo(() => all.find((r) => r.id === selectedId) || null, [all, selectedId]);
@@ -6997,20 +6214,15 @@ function App() {
   // second) before this fix. Debounced so a whole drag does that work
   // once, ~150ms after it settles, against a snapshot taken at the start
   // of the burst - not once per tick.
-  const applyAndDiff = useCallback((nextWeights, nextThreshold, scenarioName) => {
-    const th = nextThreshold != null ? nextThreshold : threshold;
-    if (!diffTimerRef.current) beforeSnapshotRef.current = computeKeyFigures(raw, weights, threshold);
+  const applyAndDiff = useCallback((nextWeights) => {
+    if (!diffTimerRef.current) beforeSnapshotRef.current = computeKeyFigures(raw, weights);
     setWeights(nextWeights);
-    if (nextThreshold != null) setThresholdState(nextThreshold);
-    // A manual slider nudge is no longer "the scenario", exactly; loading
-    // one explicitly passes its own name back in.
-    setActiveScenarioName(scenarioName || null);
-    syncRoute({ weights: nextWeights, threshold: th }, 'replace');
+    syncRoute({ weights: nextWeights }, 'replace');
     clearTimeout(diffTimerRef.current);
     diffTimerRef.current = setTimeout(() => {
       diffTimerRef.current = null;
       const before = beforeSnapshotRef.current;
-      const after = computeKeyFigures(raw, nextWeights, th);
+      const after = computeKeyFigures(raw, nextWeights);
       const deltas = Object.keys(after)
         .filter((k) => before[k] !== undefined && before[k] !== after[k])
         .map((k) => ({ label: k, from: before[k], to: after[k] }));
@@ -7022,47 +6234,9 @@ function App() {
         setWeightDeltas(null);
       }
     }, 150);
-  }, [raw, weights, threshold, syncRoute]);
+  }, [raw, weights, syncRoute]);
   const setWeight = useCallback((key, v) => applyAndDiff({ ...weights, [key]: v }), [applyAndDiff, weights]);
   const resetWeights = useCallback(() => applyAndDiff({ ...DEFAULT_WEIGHTS }), [applyAndDiff]);
-  const setThreshold = useCallback((t) => applyAndDiff(weights, t), [applyAndDiff, weights]);
-  const resetThreshold = useCallback(() => applyAndDiff(weights, DEFAULT_THRESHOLD), [applyAndDiff, weights]);
-
-  // Named scenarios: a saved (weighting, threshold) pair a user can name,
-  // reload and compare later. Global across projects (a weighting choice
-  // isn't a fact about one client's data), persisted to localStorage.
-  const [scenarios, setScenarios] = useState(() => loadScenarios());
-  const saveScenario = useCallback((name) => {
-    const trimmed = (name || '').trim();
-    if (!trimmed) return;
-    const next = [...scenarios.filter((s) => s.name !== trimmed), { name: trimmed, weights, threshold }];
-    setScenarios(next);
-    saveScenarios(next);
-    setActiveScenarioName(trimmed);
-    syncRoute({ weights, threshold }, 'replace'); // sn is added by the effect below, once activeScenarioName lands
-  }, [scenarios, weights, threshold, syncRoute]);
-  const loadScenario = useCallback((scenario) => {
-    applyAndDiff({ ...scenario.weights }, scenario.threshold, scenario.name);
-  }, [applyAndDiff]);
-  const deleteScenario = useCallback((name) => {
-    const next = scenarios.filter((s) => s.name !== name);
-    setScenarios(next);
-    saveScenarios(next);
-    if (activeScenarioName === name) setActiveScenarioName(null);
-  }, [scenarios, activeScenarioName]);
-
-  // The active scenario's name is URL state too (P15/16): once it lands in
-  // state (from saveScenario, loadScenario, or the boot/popstate parse),
-  // this keeps the address bar in sync without every other syncRoute call
-  // site needing to know about scenarios.
-  useEffect(() => {
-    if (!project) return;
-    syncRoute({}, 'replace');
-    // eslint-disable-next-line
-  }, [activeScenarioName]);
-
-  const setRate = useCallback((key, v) => setRateCard((rc) => ({ ...rc, [key]: v })), []);
-  const resetRateCard = useCallback(() => setRateCard({ ...DEFAULT_RATE_CARD }), []);
 
   // Filters are URL state too, so a shared link reproduces exactly what
   // the sender was looking at, not just which project and tab.
@@ -7118,9 +6292,6 @@ function App() {
     setRaw([]); setDataSource(''); setMeta({});
     setTab('portfolio'); setReturnTab('portfolio'); setSelectedId(null);
     setWeights({ ...DEFAULT_WEIGHTS });
-    setThresholdState(DEFAULT_THRESHOLD);
-    setActiveScenarioName(null);
-    setRateCard({ ...DEFAULT_RATE_CARD });
     setFilters({ sa: 'All', tier: 'All' });
     // A leftover flash from the previous project's weights, or a leftover
     // bad-link notice, must never bleed into this one.
@@ -7128,7 +6299,7 @@ function App() {
     setWeightDeltas(null);
     clearTimeout(routeNoticeTimerRef.current);
     setRouteNotice(null);
-    history.pushState(null, '', buildHash(p, 'portfolio', 'portfolio', null, DEFAULT_WEIGHTS, { sa: 'All', tier: 'All' }, DEFAULT_THRESHOLD, null));
+    history.pushState(null, '', buildHash(p, 'portfolio', 'portfolio', null, DEFAULT_WEIGHTS, { sa: 'All', tier: 'All' }));
   }, []);
 
   const backToProjects = useCallback(() => enterProject(null), [enterProject]);
@@ -7189,12 +6360,8 @@ function App() {
                          weights={weights} onWeight={setWeight} onResetWeights={resetWeights} weightDeltas={weightDeltas}
                          siteArchetypeBase={project.siteArchetypeBase} siteArchetypeCombos={project.siteArchetypeCombos}
                          comboExample={comboExample} citeDeck={project.hasDeckReproduction}
-                         sourceNamedRoleCount={meta.sourceNamedRoleCount} onOpenBudgetWeights={openBudgetWeights}
-                         rateCard={rateCard} onRate={setRate} onResetRateCard={resetRateCard}
-                         sa={filters.sa} setSa={setFilterSa} projectName={project.name}
-                         threshold={threshold} onThreshold={setThreshold} onResetThreshold={resetThreshold}
-                         rawAll={raw} scenarios={scenarios} activeScenarioName={activeScenarioName}
-                         onSaveScenario={saveScenario} onLoadScenario={loadScenario} onDeleteScenario={deleteScenario} />
+                         onOpenBudgetWeights={openBudgetWeights}
+                         sa={filters.sa} setSa={setFilterSa} projectName={project.name} />
         )}
         {tab === 'redesign' && (
           <RedesignView all={all} selectedId={selectedId} onSelect={openRole} weights={weights} onResetWeights={resetWeights}
@@ -7218,7 +6385,7 @@ function App() {
         )}
         {tab === 'role' && (
           <OnePager role={selected} onBack={closeRole} backLabel={TAB_LABELS[returnTab] || 'Stakeholder Impact'}
-                    comboExample={comboExample} citeDeck={project.hasDeckReproduction} />
+                    citeDeck={project.hasDeckReproduction} />
         )}
         {tab === 'add' && <AddRoleView onCreate={createRole} project={project} comboExample={comboExample} />}
       </main>
