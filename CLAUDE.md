@@ -191,12 +191,18 @@ their own `siteArchetypeBase` in their `PROJECTS` entry instead.
   it, and that rule must be true.** If copy says "see the X tab", tab X must
   actually contain X — check this explicitly; `showDeckProvenance` is a
   cautionary example of copy/wiring that outlived the feature it pointed to.
-- **Tier colors are fixed and mean one thing only**: Rebuild = red (`#DB504A`
-  / `--t-rebuild-*`), Enable = yellow (`#F7D002` / `--t-enable-*`), Reassure =
-  blue (`#5CC8FF` / `--t-reassure-*`), Inform = green (`#00A676` /
-  `--t-inform-*`). Never reuse these hues to encode anything else (status,
-  health, completion, re-score freshness, etc.) anywhere in the app — pick a
-  distinct palette for any other semantic (e.g. `rescoreStatus`'s
+- **Tier colors are fixed and mean one thing only**: Rebuild = Jasper
+  (`#DB504A` / `--chart-red` / `--t-rebuild-*`), Enable = Gold (`#F7D002` /
+  `--chart-gold` / `--t-enable-*`), Reassure = Deep Sky Blue (`#5CC8FF` /
+  `--chart-sky` / `--t-reassure-*`), Inform = Jade (`#00A676` /
+  `--chart-jade` / `--t-inform-*`) — the Aberdeen brand's own chart-only
+  secondary palette, defined once in `styles.css`'s `:root` and read from
+  there by every tier badge, card, quadrant point and legend; `TIERS[*].hex`
+  in `index.html` must stay a literal mirror of the same four values (canvas
+  and inline SVG can't read CSS custom properties), not an independent
+  second set of numbers. Never reuse these hues to encode anything else
+  (status, health, completion, re-score freshness, etc.) anywhere in the
+  app — pick a distinct palette for any other semantic (e.g. `rescoreStatus`'s
   green/yellow/red already needs to stay visually distinct from the tier
   wash).
 - **Singular/plural, zero states and empty collections must render as

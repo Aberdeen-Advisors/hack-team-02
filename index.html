@@ -13,13 +13,14 @@
 <link rel="icon" href="assets/brand/icon-blue.svg" type="image/svg+xml">
 
 <!-- Poppins, per the Aberdeen brand system (ExtraLight headings, Medium
-     subheadings, Regular body). Arial is the plain CSS fallback in
-     styles.css if this request fails, no local vendoring, same as the
-     other CDN-first, fallback-covered assets on this page. -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@200;400;500&display=swap" rel="stylesheet">
-
+     subheadings, Regular body) - self-hosted (vendor/fonts/, @font-face in
+     styles.css), not a Google Fonts request. A CDN link here would be a
+     single point of failure this app doesn't accept anywhere else: the
+     200 weight is the brand's signature and a failed fetch would silently
+     collapse every heading to a synthesized 400, on the one asset with no
+     document.write-style fallback mechanism to catch it. Arial remains the
+     plain CSS fallback in styles.css if even the local files are somehow
+     unreachable. -->
 <link rel="stylesheet" href="styles.css">
 
 <!--
@@ -4080,7 +4081,7 @@ function WeightTuner({ weights, onChange, onReset, citeDeck }) {
           {axis('Impact severity', IMPACT_FACTORS)}
           {axis('Adoption risk', RISK_FACTORS)}
         </div>
-        <div className="btn-row" style={{ marginTop: 12 }}>
+        <div className="btn-row" style={{ marginTop: 'var(--space-12)' }}>
           <button className="btn" type="button" onClick={onReset} disabled={isDefault}>Reset to our defaults</button>
           <span className="sub">Effective weight shown to the right of each slider; each axis always sums to 1.00.</span>
         </div>
@@ -4162,7 +4163,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       </div>
 
       {filteredIncomplete.length > 0 && (
-        <div className="note warn" style={{ marginBottom: 16 }}>
+        <div className="note warn" style={{ marginBottom: 'var(--space-16)' }}>
           <b>{filteredIncomplete.length} row{filteredIncomplete.length === 1 ? '' : 's'} incomplete: not scored, not tiered, not plotted.</b>
           <span className="sub">
             {filteredIncomplete.map((r) => `${r.role} (${r.missing.length} of 6 sub-factors missing)`).join(' · ')}. {NOTE.incomplete}
@@ -4232,7 +4233,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         </div>
       )}
 
-      <div className="grid cols-4" style={{ marginBottom: 16 }}>
+      <div className="grid cols-4" style={{ marginBottom: 'var(--space-16)' }}>
         {TIER_ORDER.map((t) => {
           const b = agg.byTier[t];
           return (
@@ -4252,7 +4253,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
 
       {/* 3. THE QUADRANT CHART. The weighting panel sits right after it: it's
           the control that moves what the chart plots and how roles tier. */}
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Impact severity × adoption risk</h3>
           <span className="hint">{filtered.length} of {pluralize(scored.length, 'role')} · threshold {THRESHOLD.toFixed(1)} on both axes, inclusive</span>
@@ -4263,7 +4264,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} citeDeck={citeDeck} />
 
       {/* 4. THE ROLE x SITE TABLE. */}
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Role × site</h3>
           <span className="hint">One row per role × site. Sort any column. Click a row for the one-pager.</span>
@@ -4507,7 +4508,7 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
       </div>
 
       {/* 1. HEADER: name, headcount, site, tier, all immediately visible. */}
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="op-head">
           <div className="t">
             <h2>{role.role}{role.isNewRole && <span className="newflag">new role</span>}</h2>
@@ -4527,20 +4528,20 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
       <div className="view-head" style={{ marginBottom: 10 }}>
         <h3 style={{ margin: 0, fontSize: 17 }}>What's changing</h3>
       </div>
-      <div className="grid cols-4" style={{ marginBottom: 12 }}>
+      <div className="grid cols-4" style={{ marginBottom: 'var(--space-12)' }}>
         <Tile label="Tasks removed" value={role.tasksRemoved} />
         <Tile label="Tasks changed" value={role.tasksChanged} />
         <Tile label="Tasks new" value={role.tasksNew} />
         <Tile label="FTE delta" value={signed(role.fteDelta)} meta="of admin, per site" />
       </div>
       {fteConsequenceLine(role.fteDelta) && (
-        <div className="banner" style={{ marginBottom: 16 }}>
+        <div className="banner" style={{ marginBottom: 'var(--space-16)' }}>
           <b>{signed(role.fteDelta)} FTE is a decision, not a by-product.</b>
           <span className="src">{fteConsequenceLine(role.fteDelta)}</span>
         </div>
       )}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-body" style={{ paddingBottom: 4 }}><p className="op-summary" style={{ marginTop: 0 }}>{role.summary}</p></div>
+      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
+        <div className="card-body" style={{ paddingBottom: 'var(--space-4)' }}><p className="op-summary" style={{ marginTop: 0 }}>{role.summary}</p></div>
         <div className="ba">
           <div>
             <h4>Before</h4>
@@ -4555,13 +4556,13 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
 
       {/* 3. WHY IT'S SCORED THIS WAY: collapsed by default, full detail on demand
           (and always present for print/copy, see .score-detail in styles.css). */}
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head" style={{ cursor: 'pointer' }} onClick={() => setShowScore((s) => !s)}>
           <h3>Why it's scored this way</h3>
           <span className="hint">
             impact {role.scores.impact.toFixed(1)} · risk {role.scores.risk.toFixed(1)} → <b>{role.tier}</b>
           </span>
-          <button className="btn no-print" style={{ marginLeft: 12 }}
+          <button className="btn no-print" style={{ marginLeft: 'var(--space-12)' }}
                   onClick={(e) => { e.stopPropagation(); setShowScore((s) => !s); }}>
             {showScore ? 'Hide detail' : 'Show detail'}
           </button>
@@ -4569,7 +4570,7 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
         <div className={'card-body score-detail' + (showScore ? '' : ' collapsed')}>
           <AxisBreakdown name="Impact severity" factors={IMPACT_FACTORS} values={role.impact} score={role.scores.impact} newRole={role.isNewRole} citeDeck={citeDeck} />
           <AxisBreakdown name="Adoption risk" factors={RISK_FACTORS} values={role.risk} score={role.scores.risk} citeDeck={citeDeck} />
-          <div className="sf-total" style={{ borderTop: '1px solid var(--hairline)', marginTop: 14, paddingTop: 12 }}>
+          <div className="sf-total" style={{ borderTop: '1px solid var(--hairline)', marginTop: 14, paddingTop: 'var(--space-12)' }}>
             impact {role.scores.impact.toFixed(1)} {role.scores.impact >= THRESHOLD ? '≥' : '<'} {THRESHOLD.toFixed(1)} and risk {role.scores.risk.toFixed(1)} {role.scores.risk >= THRESHOLD ? '≥' : '<'} {THRESHOLD.toFixed(1)}
             <b>→ {role.tier}</b>
           </div>
@@ -4598,7 +4599,7 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
             </div>
           ))}
           {(role.constraints || []).length > 0 && (
-            <div style={{ marginTop: 16 }}>
+            <div style={{ marginTop: 'var(--space-16)' }}>
               <h5 style={{ margin: '0 0 7px', fontSize: 12, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>Constraints on this population</h5>
               <div className="constraint-list">{role.constraints.map((c, i) => <span key={i}>{c}</span>)}</div>
             </div>
@@ -4735,8 +4736,8 @@ function AddRoleView({ onCreate, project, comboExample }) {
       </div>
 
       <form onSubmit={submit}>
-        <div className="grid cols-2" style={{ marginBottom: 16, alignItems: 'start' }}>
-         <div style={{ display: 'grid', gap: 16 }}>
+        <div className="grid cols-2" style={{ marginBottom: 'var(--space-16)', alignItems: 'start' }}>
+         <div style={{ display: 'grid', gap: 'var(--space-16)' }}>
           <div className="card">
             <div className="card-head"><h3>Identify</h3></div>
             <div className="card-body">
@@ -4803,7 +4804,7 @@ function AddRoleView({ onCreate, project, comboExample }) {
             <div className={'live-score' + (complete ? '' : ' pending')}>
               <div>
                 <div className="lab">{complete ? 'Computed live' : `Incomplete: ${6 - missing.length} of 6 sub-factors set`}</div>
-                <div className="pair" style={{ marginTop: 8 }}>
+                <div className="pair" style={{ marginTop: 'var(--space-8)' }}>
                   <div>
                     <div className="big num">{complete ? impact.toFixed(1) : 'N/A'}</div>
                     <div className="thr">Impact severity · threshold {THRESHOLD.toFixed(1)}, inclusive</div>
@@ -4835,7 +4836,7 @@ function AddRoleView({ onCreate, project, comboExample }) {
             </div>
          </div>
 
-         <div style={{ display: 'grid', gap: 16 }}>
+         <div style={{ display: 'grid', gap: 'var(--space-16)' }}>
             <div className="card">
               <div className="card-head"><h3>Impact severity</h3><span className="hint">how much the work changes</span></div>
               <div className="card-body">
@@ -4951,18 +4952,18 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
-      <div className="grid cols-4" style={{ marginBottom: 12 }}>
+      <div className="grid cols-4" style={{ marginBottom: 'var(--space-12)' }}>
         <Tile label="Tasks removed" value={totals.removed} />
         <Tile label="Tasks changed" value={totals.changed} />
         <Tile label="Tasks new" value={totals.added} />
         <Tile label="Net FTE delta" value={signed(fte.net)} accent rule={fteDriver} />
       </div>
-      <p className="footnote" style={{ marginBottom: 16 }}>
+      <p className="footnote" style={{ marginBottom: 'var(--space-16)' }}>
         {fte.growing === 1 ? '1 role grows' : `${fte.growing} roles grow`} · {fte.shrinking === 1 ? '1 role shrinks' : `${fte.shrinking} roles shrink`}
         {fte.largest && <> · largest single movement: <b>{fte.largest.role}</b> {signed(fte.largest.fteDelta || 0)}</>}
       </p>
       {fte.net <= -MATERIAL_FTE_DELTA && (
-        <div className="banner" style={{ marginBottom: 16 }}>
+        <div className="banner" style={{ marginBottom: 'var(--space-16)' }}>
           <b>A net reduction of {Math.abs(fte.net).toFixed(1)} FTE is a decision, not a by-product.</b>
           <span className="src">
             Consultation, redeployment and timeline implications follow from a reduction this size; they need their own
@@ -5012,7 +5013,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
       </div>
 
       {trainingGroup && (
-        <div className="grid cols-4" style={{ marginBottom: 16 }}>
+        <div className="grid cols-4" style={{ marginBottom: 'var(--space-16)' }}>
           {trainingGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} rule={r.rule} emptyNote={r.n === 0 ? r.emptyNote : null} />)}
         </div>
       )}
@@ -5027,7 +5028,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
         </div>
       </div>
 
-      <div className="table-scroll" style={{ marginBottom: 16 }}>
+      <div className="table-scroll" style={{ marginBottom: 'var(--space-16)' }}>
         <table className="data">
           <thead>
             <tr>
@@ -5061,7 +5062,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
         </p>
       )}
 
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head"><h3>Delivery standards</h3><span className="hint">Aberdeen OCM delivery material</span></div>
         <div className="card-body">
           <div className="grid cols-2">
@@ -5148,13 +5149,13 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
       </div>
 
       {commsGroup && (
-        <div className="grid cols-4" style={{ marginBottom: 16 }}>
+        <div className="grid cols-4" style={{ marginBottom: 'var(--space-16)' }}>
           {commsGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} rule={r.rule} emptyNote={r.n === 0 ? r.emptyNote : null} />)}
         </div>
       )}
 
       {byTier.map((g) => (
-        <div className="card" key={g.tier} style={{ marginBottom: 16 }}>
+        <div className="card" key={g.tier} style={{ marginBottom: 'var(--space-16)' }}>
           <div className="card-head">
             <h3><i className="dot" style={{ '--dot': TIERS[g.tier].hex, display: 'inline-block', marginRight: 7 }} />{g.tier}</h3>
             <span className="hint">{pluralize(g.roles.length, 'role')} · {g.roles.reduce((s, r) => s + r.headcount, 0).toLocaleString()} people</span>
@@ -5196,7 +5197,7 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
         </div>
       </div>
 
-      <div className="table-scroll" style={{ marginBottom: 16 }}>
+      <div className="table-scroll" style={{ marginBottom: 'var(--space-16)' }}>
         <table className="data">
           <thead><tr><th>Role</th><th>Tier</th><th>Go-live channel</th><th>Cascade needed?</th></tr></thead>
           <tbody>
@@ -5218,7 +5219,7 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
         <p className="footnote">{incomplete.length} incomplete role{incomplete.length === 1 ? '' : 's'}, no tier yet, not shown here.</p>
       )}
 
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head"><h3>The five milestones</h3><span className="hint">Aberdeen OCM delivery material</span></div>
         <div className="card-body">
           <table className="mini milestones">
@@ -5244,13 +5245,13 @@ function BudgetWeightingPanel({ agg }) {
   const rebuild = agg.byTier.Rebuild;
   const rebuildWeight = BUDGET_WEIGHT_PER_TIER.Rebuild;
   return (
-    <div className="card" style={{ marginBottom: 16 }}>
+    <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
       <div className="card-head">
         <h3>Change budget weighting</h3>
         <span className="hint">What "Share of change budget" on the Stakeholder Impact tab is computed from</span>
       </div>
       <div className="card-body">
-        <p className="sub" style={{ marginBottom: 12 }}>
+        <p className="sub" style={{ marginBottom: 'var(--space-12)' }}>
           Share of budget is headcount × cost weight, not headcount alone — a Rebuild role costs far more per head to support than an Inform role.
         </p>
         <div className="table-scroll" style={{ marginBottom: 10 }}>
@@ -5281,7 +5282,7 @@ function BudgetWeightingPanel({ agg }) {
             </tbody>
           </table>
         </div>
-        <p className="formula" style={{ marginBottom: 4 }}>
+        <p className="formula" style={{ marginBottom: 'var(--space-4)' }}>
           Worked example, Rebuild: {rebuild.people.toLocaleString()} × {rebuildWeight} = {rebuild.weight.toFixed(1)},
           {' '}over a total of {TIER_ORDER.map((t) => `${agg.byTier[t].people.toLocaleString()}×${BUDGET_WEIGHT_PER_TIER[t]}`).join(' + ')} = {totalWeighted.toFixed(1)}.
           {' '}{rebuild.weight.toFixed(1)} ÷ {totalWeighted.toFixed(1)} = {pct(rebuild.budgetShare)} of change budget.
@@ -5319,7 +5320,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
 
       <BudgetWeightingPanel agg={agg} />
 
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Status by tier</h3>
           <span className="hint">Tied to each tier's own re-score cadence: {TIER_ORDER.map((t) => `${t} ${DOSES[t].rescoreDays}d`).join(' · ')}</span>
@@ -5328,7 +5329,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
           {tierStatus.length === 0 && <p className="sub">No scored roles yet.</p>}
           {tierStatus.map((s) => (
             <div key={s.tier} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid var(--hairline)', fontSize: 13.5 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-8)' }}>
                 <i className="dot" style={{ '--dot': TIERS[s.tier].hex }} />
                 <b>{s.tier}</b>
                 <span className="hint">{pluralize(s.count, 'role')} · {pluralize(s.people, 'person', 'people')}</span>
@@ -5346,7 +5347,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Roles nearest a tier boundary</h3>
           <span className="hint">What the next re-score is most likely to move</span>
@@ -5365,7 +5366,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         </div>
       </div>
 
-      <div className="card simulated" style={{ marginBottom: 16 }}>
+      <div className="card simulated" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Training completion by tier <span className="sim-tag">Simulated</span></h3>
           <span className="hint">Ramps toward a tier-specific ceiling with days live. Editable for this demo.</span>
@@ -5376,8 +5377,8 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
             const accessed = Math.round(presc.totalAids * (completion[t] / 100));
             return (
               <div key={t} style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-8)' }}>
                     <i className="dot" style={{ '--dot': TIERS[t].hex }} /><b>{t}</b>
                     <span className="hint">{pluralize(presc.hours, 'hour')} curriculum · {pluralize(presc.roleCount, 'role')} prescribed</span>
                   </span>
@@ -5389,7 +5390,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
                   </span>
                 </div>
                 <div className="bar"><i style={{ width: `${completion[t]}%`, background: TIERS[t].hex }} /></div>
-                <p className="hint" style={{ marginTop: 4 }}>
+                <p className="hint" style={{ marginTop: 'var(--space-4)' }}>
                   ≈ {accessed} of {pluralize(presc.totalAids, 'prescribed job aid')} accessed at this completion rate (simulated, tracks completion)
                 </p>
               </div>
@@ -5398,7 +5399,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         </div>
       </div>
 
-      <div className="grid cols-4" style={{ marginBottom: 12 }}>
+      <div className="grid cols-4" style={{ marginBottom: 'var(--space-12)' }}>
         <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} meta="of in-scope headcount, at least once" />
         <Tile simulated label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} rule="3.2 per person over the adoption window" />
         <Tile simulated label="Job-aid access rate" value={`${metrics.jobAidAccessRate}%`} meta="of issued job aids opened at least once" />
@@ -5707,7 +5708,7 @@ function EngagementProfileStep({ profile, onChange, onNext, onCancel }) {
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 16 }}>
+      <div className="card" style={{ marginTop: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Sites</h3>
           <span className="hint">One row per physical site: name, type and headcount</span>
@@ -5862,7 +5863,7 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
             </div>
             <input ref={fileInputRef} type="file" accept=".csv,text/csv" aria-label="Import roles from CSV file"
                    style={{ display: 'none' }} onChange={handleCsvChange} />
-            {csvFileName && <p className="sub" style={{ marginTop: 8 }}>Last imported: {csvFileName}</p>}
+            {csvFileName && <p className="sub" style={{ marginTop: 'var(--space-8)' }}>Last imported: {csvFileName}</p>}
             {csvWarnings.length > 0 && (
               <div className="note warn" style={{ marginTop: 10 }}>
                 <b>{csvWarnings.length} note{csvWarnings.length === 1 ? '' : 's'} from the import</b>
@@ -5906,7 +5907,7 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 16 }}>
+      <div className="card" style={{ marginTop: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Supporting files</h3>
           <span className="hint">To-be process docs, HRIS extracts, readiness survey results: stored as reference material, not parsed</span>
@@ -5928,7 +5929,7 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 16 }}>
+      <div className="card" style={{ marginTop: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Roles ({draftRoles.length})</h3>
           {pendingCount > 0 && <span className="hint">{pendingCount} being scored…</span>}
@@ -6332,7 +6333,7 @@ function App() {
         </nav>
       </header>
 
-      <div className="only-print" style={{ marginBottom: 12 }}>
+      <div className="only-print" style={{ marginBottom: 'var(--space-12)' }}>
         <div style={{ fontSize: 10, letterSpacing: '.13em', textTransform: 'uppercase', color: 'var(--ink-2)' }}>Aberdeen Advisors</div>
         <div style={{ fontWeight: 500 }}>
           Change Impact Assessment Tool: {tab === 'role' ? `role one-pager${selected ? ', ' + selected.role : ''}` : TAB_LABELS[tab] || tab}, {project.name}
