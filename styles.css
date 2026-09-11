@@ -688,7 +688,10 @@ a { color: var(--aberdeen-blue); }
    rather than data, so it is deliberately the largest thing on the page -
    larger than any h2 elsewhere, Poppins ExtraLight, a short Verdigris rule
    underneath standing in for the h2's usual underline treatment, and one
-   quiet supporting line in figures below that. */
+   quiet supporting line in figures below that. Stakeholder Impact only -
+   the one screen meant to open on a conclusion. Every other tab's own
+   headline finding uses .tab-finding instead, well under this scale, so
+   this hero stays the single largest thing in the product. */
 .hero-headline { margin-bottom: var(--space-16); }
 .hero-sentence {
   font-size: 36px; line-height: 1.2; color: var(--aberdeen-blue);
@@ -697,14 +700,6 @@ a { color: var(--aberdeen-blue); }
 .hero-rule { width: 44px; height: 3px; border-radius: 2px; background: var(--verdigris); margin-top: 6px; }
 .hero-support { font-size: 13px; color: var(--ink-2); margin-top: 5px; font-variant-numeric: tabular-nums; }
 .hero-support .hero-link { font-size: 13px; }
-/* The Adoption tab's hero is a number + its unit, not a full sentence -
-   .hero-stat overrides .hero-sentence's block layout to a baseline-aligned
-   row for this one instance only, so the digit keeps the shared 36px/
-   ExtraLight/Aberdeen Blue treatment while the unit reads as a label next
-   to it, not part of the same emphasis. */
-.hero-stat { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.hero-stat .hero-num { font-variant-numeric: tabular-nums; }
-.hero-stat .hero-unit { font-size: 16px; font-weight: 300; color: var(--ink-2); letter-spacing: 0; }
 /* The chart's own title row: no card chrome here at all (see
    .dashboard-chart-col below) - just the quiet section label and the site
    filter, sitting directly above the plot with minimal air between them. */
@@ -1313,20 +1308,29 @@ table.data td .incflag {
 .assume dd { margin: 0; font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; }
 
 /* The Training tab's wave schedule: a horizontal strip, left to right in
-   the order training actually starts. The heaviest wave (most trainer
-   days) gets the same Verdigris-derived "worth a look" tint .note.warn
-   already uses elsewhere - not a tier hue, which would break the rule that
-   tier colors mean tier and nothing else. */
+   the order training actually starts. All four cards get the identical
+   treatment - background, border, elevation - on purpose: there is no
+   "current" or "heaviest" wave here, only the dot and the content differ. */
 .wave-row { display: flex; gap: var(--space-12); flex-wrap: wrap; }
 .wave {
   flex: 1 1 180px; min-width: 180px;
   border: 1px solid var(--hairline); border-radius: var(--radius-s);
   padding: 12px 14px; background: var(--surface-sunk);
 }
-.wave-heavy { background: var(--flag-wash); border-color: var(--flag-line); }
 .wave-tier { display: flex; align-items: center; gap: 7px; font-weight: 500; font-size: 14px; margin-bottom: 6px; }
 .wave-dates { font-size: 12.5px; color: var(--ink-2); margin-bottom: 8px; }
 .wave-stats { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+/* A tab's own headline finding, compact - subheading scale (about half the
+   hero-sentence's 36px), Medium weight per the type system's own
+   subheading rule, merged onto one line with its supporting figure rather
+   than split across hero-sentence/hero-rule/hero-support. Hero scale is
+   reserved for Stakeholder Impact alone - the one screen meant to open on
+   a conclusion; every other tab's own finding uses this instead. */
+.tab-finding {
+  font-size: 18px; font-weight: 500; color: var(--aberdeen-blue);
+  letter-spacing: -.005em; margin-bottom: var(--space-16); font-variant-numeric: tabular-nums;
+}
 
 .empty { text-align: center; padding: 60px 20px; color: var(--ink-2); }
 .empty h3 { font-size: 17px; margin-bottom: 6px; }

@@ -731,9 +731,27 @@ function trainingDesign(role) {
 function sessionsForRole(role, design) {
   const size = ASSUMPTIONS.sessionSize[design.methodKey];
   if (!size) return 0;
-  const base = Math.ceil(role.headcount / size);
-  if (design.methodKey === 'onShift') return base * Math.max(1, role.siteCount || 1) * ASSUMPTIONS.shiftsPerOnShiftRole;
-  return base;
+  let sessions;
+  if (design.methodKey === 'onShift') {
+    // Distribute headcount first, THEN fill sessions - headcount is
+    // already spread across sites and shifts, so multiplying a
+    // whole-population session count by sites x shifts double-counts.
+    // One session-run per site per shift, sized to however many people
+    // are actually in that site's shift.
+    const sites = Math.max(1, role.siteCount || 1);
+    const shifts = ASSUMPTIONS.shiftsPerOnShiftRole;
+    const perSiteShift = role.headcount / (sites * shifts);
+    sessions = sites * shifts * Math.ceil(perSiteShift / size);
+  } else {
+    sessions = Math.ceil(role.headcount / size);
+  }
+  // Sessions group people; they can never meaningfully exceed headcount /
+  // 2 (that would mean sessions of under 2 people each) for any session
+  // size this app actually uses. A violation means the distribution math
+  // above regressed into double-counting again.
+  console.assert(sessions <= Math.max(1, Math.ceil(role.headcount / 2)),
+    `sessionsForRole: ${role.role} computed ${sessions} sessions for ${role.headcount} people - sessions should never meaningfully exceed headcount/2`);
+  return sessions;
 }
 
 /* One role's contribution to the delivery plan: the sessions it needs, and
@@ -5577,9 +5595,6 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, goLi
   const waves = useMemo(() => trainingWaveSchedule(scored, goLiveDate), [scored, goLiveDate]);
   const overallLoad = useMemo(() => aggregateTrainingLoad(scored), [scored]);
   const totalGuides = useMemo(() => scored.reduce((s, r) => s + trainingDesign(r).aids.count, 0), [scored]);
-  const heaviestWaveTier = useMemo(() => (
-    waves.reduce((max, w) => (!max || w.trainerDays > max.trainerDays ? w : max), null)
-  ), [waves]);
 
   const tierRows = useMemo(() => scored
     .filter((r) => tierFilter === 'All' || r.tier === tierFilter), [scored, tierFilter]);
@@ -5594,11 +5609,12 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, goLi
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
-      <div className="hero-headline">
-        <h2 className="hero-sentence">{hero.sentence}</h2>
-        <div className="hero-rule" aria-hidden="true" />
-        <p className="hero-support">{hero.totalHours.toLocaleString()} training hours in total.</p>
-      </div>
+      {/* Compact, not hero-scale - the hero treatment is reserved for
+          Stakeholder Impact alone, the one screen meant to open on a
+          conclusion. Here the finding and the hours total are one merged
+          line, well under heading size, so the five tiles below carry the
+          visual weight instead. */}
+      <p className="tab-finding">{hero.sentence} {hero.totalHours.toLocaleString()} training hours in total.</p>
 
       <div className="grid cols-5" style={{ marginBottom: 'var(--space-16)' }}>
         {trainingGroup && trainingGroup.rows.map((r) => (
@@ -5622,7 +5638,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, goLi
           ) : (
             <div className="wave-row">
               {waves.map((w) => (
-                <div key={w.tier} className={'wave' + (heaviestWaveTier && w.tier === heaviestWaveTier.tier ? ' wave-heavy' : '')}>
+                <div key={w.tier} className="wave">
                   <div className="wave-tier"><i className="dot" style={{ '--dot': TIERS[w.tier].hex }} />{w.tier}</div>
                   <div className="wave-dates">
                     {goLiveDate
@@ -5999,14 +6015,13 @@ function QualitativeFeedbackPanel({ projectId, seed }) {
    clock, for whichever project/date was actually passed in. */
 function adoptionHeroCopy(daysLive, goLiveDate) {
   if (daysLive === null) {
-    return { num: '—', label: 'no go-live date set', support: 'Set one on the engagement profile to start tracking.' };
+    return { line: 'No go-live date set yet - set one on the engagement profile to start tracking.' };
   }
   const dateStr = fmtShortDate(new Date(goLiveDate + 'T00:00:00'));
   if (daysLive < 0) {
-    const n = -daysLive;
-    return { num: n.toLocaleString(), label: n === 1 ? 'day until go-live' : 'days until go-live', support: `${dateStr} - tracking begins once live.` };
+    return { line: `${pluralize(-daysLive, 'day')} until go-live (${dateStr}). Tracking begins once live.` };
   }
-  return { num: daysLive.toLocaleString(), label: daysLive === 1 ? 'day since go-live' : 'days since go-live', support: dateStr };
+  return { line: `${pluralize(daysLive, 'day')} since go-live (${dateStr}).` };
 }
 
 function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate, projectId, weights, onResetWeights }) {
@@ -6042,20 +6057,10 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
-      {/* Same hero treatment as Stakeholder Impact's headline, same position
-          right below the page heading - the one conclusion-shaped number
-          this tab has, styled to match, so the five tabs read as one
-          product. The heading stays at the other tabs' own 24px, well
-          under the hero's 36px, so it introduces the tab without competing
-          with the number as the tab's actual focal point. */}
-      <div className="hero-headline">
-        <h2 className="hero-sentence hero-stat">
-          <span className="hero-num">{hero.num}</span>
-          <span className="hero-unit">{hero.label}</span>
-        </h2>
-        <div className="hero-rule" aria-hidden="true" />
-        <p className="hero-support">{hero.support}</p>
-      </div>
+      {/* Compact, not hero-scale - hero treatment is reserved for
+          Stakeholder Impact alone. This tab's own finding is one merged
+          line at subheading scale; the five tiles below carry the weight. */}
+      <p className="tab-finding">{hero.line}</p>
 
       <div className="grid cols-5" style={{ marginBottom: 'var(--space-16)', marginTop: 'var(--space-16)' }}>
         <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} countTo={metrics.signOnRate} countFormat={{ suffix: '%' }} meta="of in-scope headcount, at least once" />
