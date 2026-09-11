@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Change Impact Assessment Tool: Aberdeen Advisors</title>
-<meta name="description" content="Scores every Role x Site, assigns an intervention tier, and generates the training, comms and adoption package per role. Synthetic data.">
+<meta name="description" content="Scores every Role x Site, assigns a tier, and generates the training, communication and adoption plan per role. Synthetic data.">
 
 <!-- Favicon: the blue icon reads on the light tab chrome most browsers use;
      the white icon takes over automatically for a dark browser theme. -->
@@ -231,7 +231,7 @@ const NOTE = {
           : 'No external source for this project states weights or an aggregation method, so nothing here is inherited from anywhere.'),
   mapping: 'Provenance: the tier → tactic mapping is Aberdeen judgment. Aberdeen’s OCM delivery material supplies the training method table, job-aid ranges, '
       + 'communications milestones, four-layer support escalation and cadences. It contains no tier-to-tactic mapping, so the mapping extends it, rather than being inherited from it.',
-  ratio: 'The 1:15 super-user ratio comes from Team 2’s own deck (slide 13). Aberdeen’s material states no ratio.',
+  ratio: 'The 1-to-15 ratio of trained colleagues on site comes from Team 2’s own deck (slide 13). Aberdeen’s material states no ratio.',
   hypercare: 'Hypercare is the floor deliverable, not a top-tier extra. Aberdeen’s lowest-ambition delivery tier is defined as training, '
       + 'go-live communications and hypercare, so every tier here carries hypercare and only the duration scales. The 8 weeks at the top of the '
       + 'range is the source deck’s own number (slide 13); how it steps down across the other three tiers is Aberdeen judgment.',
@@ -260,7 +260,7 @@ const IMPACT_FACTORS = [
 const RISK_FACTORS = [
   { key: 'decisionRights',  weight: 0.40, label: 'Change in decision rights',    hint: '“I used to approve this, and now the system does”' },
   { key: 'capabilityDelta', weight: 0.35, label: 'Capability delta',             hint: 'Skill required vs. current' },
-  { key: 'localReadiness',  weight: 0.25, label: 'Local readiness gap',          hint: 'Site leadership capacity, change fatigue, digital maturity, deskless access (5 = least ready)' },
+  { key: 'localReadiness',  weight: 0.25, label: 'Local readiness gap',          hint: 'Site leadership capacity, change fatigue, digital maturity, whether people have a desk and email (5 = least ready)' },
 ];
 
 /* ---------------------------------------------------------------------------
@@ -348,17 +348,17 @@ const ANCHORS = {
     // other project owns the same construct without the false citation.
     origin: 'Aberdeen judgment',
     note: (citeDeck) => 'Four limbs, one score: site-leadership capacity, change fatigue and the history of change at the site, digital maturity, '
-        + `and deskless access. The four limbs are Aberdeen’s ${citeDeck ? 'source deck’s ' : ''}definition of local readiness${citeDeck ? ' (slide 7)' : ''}; every word of the five `
+        + `and whether people have a desk and email. The four limbs are Aberdeen’s ${citeDeck ? 'source deck’s ' : ''}definition of local readiness${citeDeck ? ' (slide 7)' : ''}; every word of the five `
         + 'band descriptions below is Aberdeen judgment, written against the construct rather than lifted from an instrument. Licensed assessment '
         + 'wording is not reproduced anywhere in this tool (docs/source-synthesis.md §8.8). Worth knowing how unevenly the limbs are '
         + 'evidenced: leadership capacity and change fatigue are measured by published instruments, digital maturity is scored by no '
-        + 'source at all, and deskless access rests on a single Aberdeen sentence about site staff with no computer access. This is a '
+        + 'source at all, and whether people have a desk and email rests on a single Aberdeen sentence about site staff with no computer access. This is a '
         + 'recommendation, not a source position: score each limb and take the highest, not the mean. A site where nobody has a screen '
         + 'is not a moderate-risk site.',
     bands: [
       'Nothing else is competing for the site’s attention and the roster has slack; the site lead has taken earlier rollouts through to landing; everyone has an individual screen and already self-serves in systems',
       'One other initiative running alongside; the site lead is trusted but short of spare hours; individual screen access is still universal',
-      'Two or three initiatives overlap; the site lead can front the cascade but needs a prepared script to do it; screen access is a mix of personal logins and shared terminals',
+      'Two or three initiatives overlap; the site lead can front the briefing but needs a prepared script to do it; screen access is a mix of personal logins and shared terminals',
       'A rollout here stalled within recent memory and people remember it; the site lead’s available hours are the binding constraint; most of the population shares a terminal or works shifts around office hours',
       'The site is absorbing more change than it has the capacity to carry; much of the population never signs in to a system, has little practice with digital tools, and does not read email',
     ],
@@ -579,12 +579,12 @@ const DOSES = {
 // range like the other methods - trainingDesign() builds that duration
 // string per role and spreads the rest of this entry in unchanged.
 const TRAINING_METHODS = {
-  instructorLed: { method: 'Instructor-led',         duration: '1-4 hrs',     fits: 'high/medium complexity, centralized, small-to-medium audience', delivery: 'train-the-trainer' },
-  virtual:       { method: 'Virtual instructor-led', duration: '0.5-1.5 hrs', fits: 'low/medium complexity',                                        delivery: 'train-the-trainer' },
-  webBased:      { method: 'Web-based',              duration: '15-90 min',   fits: 'low complexity, large audience',                                delivery: 'self-driven' },
-  onShift:       { method: 'On-shift delivery',      duration: 'same as tier’s required hours',  fits: 'deskless roles, any tier except Inform',    delivery: 'train-the-trainer' },
-  nano:          { method: 'Nano-learning',          duration: '1-5 min',     fits: 'reinforcement in the flow of work',                             delivery: 'self-driven' },
-  jobAids:       { method: 'Job aids',               duration: '1-30 min',    fits: 'point-of-work reference',                                       delivery: 'self-driven' },
+  instructorLed: { method: 'In person',                        duration: '1-4 hrs',     fits: 'high/medium complexity, centralized, small-to-medium audience', delivery: 'train-the-trainer' },
+  virtual:       { method: 'Online, live',                     duration: '0.5-1.5 hrs', fits: 'low/medium complexity',                                        delivery: 'train-the-trainer' },
+  webBased:      { method: 'Web-based',                        duration: '15-90 min',   fits: 'low complexity, large audience',                                delivery: 'self-driven' },
+  onShift:       { method: 'On shift',                         duration: 'same as tier’s required hours',  fits: 'roles with no desk, any tier except Inform', delivery: 'train-the-trainer' },
+  nano:          { method: 'Short refreshers in the flow of work', duration: '1-5 min',  fits: 'reinforcement in the flow of work',                             delivery: 'self-driven' },
+  jobAids:       { method: 'Quick reference cards',            duration: '1-30 min',    fits: 'point-of-work reference',                                       delivery: 'self-driven' },
 };
 const METHOD_ORDER = ['instructorLed', 'virtual', 'webBased', 'onShift', 'nano', 'jobAids'];
 
@@ -609,7 +609,7 @@ const OBJECTIVE_LADDER = ['awareness', 'understanding', 'acceptance', 'commitmen
 
 /* Support after go-live: four-layer escalation, in order. */
 const SUPPORT_LAYERS = [
-  'Job aids at the point of work',
+  'Quick reference cards at the point of work',
   'Project team',
   'Trainers and implementation leads',
   'Leadership: final escalation',
@@ -619,7 +619,7 @@ const SUPPORT_LAYERS = [
 const ADOPTION_METRICS = [
   'unique sign-ons',
   'business processes opened and completed',
-  'job-aid access rates',
+  'quick reference card access rates',
   'go-live communication click rates',
   'HR case volume',
   'qualitative feedback',
@@ -698,10 +698,10 @@ function trainingDesign(role) {
     // hours and the reinforcement).
     primary = {
       ...TRAINING_METHODS.onShift,
-      duration: `${pluralize(hours, 'hour')} total, plus nano-learning reinforcement`,
-      fits: 'deskless: no classroom or screen access',
+      duration: `${pluralize(hours, 'hour')} total, plus short refreshers in the flow of work`,
+      fits: 'no desk, no classroom or screen access',
     };
-    why = `deskless: the same ${pluralize(hours, 'hour')} ${role.tier} requires everywhere, delivered on shift instead of in a classroom or online`;
+    why = `works on the floor: the same ${pluralize(hours, 'hour')} ${role.tier} requires everywhere, delivered on shift instead of in a classroom or online`;
   } else {
     primary = core;
   }
@@ -713,15 +713,15 @@ function trainingDesign(role) {
     trainTheTrainer: primary.delivery === 'train-the-trainer',
     // Real field only - siteCount, not an invented "shift pattern" count
     // the data doesn't carry. Names the constraint that shaped format.
-    deliveryConstraint: deskless ? `Deskless · ${pluralize(role.siteCount, 'site')}` : null,
+    deliveryConstraint: deskless ? `On the floor · ${pluralize(role.siteCount, 'site')}` : null,
   };
 }
 
 /* The channel each of the five milestones actually reaches a role on, split by
    whether the population is deskless. Shared by the per-role plan below and by
    the tier-level communication timeline, so both use the same split. */
-const COMMS_CHANNELS_DESKLESS = ['Shift huddle brief', 'Huddle board + QR code', 'Line-side poster, local language', 'Shift-start stand-up', 'Super-user on the floor'];
-const COMMS_CHANNELS_DESK     = ['Town hall + manager cascade', 'Email + intranet', 'Email + training portal', 'Manager cascade + email', 'Manager cascade + drop-in clinic'];
+const COMMS_CHANNELS_DESKLESS = ['Shift huddle brief', 'Huddle board + QR code', 'Line-side poster, local language', 'Shift-start stand-up', 'Trained colleague on the floor'];
+const COMMS_CHANNELS_DESK     = ['Town hall + manager briefing', 'Email + intranet', 'Email + training portal', 'Manager briefing + email', 'Manager briefing + drop-in clinic'];
 
 /* The five milestones, with the channel this role actually reaches on. */
 function commsPlan(role) {
@@ -743,7 +743,7 @@ function tierCommsTimeline(tier, deskCount, desklessCount) {
   const channelAt = (i) => {
     const bits = [];
     if (deskCount > 0) bits.push(`${COMMS_CHANNELS_DESK[i]} (${deskCount} desk-based role${deskCount === 1 ? '' : 's'})`);
-    if (desklessCount > 0) bits.push(`${COMMS_CHANNELS_DESKLESS[i]} (${desklessCount} deskless role${desklessCount === 1 ? '' : 's'})`);
+    if (desklessCount > 0) bits.push(`${COMMS_CHANNELS_DESKLESS[i]} (${desklessCount} on-the-floor role${desklessCount === 1 ? '' : 's'})`);
     return bits.join('  +  ');
   };
 
@@ -841,13 +841,13 @@ const EFFORT_WEIGHT_PER_TIER = EFFORT_WEIGHTS.reduce((o, b) => { o[b.tier] = b.w
    Gold, Reassure -> Deep Sky Blue, Inform -> Jade. */
 const TIERS = {
   Rebuild:  { hex: '#DB504A', wash: 'var(--t-rebuild-wash)',  quadrant: 'High impact · High risk',
-              package: ['Role redesign', 'Sandbox training', 'On-site super-user', 'Manager coaching'] },
+              package: ['Role redesign', 'Practice in a safe copy of the system', 'A trained colleague on site', 'Manager coaching'] },
   Enable:   { hex: '#F7D002', wash: 'var(--t-enable-wash)',   quadrant: 'High impact · Low risk',
-              package: ['Role-based training', 'Job aids', 'Recruit as champions'] },
+              package: ['Role-based training', 'Quick reference cards', 'Recruit as champions'] },
   Reassure: { hex: '#5CC8FF', wash: 'var(--t-reassure-wash)', quadrant: 'Low impact · High risk',
-              package: ['Manager cascade', 'Address the fear, not the skill'] },
+              package: ['Manager briefings', 'Address the fear, not the skill'] },
   Inform:   { hex: '#00A676', wash: 'var(--t-inform-wash)',   quadrant: 'Low impact · Low risk',
-              package: ['Broadcast comms only'] },
+              package: ['Broadcast updates only'] },
 };
 
 /* The prescribed package, with its dose, for one role.
@@ -857,34 +857,34 @@ function packageFor(role) {
   const d = DOSES[role.tier];
   const t = trainingDesign(role);
   const sites = Math.max(1, role.siteCount || 1);
-  const aids = `${pluralize(t.aids.count, 'aid')} (${t.aids.band}: ${t.aids.range}) · ${t.jobAidMethod.duration} each`;
+  const aids = `${pluralize(t.aids.count, 'quick reference card')} (${t.aids.band}: ${t.aids.range}) · ${t.jobAidMethod.duration} each`;
   const method = `${t.primary.method} · ${t.primary.duration}`;
   switch (role.tier) {
     case 'Rebuild': return [
       { text: 'Role redesign',       dose: `${pluralize(role.tasksRemoved + role.tasksChanged + role.tasksNew, 'task')} re-mapped · 1 workshop per site` },
-      { text: 'Sandbox training',    dose: `${d.sandboxDays}-day sandbox${role.deskless ? ', rotated into shift time' : ''} · ${pluralize(Math.max(1, Math.ceil(role.headcount * d.sandboxSeatsPerHead)), 'seat')}` },
+      { text: 'Practice in a safe copy of the system', dose: `${d.sandboxDays}-day practice session${role.deskless ? ', rotated into shift time' : ''} · ${pluralize(Math.max(1, Math.ceil(role.headcount * d.sandboxSeatsPerHead)), 'seat')}` },
       { text: 'Role-based training', dose: `${method} · ${t.complexity} complexity` },
-      { text: 'Job aids',            dose: aids },
-      { text: 'On-site super-user',  dose: `${d.superUsersPerSite} per site (${sites})${role.deskless ? ', shadowing on the floor' : ''} · 1:${d.superUserRatio}` },
+      { text: 'Quick reference cards', dose: aids },
+      { text: 'A trained colleague on site',  dose: `${d.superUsersPerSite} per site (${sites})${role.deskless ? ', shadowing on the floor' : ''} · 1:${d.superUserRatio}` },
       { text: 'Manager coaching',    dose: `${pluralize(d.managerCoachingSessions, 'session')} · ${pluralize(d.floorCoachingWeeks, 'week')} floor presence` },
-      { text: 'Hypercare',           dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
+      { text: 'Extra support after go-live', dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
     case 'Enable': return [
       { text: 'Role-based training',   dose: `${method} · ${t.complexity} complexity` },
-      { text: 'Job aids',              dose: aids },
+      { text: 'Quick reference cards', dose: aids },
       { text: 'Recruit as champions',  dose: `${pluralize(Math.max(1, Math.ceil(role.headcount / d.superUserRatio)), 'champion')}${role.deskless ? ', coaching on shift' : ''} · 1:${d.superUserRatio}` },
-      { text: 'Hypercare',             dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
+      { text: 'Extra support after go-live', dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
     case 'Reassure': return [
-      { text: 'Manager cascade',                  dose: `${pluralize(d.cascadeScripts, 'script')} · ${pluralize(d.managerCoachingSessions, 'briefing')}` },
+      { text: 'Manager briefings',                dose: `${pluralize(d.cascadeScripts, 'script')} · ${pluralize(d.managerCoachingSessions, 'briefing')}` },
       { text: 'Address the fear, not the skill',  dose: `${method} awareness` },
-      { text: 'Job aids',                         dose: aids },
-      { text: 'Hypercare',                        dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
+      { text: 'Quick reference cards',            dose: aids },
+      { text: 'Extra support after go-live',      dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
     default: return [
-      { text: 'Broadcast comms only', dose: `${pluralize(d.broadcasts, 'broadcast')} · ${method}` },
-      { text: 'Job aids',             dose: aids },
-      { text: 'Hypercare',            dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
+      { text: 'Broadcast updates only', dose: `${pluralize(d.broadcasts, 'broadcast')} · ${method}` },
+      { text: 'Quick reference cards',  dose: aids },
+      { text: 'Extra support after go-live', dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
   }
 }
@@ -894,22 +894,22 @@ function modifiersFor(role) {
   const out = [];
   if (role.deskless === true) {
     out.push({
-      trigger: 'deskless = true',
-      title: 'Deskless delivery format (same required hours, reformatted)',
+      trigger: 'working on the floor, not at a desk',
+      title: 'Different delivery format (same hours, reformatted)',
       items: [
-        'Full required-hours curriculum delivered on shift at the line, not a classroom or e-learning - see Required hours in the delivery detail below',
-        'Laminated job aids in local language, held at the point of work',
-        'Email channel dropped from this role’s comms plan entirely',
-        'QR code on the shift huddle board carries every message instead',
+        'All required hours delivered on shift at the line, not in a classroom or online course - see Required hours in the delivery detail below',
+        'Printed quick reference cards in local language, kept at the point of work',
+        'Email dropped from this role’s updates entirely',
+        'A QR code on the shift board carries every update instead',
       ],
     });
   }
   if (role.risk.decisionRights >= 4) {
     out.push({
-      trigger: `decisionRights = ${role.risk.decisionRights.toFixed(1)}`,
-      title: 'Decision-rights cascade (any tier)',
+      trigger: `a decision-rights score of ${role.risk.decisionRights.toFixed(1)} or higher`,
+      title: 'Extra manager briefing (any tier)',
       items: [
-        'Add a manager cascade script on decision rights: what this role still approves, and what the system now decides',
+        'Add a manager briefing on decision rights: what this role still approves, and what the system now decides',
         'Brief the accountable supervisor line before go-live, not at go-live',
       ],
     });
@@ -1096,7 +1096,7 @@ function simulatedAdoptionMetrics(agg, daysLive) {
     : liveFrac < 0.34
       ? 'Early and mixed: exception-handling volume is the most common complaint.'
       : liveFrac < 0.7
-        ? 'Improving: initial friction easing, job aids cited as the most-used support.'
+        ? 'Improving: initial friction easing, quick reference cards cited as the most-used support.'
         : 'Mostly positive: the new system is now the default way of working for most of the affected population.';
   return { liveFrac, signOnRate, processesCompleted, jobAidAccessRate, commsClickRate, hrCaseVolume, qualitative };
 }
@@ -1133,22 +1133,22 @@ function resourcedPlan(scored) {
         { n: rebuild.length + enableArchetypes.size, txt: 'role-based curricula',
           rule: `1 per Rebuild role (${rebuild.length}) + 1 shared per site archetype in Enable (${enableArchetypes.size})`,
           emptyNote: 'No Rebuild or Enable roles in this population: no curriculum to build.' },
-        { n: Math.ceil(rebuildHeads / ASSUMPTIONS.sandboxSeatRatio), txt: 'sandbox seats',
+        { n: Math.ceil(rebuildHeads / ASSUMPTIONS.sandboxSeatRatio), txt: 'practice seats',
           rule: `1 seat per ${ASSUMPTIONS.sandboxSeatRatio} people in Rebuild roles (${rebuildHeads.toLocaleString()})`,
-          emptyNote: 'No Rebuild roles in this population: no sandbox to seat.' },
-        { n: desklessFormats, txt: 'deskless on-shift formats',
-          rule: 'one per deskless role: no inbox, so no channel that assumes one',
-          emptyNote: 'No deskless roles in this population.' },
+          emptyNote: 'No Rebuild roles in this population: nothing to seat.' },
+        { n: desklessFormats, txt: 'on-shift training formats',
+          rule: 'one per role with no desk or email: no inbox, so no channel that assumes one',
+          emptyNote: 'No on-the-floor roles in this population.' },
       ],
     },
     {
       group: 'Communication',
       rows: [
-        { n: tiersPresent.length, txt: 'message tracks', rule: 'one per intervention tier present in the population',
+        { n: tiersPresent.length, txt: 'message tracks', rule: 'one per tier present in the population',
           emptyNote: 'No scored roles in this population yet.' },
-        { n: cascadeScripts, txt: 'manager cascade scripts',
+        { n: cascadeScripts, txt: 'manager briefings',
           rule: `1 per Rebuild role + 1 per non-Rebuild role with decision-rights ≥ 4`,
-          emptyNote: 'No Rebuild roles, and no other role with a decision-rights shift of 4 or more: no cascade script is needed.' },
+          emptyNote: 'No Rebuild roles, and no other role with a decision-rights shift of 4 or more: no manager briefing is needed.' },
         { n: Math.ceil(heads([...rebuild, ...enable, ...reassure]) / ASSUMPTIONS.supervisorSpanOfControl), txt: 'supervisors briefed on decision rights',
           rule: `1 per ${ASSUMPTIONS.supervisorSpanOfControl} people in Rebuild, Enable or Reassure roles`,
           emptyNote: 'No Rebuild, Enable or Reassure roles in this population: no decision-rights briefing is needed.' },
@@ -1157,14 +1157,14 @@ function resourcedPlan(scored) {
     {
       group: 'Adoption',
       rows: [
-        { n: Math.ceil(rebuildHeads / DOSES.Rebuild.superUserRatio), txt: 'super-users',
+        { n: Math.ceil(rebuildHeads / DOSES.Rebuild.superUserRatio), txt: 'trained colleagues on site',
           rule: `1:${DOSES.Rebuild.superUserRatio} in Rebuild roles (${pluralize(rebuildHeads, 'person', 'people')})`,
-          emptyNote: 'No Rebuild roles in this population: no super-user network to build.' },
+          emptyNote: 'No Rebuild roles in this population: no on-site network to build.' },
         { n: siteCoaches, txt: 'site change coaches',
           rule: 'one per site carrying a Rebuild role',
           emptyNote: 'No Rebuild roles in this population: no site carries one.' },
-        { n: tiersPresent.length ? Math.max(...tiersPresent.map((t) => DOSES[t].hypercareWeeks)) : 0, txt: 'weeks hypercare',
-          rule: `hypercare is the floor in every tier (${TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks); `
+        { n: tiersPresent.length ? Math.max(...tiersPresent.map((t) => DOSES[t].hypercareWeeks)) : 0, txt: 'weeks of extra support',
+          rule: `extra support after go-live is the floor in every tier (${TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks); `
               + 'this is the longest dose present, staffed to predicted ticket concentration',
           emptyNote: 'No scored roles in this population yet.' },
       ],
@@ -1283,7 +1283,7 @@ const SEED_ROLES = /*__SEED__*/[
     "tasksNew": 6,
     "fteDelta": -0.2,
     "constraints": [
-      "Deskless",
+      "On the floor",
       "3 shifts",
       "No corporate email",
       "4 languages across sites",
@@ -1415,7 +1415,7 @@ const SEED_ROLES = /*__SEED__*/[
     "fteDelta": -0.6,
     "constraints": [
       "3 service centres on different shift patterns",
-      "Highest ticket volume predicted at go-live - hypercare sizing driver",
+      "Highest ticket volume predicted at go-live - drives how much extra support is staffed",
       "Peak season overlaps the second deployment wave"
     ]
   },
@@ -1597,7 +1597,7 @@ const SEED_ROLES = /*__SEED__*/[
     "headcount": 42,
     "deskless": false,
     "isNewRole": false,
-    "summary": "The HR front door at each plant: paper starters, time-sheet corrections, absence records and shift allowances handled locally and often on trust. ERP and its self-service layer move most of that to employees and line managers, leaving the coordinator to administer exceptions and police data quality for a deskless workforce.",
+    "summary": "The HR front door at each plant: paper starters, time-sheet corrections, absence records and shift allowances handled locally and often on trust. ERP and its self-service layer move most of that to employees and line managers, leaving the coordinator to administer exceptions and police data quality for a workforce that has no desk or email.",
     "impact": {
       "taskShare": 4.2,
       "frequencyVolume": 4.3,
@@ -1627,7 +1627,7 @@ const SEED_ROLES = /*__SEED__*/[
     "tasksNew": 5,
     "fteDelta": -0.4,
     "constraints": [
-      "Deskless population with no corporate email must be onboarded to self-service",
+      "Works on the floor with no corporate email - must be onboarded to self-service another way",
       "3 shifts - coordinators cover only day shift",
       "Works councils consulted per site on time-recording change"
     ]
@@ -2007,7 +2007,7 @@ const SEED_ROLES = /*__SEED__*/[
     "tasksNew": 5,
     "fteDelta": -0.3,
     "constraints": [
-      "Depends on technicians confirming work digitally - a deskless dependency",
+      "Depends on technicians confirming work digitally, even though they work on the floor with no desk",
       "Legacy CMMS history is not fully migrated"
     ]
   },
@@ -2215,7 +2215,7 @@ const SEED_ROLES = /*__SEED__*/[
     "tasksNew": 4,
     "fteDelta": 0,
     "constraints": [
-      "Deskless",
+      "On the floor",
       "No corporate email",
       "3 shifts",
       "4 languages across sites",
@@ -2259,7 +2259,7 @@ const SEED_ROLES = /*__SEED__*/[
     "tasksNew": 4,
     "fteDelta": 0.1,
     "constraints": [
-      "Deskless",
+      "On the floor",
       "No corporate email",
       "3 shifts",
       "Shared terminals only - no personal device",
@@ -2302,7 +2302,7 @@ const SEED_ROLES = /*__SEED__*/[
     "tasksNew": 4,
     "fteDelta": 0,
     "constraints": [
-      "Deskless",
+      "On the floor",
       "No corporate email",
       "3 shifts",
       "Device must be usable with gloves in a cold store",
@@ -2347,7 +2347,7 @@ const SEED_ROLES = /*__SEED__*/[
     "tasksNew": 5,
     "fteDelta": -0.1,
     "constraints": [
-      "Deskless",
+      "On the floor",
       "3 shifts",
       "No corporate email for most of the population",
       "Approval authority becomes a system limit rather than a judgement call",
@@ -2390,7 +2390,7 @@ const SEED_ROLES = /*__SEED__*/[
     "tasksNew": 4,
     "fteDelta": -0.2,
     "constraints": [
-      "Deskless for part of the shift; shared lab terminals",
+      "Away from a desk for part of the shift; shared lab terminals",
       "Regulatory and customer-audit exposure on batch records",
       "Release authority becomes a system status, visible group-wide"
     ]
@@ -2512,7 +2512,7 @@ const SEED_ROLES = /*__SEED__*/[
     "tasksNew": 3,
     "fteDelta": -0.3,
     "constraints": [
-      "Deskless",
+      "On the floor",
       "No corporate email",
       "Shared gatehouse terminal",
       "Blocks AP invoice matching if receipts are late or wrong"
@@ -2596,7 +2596,7 @@ const SEED_ROLES = /*__SEED__*/[
     "constraints": [
       "Site autonomy over people data ends",
       "Change fatigue at plant level is already high",
-      "Must sponsor the deskless self-service rollout without owning it"
+      "Must sponsor the self-service rollout for staff with no desk or email, without owning it"
     ]
   },
   {
@@ -2675,7 +2675,7 @@ const SEED_ROLES = /*__SEED__*/[
     "tasksNew": 2,
     "fteDelta": 0,
     "constraints": [
-      "Deskless",
+      "On the floor",
       "No corporate email",
       "3 shifts",
       "4 languages across sites",
@@ -2718,7 +2718,7 @@ const SEED_ROLES = /*__SEED__*/[
     "tasksNew": 1,
     "fteDelta": 0,
     "constraints": [
-      "Deskless",
+      "On the floor",
       "No corporate email",
       "Part-time and territory-based",
       "Comms must land through the field app, not the intranet"
@@ -3231,7 +3231,7 @@ const SEED_ROLES_HEALTHCARE = [
       "Builds and maintains CPOE order sets and documentation templates with clinical input",
       "Monitors clinical decision support override rates and flags alerts that need retuning",
       "Runs the first-line triage queue between floor staff and the IT help desk",
-      "Trains super-users on template and order-set changes as they roll out"
+      "Trains the on-site trained colleagues on template and order-set changes as they roll out"
     ],
     "tasksRemoved": 0,
     "tasksChanged": 0,
@@ -3869,7 +3869,7 @@ function csvField(v) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 function rolesToCSV(roles) {
-  const header = ['Role', 'Site archetype', 'Site count', 'Headcount', 'Deskless', 'Net-new', 'Impact severity', 'Adoption risk', 'Tier'];
+  const header = ['Role', 'Site type', 'Site count', 'Headcount', 'On the floor', 'Net-new', 'Impact severity', 'Adoption risk', 'Tier'];
   const lines = [header.map(csvField).join(',')];
   roles.forEach((r) => {
     lines.push([
@@ -4245,7 +4245,7 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect, onSqu
           small margin against the cards. */}
       <div className="chart-square-frame">
       <svg ref={squareRef} className="chart-square" viewBox={`0 0 ${MAP.w} ${MAP.h}`} role="img"
-           aria-label="Impact severity against adoption risk, one point per role, colored by intervention tier."
+           aria-label="Impact severity against adoption risk, one point per role, colored by tier."
            aria-describedby="role-site-table-desc">
         <defs>
           {/* One gradient per tier (not per point): a soft radial highlight
@@ -4316,7 +4316,7 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect, onSqu
         <div className="tip" style={{ left: Math.min(tip.x + 14, tip.boxW - 220), top: Math.max(tip.y - 12, 4),
                                        '--tier-color': TIERS[tip.r.tier].hex }}>
           <div className="tip-role">{tip.r.role}</div>
-          <div className="tip-scope">{tip.r.siteArchetype}{tip.r.deskless ? ' · deskless' : ''} · {pluralize(tip.r.headcount, 'person', 'people')}</div>
+          <div className="tip-scope">{tip.r.siteArchetype}{tip.r.deskless ? ' · on the floor' : ''} · {pluralize(tip.r.headcount, 'person', 'people')}</div>
           <div className="tip-scores">
             <span className="tip-score"><span className="tip-score-lbl">Impact</span><span className="tip-score-val">{tip.r.scores.impact.toFixed(1)}</span></span>
             <span className="tip-score"><span className="tip-score-lbl">Risk</span><span className="tip-score-val">{tip.r.scores.risk.toFixed(1)}</span></span>
@@ -4350,14 +4350,14 @@ function columnsFor(comboExample) {
     { key: 'role', label: 'Role',
       render: (r) => <span className="rolename">{r.role}</span> },
     { key: 'siteArchetype', label: 'Sites', title: comboExample
-        ? `The site archetype (or combination) this row scopes to, e.g. "${comboExample}"`
-        : 'The site archetype this row scopes to. Every role in this project sits at a single archetype, none span more than one.',
-      render: (r) => <>{r.siteArchetype}{r.deskless ? ' · deskless' : ''}</> },
+        ? `The site type (or combination) this row covers, e.g. "${comboExample}"`
+        : 'The site type this row covers. Every role in this project sits at a single site type; none span more than one.',
+      render: (r) => <>{r.siteArchetype}{r.deskless ? ' · on the floor' : ''}</> },
     { key: 'headcount', label: 'People', n: true, width: 100,
       render: (r) => (r.headcount || 0).toLocaleString() },
     { key: 'siteCount', label: 'Site count', n: true, width: 116,
       title: 'How many individual sites are in this row\'s scope. Not the same as the Sites column, which names the '
-           + 'archetype, not how many of it there are.',
+           + 'site type, not how many of it there are.',
       render: (r) => r.siteCount },
     { key: 'impact', label: 'Impact', n: true, width: 96,
       render: (r, incomplete) => incomplete ? 'N/A' : r.scores.impact.toFixed(1),
@@ -4592,13 +4592,13 @@ function headlineFinding(finding, agg) {
     const heaviest = heaviestTierBelowRebuild(agg);
     return {
       sentence: 'No role in this population sits in Rebuild.',
-      support: heaviest ? `Heaviest intervention present: ${heaviest}.` : 'No intervention above Inform is present.',
+      support: heaviest ? `Heaviest tier present: ${heaviest}.` : 'No tier above Inform is present.',
       showEffortLink: false,
     };
   }
   if (finding.mode === 'broad') {
     return {
-      sentence: `${pct(finding.highPopShare)} of the population sits in the two highest-intervention tiers — a whole-organization change, not a targeted one.`,
+      sentence: `${pct(finding.highPopShare)} of the population sits in the two highest tiers — a whole-organization change, not a targeted one.`,
       support: `${pluralize(finding.highRoles, 'role')} across Rebuild and Enable · ${finding.highPeople.toLocaleString()} of ${agg.totalPeople.toLocaleString()} people`,
       showEffortLink: true,
     };
@@ -4649,14 +4649,14 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
   const { sentence, support, showEffortLink } = useMemo(() => headlineFinding(finding, agg), [finding, agg]);
 
   const siteFilterControl = siteScopeOptionCount > 1 && (
-    <select id="f-sa" className="card-head-select no-print" aria-label="Filter by site archetype"
+    <select id="f-sa" className="card-head-select no-print" aria-label="Filter by site type"
             value={sa} onChange={(e) => setSa(e.target.value)}>
-      <option value="All">All site archetypes</option>
-      <optgroup label="Archetype (includes roles that span it)">
+      <option value="All">All site types</option>
+      <optgroup label="Site type (includes roles that span it)">
         {siteArchetypeBase.map((v) => <option key={v} value={v}>{v}</option>)}
       </optgroup>
       {siteArchetypeCombos.length > 0 && (
-        <optgroup label="Spans more than one archetype">
+        <optgroup label="Spans more than one site type">
           {siteArchetypeCombos.map((v) => <option key={v} value={v}>{v}</option>)}
         </optgroup>
       )}
@@ -4804,7 +4804,7 @@ function AxisBreakdown({ name, factors, values, score, newRole, citeDeck }) {
 function onePagerText(role, citeDeck) {
   const L = [];
   L.push(`${role.role}: ${role.tier}`);
-  L.push(`${role.siteArchetype} · ${pluralize(role.siteCount, 'site')} · ${pluralize(role.headcount, 'person', 'people')}${role.deskless ? ' · deskless' : ''}`);
+  L.push(`${role.siteArchetype} · ${pluralize(role.siteCount, 'site')} · ${pluralize(role.headcount, 'person', 'people')}${role.deskless ? ' · on the floor' : ''}`);
   L.push('');
   L.push(role.summary || '');
   L.push('');
@@ -4822,7 +4822,7 @@ function onePagerText(role, citeDeck) {
     L.push(`    provenance: ${forced ? 'rule, not data entry' : a.origin}`);
   });
   L.push('');
-  L.push(`Tasks: ${role.tasksRemoved} removed · ${role.tasksChanged} changed · ${role.tasksNew} new · FTE delta ${signed(role.fteDelta)}`);
+  L.push(`Tasks: ${role.tasksRemoved} removed · ${role.tasksChanged} changed · ${role.tasksNew} new · full-time equivalent (FTE) delta ${signed(role.fteDelta)}`);
   if (fteConsequenceLine(role.fteDelta)) L.push(`  ${fteConsequenceLine(role.fteDelta)}`);
   L.push('');
   L.push('BEFORE'); (role.before || []).forEach((b) => L.push(`  - ${b}`));
@@ -4834,13 +4834,13 @@ function onePagerText(role, citeDeck) {
   const td = trainingDesign(role);
   L.push('');
   L.push('DELIVERY DETAIL (Aberdeen OCM delivery material; the tier -> tactic mapping is Aberdeen judgment)');
-  L.push(`  Training: ${pluralize(td.hours, 'hour')} required for ${role.tier} (by tier alone, not deskless status)`);
+  L.push(`  Training: ${pluralize(td.hours, 'hour')} required for ${role.tier} (by tier alone, not by whether this role works at a desk)`);
   L.push(`  Delivered as: ${td.primary.method}, ${td.primary.duration}, selected for ${td.why}`);
-  L.push(`  Job aids: ${td.aids.count} (${td.aids.band} band, ${td.aids.range}), ${td.jobAidMethod.duration} each`);
+  L.push(`  Quick reference cards: ${td.aids.count} (${td.aids.band} band, ${td.aids.range}), ${td.jobAidMethod.duration} each`);
   L.push('  Communications milestones:');
   commsPlan(role).forEach((m) => L.push(`    - ${m.name}: ${m.objective} · ${m.channel}`));
   L.push('  Support escalation: ' + SUPPORT_LAYERS.join(' -> '));
-  L.push(`  Hypercare: ${pluralize(DOSES[role.tier].hypercareWeeks, 'week')}, the floor in every tier `
+  L.push(`  Extra support after go-live: ${pluralize(DOSES[role.tier].hypercareWeeks, 'week')}, the floor in every tier `
        + `(${TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks); only the duration scales.`);
   L.push(`  Cadence: readiness reassessed every ${CADENCE.readinessReassessMonths} months; role re-scored every ${pluralize(DOSES[role.tier].rescoreDays, 'day')}`);
   L.push(`  Adoption measured over a ${CADENCE.adoptionWindowMonths}-month window on: ${ADOPTION_METRICS.join(', ')}`);
@@ -4862,14 +4862,14 @@ function DeliveryDetail({ role }) {
   return (
     <>
       <div className="pkg-extra">
-        <h5>Training design: required hours by tier, format by deskless status</h5>
+        <h5>Training design: hours set by tier, format set by desk or floor</h5>
         <p>
           <b>{pluralize(t.hours, 'hour')} required</b> for {role.tier} - set by tier alone, the same whether or not this role
-          {' '}is deskless. Delivered as <b>{t.primary.method}</b>, {t.primary.duration}, selected for {t.why}.
-          {' '}Fits {t.primary.fits}. Delivered {t.trainTheTrainer ? 'by train-the-trainer participants' : 'self-driven'}.
+          {' '}works on the floor instead of at a desk. Delivered as <b>{t.primary.method}</b>, {t.primary.duration}, selected for {t.why}.
+          {' '}Fits {t.primary.fits}. Delivered {t.trainTheTrainer ? 'by trained in-house trainers' : 'self-driven'}.
         </p>
         <p style={{ marginBottom: 0 }}>
-          <b>{pluralize(t.aids.count, 'job aid')}</b> at the point of work: {t.aids.band} band, {t.aids.range} aids,
+          <b>{pluralize(t.aids.count, 'quick reference card')}</b> at the point of work: {t.aids.band} band, {t.aids.range} cards,
           {' '}{t.jobAidMethod.duration} each.
         </p>
       </div>
@@ -4897,8 +4897,8 @@ function DeliveryDetail({ role }) {
         <h5>Support after go-live: four-layer escalation</h5>
         <ol className="esc">{SUPPORT_LAYERS.map((s) => <li key={s}>{s}</li>)}</ol>
         <p className="sub" style={{ marginBottom: 0 }}>
-          Hypercare is the floor, not a tier-specific extra: {d.hypercareWeeks} week{d.hypercareWeeks === 1 ? '' : 's'} for this tier.
-          {' '}Every tier carries it: {TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks. Only the duration scales.
+          This extra support is the floor, not something only added for harder tiers: {d.hypercareWeeks} week{d.hypercareWeeks === 1 ? '' : 's'} for this tier.
+          {' '}Every tier gets it: {TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks. Only the duration changes.
         </p>
       </div>
 
@@ -4987,7 +4987,7 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
               <span>{role.siteArchetype}</span>
               <span>{role.siteCount} {role.siteCount === 1 ? 'site' : 'sites'}</span>
               <span>{pluralize(role.headcount, 'person', 'people')}</span>
-              {role.deskless && <span>deskless</span>}
+              {role.deskless && <span>on the floor</span>}
             </div>
           </div>
           <TierBadge tier={role.tier} large />
@@ -5003,7 +5003,7 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
         <Tile label="Tasks removed" value={role.tasksRemoved} countTo={role.tasksRemoved} />
         <Tile label="Tasks changed" value={role.tasksChanged} countTo={role.tasksChanged} />
         <Tile label="Tasks new" value={role.tasksNew} countTo={role.tasksNew} />
-        <Tile label="FTE delta" value={signed(role.fteDelta)} meta="of admin, per site" />
+        <Tile label="Full-time equivalent (FTE) delta" value={signed(role.fteDelta)} meta="of admin, per site" />
       </div>
       {fteConsequenceLine(role.fteDelta) && (
         <div className="banner" style={{ marginBottom: 'var(--space-16)' }}>
@@ -5183,7 +5183,7 @@ function AddRoleView({ onCreate, project, comboExample }) {
       before: ['Current-state task list to be captured in the site workshop'],
       after: ['To-be task list to be captured from the process design'],
       tasksRemoved: 0, tasksChanged: 0, tasksNew: 0, fteDelta: 0,
-      constraints: f.deskless ? ['Deskless population'] : [],
+      constraints: f.deskless ? ['Works on the floor, not at a desk'] : [],
       addedLive: true,
     });
   };
@@ -5198,7 +5198,7 @@ function AddRoleView({ onCreate, project, comboExample }) {
         </p>
         <p className="lede unit">
           One row is one role at <b>one site scope</b>: role × site, where a site scope is either a
-          single archetype{comboExample ? <> or a named combination of them, like <b>{comboExample}</b></> : null}. That scope is
+          single site type{comboExample ? <> or a named combination of them, like <b>{comboExample}</b></> : null}. That scope is
           what a curriculum, a comms message and a named accountable manager attach to.
           All six sub-factors are required: until they are set the row reads <b>incomplete</b>, with no score and no tier.
           {' '}{noteThreshold()} {NOTE.weights(project.hasDeckReproduction)}
@@ -5219,9 +5219,9 @@ function AddRoleView({ onCreate, project, comboExample }) {
                          onChange={(e) => set({ role: e.target.value })} />
                 </div>
                 <div className="field">
-                  <label htmlFor="a-sa">Site archetype</label>
+                  <label htmlFor="a-sa">Site type</label>
                   <select id="a-sa" value={f.siteArchetype} onChange={(e) => set({ siteArchetype: e.target.value })}>
-                    <optgroup label={project.siteArchetypeCombos.length ? 'One archetype' : 'Archetype'}>
+                    <optgroup label={project.siteArchetypeCombos.length ? 'One site type' : 'Site type'}>
                       {project.siteArchetypeBase.map((v) => <option key={v}>{v}</option>)}
                     </optgroup>
                     {project.siteArchetypeCombos.length > 0 && (
@@ -5243,7 +5243,7 @@ function AddRoleView({ onCreate, project, comboExample }) {
                     estate, and you have entered {scopeHint.count}.{' '}
                     {scopeHint.suggestion
                       ? <>Setting the scope to <b>{scopeHint.suggestion}</b> covers {scopeHint.suggestionCapacity}, that is how
-                          the deck writes a role spanning two archetypes, as “HQ+6”.</>
+                          the deck writes a role spanning two site types, as “HQ+6”.</>
                       : <>Field/Commercial is the one scope with no fixed site list, if the role really is that wide.</>}
                     {' '}Either way the score, the tier and the package are unchanged.
                   </p>
@@ -5257,9 +5257,9 @@ function AddRoleView({ onCreate, project, comboExample }) {
                   <label className="check">
                     <input type="checkbox" checked={f.deskless} onChange={(e) => set({ deskless: e.target.checked })} />
                     <span>
-                      <span className="h">Deskless population</span>
-                      <span className="d">Switches the package to on-shift micro-training at the line, laminated job aids
-                        in local language, and QR/huddle comms. Drops the email channel.</span>
+                      <span className="h">Works on the floor (no desk)</span>
+                      <span className="d">Switches training to short on-shift sessions at the line, printed quick
+                        reference cards in local language, and updates by QR code / shift board instead of email.</span>
                     </span>
                   </label>
                 </div>
@@ -5400,18 +5400,13 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
 
   // A single number hides its own story: Bellcrest's +8.3 is one net-new
   // role at +9.0 and every other role netting to -0.7 - a completely
-  // different conversation. Split by net-new vs. existing, name the
-  // largest single mover, and count how many roles actually move.
+  // different conversation. Split by net-new vs. existing.
   const fte = useMemo(() => {
     const newRoles = all.filter((r) => r.isNewRole);
     const existing = all.filter((r) => !r.isNewRole);
     const added = newRoles.reduce((s, r) => s + (r.fteDelta || 0), 0);
     const released = existing.reduce((s, r) => s + (r.fteDelta || 0), 0);
-    const growing = all.filter((r) => (r.fteDelta || 0) > 0).length;
-    const shrinking = all.filter((r) => (r.fteDelta || 0) < 0).length;
-    const largest = all.reduce((max, r) =>
-      Math.abs(r.fteDelta || 0) > Math.abs((max && max.fteDelta) || 0) ? r : max, null);
-    return { newRoles, existing, added, released, net: added + released, growing, shrinking, largest };
+    return { newRoles, existing, added, released, net: added + released };
   }, [all]);
   const fteDriver = fte.newRoles.length > 0
     ? `${signed(fte.added)} from ${pluralize(fte.newRoles.length, 'net-new role')}, ${signed(fte.released)} across ${pluralize(fte.existing.length, 'existing role')}`
@@ -5428,12 +5423,8 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
         <Tile label="Tasks removed" value={totals.removed} countTo={totals.removed} />
         <Tile label="Tasks changed" value={totals.changed} countTo={totals.changed} />
         <Tile label="Tasks new" value={totals.added} countTo={totals.added} />
-        <Tile label="Net FTE delta" value={signed(fte.net)} accent rule={fteDriver} />
+        <Tile label="Net full-time equivalent (FTE) change" value={signed(fte.net)} accent rule={fteDriver} />
       </div>
-      <p className="footnote" style={{ marginBottom: 'var(--space-16)' }}>
-        {fte.growing === 1 ? '1 role grows' : `${fte.growing} roles grow`} · {fte.shrinking === 1 ? '1 role shrinks' : `${fte.shrinking} roles shrink`}
-        {fte.largest && <> · largest single movement: <b>{fte.largest.role}</b> {signed(fte.largest.fteDelta || 0)}</>}
-      </p>
       <div className="filters no-print">
         <div className="field">
           <label htmlFor="rd-tier">Tier</label>
@@ -5473,7 +5464,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
   return (
     <>
       <div className="view-head">
-        <TabHeadline tab="training" text="Training: total required hours, delivery format and job aids, by role" />
+        <TabHeadline tab="training" text="Training: total required hours, delivery format and quick reference cards, by role" />
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
@@ -5502,10 +5493,10 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
               <th className="n">
                 Total required hours
                 <i className="info-ico" tabIndex={0}
-                   title="Required hours come from tier alone (DOSES[tier].curriculumHours), never from complexity or deskless status. Deskless changes the delivery format - on shift, hands-on - not the number of hours. Not the same as a session's typical length, shown in the delivery standards below."
-                   aria-label="How required hours are set: from tier alone, never complexity or deskless status; deskless changes the delivery format, not the number of hours.">ⓘ</i>
+                   title="Required hours come from tier alone (DOSES[tier].curriculumHours), never from complexity or whether the role works at a desk. Working on the floor changes the delivery format - on shift, hands-on - not the number of hours. Not the same as a session's typical length, shown in the delivery standards below."
+                   aria-label="How required hours are set: from tier alone, never complexity or whether the role works at a desk; working on the floor changes the delivery format, not the number of hours.">ⓘ</i>
               </th>
-              <th>Method</th><th>Complexity</th><th className="n">Job aids</th>
+              <th>Method</th><th>Complexity</th><th className="n">Quick reference cards</th>
               <th title="What shaped the delivery format, not the volume">Delivery constraint</th>
             </tr>
           </thead>
@@ -5558,11 +5549,11 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
               </table>
             </div>
             <div className="assume">
-              <h4>Job aids scale with impact</h4>
+              <h4>Quick reference cards scale with impact</h4>
               <table className="mini">
                 <tbody>
                   {JOB_AID_BANDS.map((b) => (
-                    <tr key={b.band}><th scope="row">{b.band}</th><td className="num">{b.range} aids</td>
+                    <tr key={b.band}><th scope="row">{b.band}</th><td className="num">{b.range} cards</td>
                       <td className="ch">impact severity {b.min ? `≥ ${b.min.toFixed(1)}` : `< 3.0`}</td></tr>
                   ))}
                 </tbody>
@@ -5610,12 +5601,12 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
   // Same content the page used to state as a lede sentence, kept reachable
   // as an info affordance instead - still fully dynamic (project-specific
   // date, live/upcoming/no-date phrasing), not frozen into static copy.
-  const channelHint = `${goLiveLede}Lead time mirrors each tier's hypercare tail; channel follows deskless vs. desk-based.`;
+  const channelHint = `${goLiveLede}Lead time mirrors how much extra support each tier gets after go-live; channel depends on whether the role works at a desk or on the floor.`;
 
   return (
     <>
       <div className="view-head">
-        <TabHeadline tab="comms" text="Communication: a timed plan by intervention tier" />
+        <TabHeadline tab="comms" text="Communication: a timed plan by tier" />
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
@@ -5677,7 +5668,7 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
               <i className="info-ico" tabIndex={0} title={channelHint}
                  aria-label={`How milestone timing and channel are set: ${channelHint}`}>ⓘ</i>
             </th>
-            <th>Cascade needed?</th></tr></thead>
+            <th>Manager briefing needed?</th></tr></thead>
           <tbody>
             {rows.map(({ role, milestones }) => (
               <tr key={role.id} className={selectedId === role.id ? 'sel' : ''} onClick={() => onSelect(role.id)}
@@ -5902,7 +5893,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
       <div className="grid cols-5" style={{ marginBottom: 'var(--space-16)', marginTop: 'var(--space-16)' }}>
         <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} countTo={metrics.signOnRate} countFormat={{ suffix: '%' }} meta="of in-scope headcount, at least once" />
         <Tile simulated label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} countTo={metrics.processesCompleted} />
-        <Tile simulated label="Job-aid access rate" value={`${metrics.jobAidAccessRate}%`} countTo={metrics.jobAidAccessRate} countFormat={{ suffix: '%' }} meta="of issued job aids opened at least once" />
+        <Tile simulated label="Quick reference card access rate" value={`${metrics.jobAidAccessRate}%`} countTo={metrics.jobAidAccessRate} countFormat={{ suffix: '%' }} meta="of issued cards opened at least once" />
         <Tile simulated label="Comms click rate" value={`${metrics.commsClickRate}%`} countTo={metrics.commsClickRate} countFormat={{ suffix: '%' }} meta="go-live communication click-through" />
         <Tile simulated label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} countTo={metrics.hrCaseVolume} meta="Rebuild + Enable population, tapering as adoption matures" />
       </div>
@@ -5999,7 +5990,7 @@ const TIER_PLAIN = {
   },
   Enable: {
     meaning: 'the job changes a lot, but people are likely to adapt without much difficulty',
-    support: 'They need real training and job aids to do the new job well, but not the hands-on hand-holding the toughest roles get.',
+    support: 'They need real training and quick reference cards to do the new job well, but not the hands-on hand-holding the toughest roles get.',
   },
   Reassure: {
     meaning: 'the day-to-day work barely changes, but people are nervous about it anyway',
@@ -6167,7 +6158,7 @@ const ASK_QUESTIONS = [
   { id: 'how-scored', chip: 'How were these scores calculated?',
     keywords: /\bscore|calculat|threshold|weight|methodology|how.*work/i,
     run: askHowScored },
-  { id: 'deskless', chip: 'Why do the deskless roles get different training?',
+  { id: 'deskless', chip: 'Why do people on the floor get different training?',
     keywords: /deskless|frontline|no desk|shift work|on the floor/i,
     run: askDeskless },
   { id: 'where-start', chip: 'Where would we start?',
@@ -6952,7 +6943,7 @@ function NewProjectWizard({ onFinish, onCancel }) {
         before: ['Current-state task list to be captured in the site workshop'],
         after: ['To-be task list to be captured from the process design'],
         tasksRemoved: 0, tasksChanged: 0, tasksNew: 0, fteDelta: 0,
-        constraints: deskless ? ['Deskless population'] : [],
+        constraints: deskless ? ['Works on the floor, not at a desk'] : [],
         addedLive: true,
       };
     });
