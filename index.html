@@ -5710,8 +5710,6 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
    reproduce any one of those percentages by hand from this page alone. */
 function EffortWeightingPanel({ agg }) {
   const totalWeighted = TIER_ORDER.reduce((s, t) => s + agg.byTier[t].weight, 0) || 1;
-  const rebuild = agg.byTier.Rebuild;
-  const rebuildWeight = EFFORT_WEIGHT_PER_TIER.Rebuild;
   return (
     <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
       <div className="card-head">
@@ -5746,11 +5744,6 @@ function EffortWeightingPanel({ agg }) {
             </tbody>
           </table>
         </div>
-        <p className="formula" style={{ marginBottom: 'var(--space-4)' }}>
-          Worked example, Rebuild: {rebuild.people.toLocaleString()} × {rebuildWeight} = {rebuild.weight.toFixed(1)},
-          {' '}over a total of {TIER_ORDER.map((t) => `${agg.byTier[t].people.toLocaleString()}×${EFFORT_WEIGHT_PER_TIER[t]}`).join(' + ')} = {totalWeighted.toFixed(1)}.
-          {' '}{rebuild.weight.toFixed(1)} ÷ {totalWeighted.toFixed(1)} = {pct(rebuild.effortShare)} of change effort.
-        </p>
       </div>
     </div>
   );
