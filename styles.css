@@ -437,17 +437,17 @@ a { color: var(--aberdeen-blue); }
 /* Metric caption: small, uppercase, letter-spaced, Onyx at reduced
    opacity - deliberately quieter than the number it labels. */
 .tile .label { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--caption); font-weight: 500; }
-/* The derivation rule behind a tile's number, one hover/focus away instead
-   of printed under it competing with it. */
-.tile .label .info-ico {
-  display: inline-block; margin-left: 5px; font-style: normal; letter-spacing: 0;
-  text-transform: none; cursor: help; color: var(--ink-3);
-}
-/* Aberdeen Blue, not Verdigris: this glyph is rendered via `color`, so it
-   is text for ADA purposes, and Verdigris measures ~2.6:1 on white - well
-   under the 4.5:1 a small icon-as-text needs. The brand's own rule is
-   "never Verdigris text on white," and a colored Unicode glyph is text. */
-.tile .label .info-ico:hover, .tile .label .info-ico:focus-visible { color: var(--aberdeen-blue); outline: none; }
+/* Generic derivation-rule affordance: a small ⓘ, one hover/focus away
+   instead of printed as a line of text competing with what it explains -
+   used inside tile labels, tier-name tooltips and the compact weight
+   tuner's header alike. Aberdeen Blue, not Verdigris, on :hover/:focus:
+   this glyph is rendered via `color`, so it is text for ADA purposes, and
+   Verdigris measures ~2.6:1 on white - well under the 4.5:1 a small
+   icon-as-text needs. The brand's own rule is "never Verdigris text on
+   white," and a colored Unicode glyph is text. */
+.info-ico { display: inline-block; margin-left: 5px; font-style: normal; cursor: help; color: var(--ink-3); }
+.info-ico:hover, .info-ico:focus-visible { color: var(--aberdeen-blue); outline: none; }
+.tile .label .info-ico { letter-spacing: 0; text-transform: none; }
 /* Hero metric: the number is unmistakably the loudest thing on the card -
    large, ExtraLight, Aberdeen Blue, tabular so a re-count-up never jitters
    in width. */
@@ -507,13 +507,25 @@ a { color: var(--aberdeen-blue); }
   0% { box-shadow: 0 0 0 3px var(--aberdeen-blue-line); background: var(--aberdeen-blue-wash); }
   100% { box-shadow: 0 0 0 0 transparent; background: var(--surface); }
 }
-.tier-tile .tier-name { display: flex; align-items: center; gap: 7px; font-weight: 500; font-size: 14px; }
-.tier-tile .tier-desc { margin-top: var(--space-4); font-size: 12px; color: var(--ink-2); line-height: 1.4; }
-.tier-tile .rows { margin-top: 10px; display: grid; gap: 3px; }
-/* flex-wrap so a long label ("Share of change effort") at a narrow card
-   width drops the value to its own line instead of the two overlapping. */
-.tier-tile .row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0 var(--space-8); font-size: 13px; color: var(--ink-2); }
-.tier-tile .row b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+/* The wide/short tier card: tier name (with its package description as a
+   hover/focus tooltip, not a standing line) on the left, the four metrics
+   as a single row on the right - this is what makes ~470x120 possible
+   where the old tall stacked layout needed roughly triple the height. */
+.tier-tile-wide { display: flex; align-items: center; gap: var(--space-16); padding: 24px 22px; }
+.tier-tile-wide .tier-name {
+  display: flex; align-items: center; gap: 7px; font-weight: 500; font-size: 15px;
+  flex: 0 0 auto; width: 128px; cursor: help;
+}
+.tier-tile-wide .tier-metrics {
+  flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-12);
+  min-width: 0;
+}
+.tm { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tm-lbl {
+  font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--caption); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tm-val { font-size: 27px; font-weight: 200; color: var(--aberdeen-blue); letter-spacing: -.01em; font-variant-numeric: tabular-nums; line-height: 1.1; }
 
 .banner {
   background: var(--aberdeen-blue-wash); border: 1px solid var(--aberdeen-blue-line);
@@ -523,27 +535,53 @@ a { color: var(--aberdeen-blue); }
 .banner b { font-weight: 500; }
 .banner .src { display: block; font-size: 12px; color: var(--ink-3); margin-top: 3px; }
 
-/* The headline finding: first thing on the Stakeholder Impact tab, as a row
-   of scannable stat chips rather than a paragraph - the four tier cards
-   need to land right under them, on screen, with no scrolling. */
-.stat-chips { display: flex; gap: var(--space-12); flex-wrap: wrap; }
-.chip {
-  display: inline-flex; align-items: baseline; gap: 6px;
-  background: var(--aberdeen-blue-wash); border: 1px solid var(--aberdeen-blue-line);
-  border-radius: 999px; padding: 9px 16px 9px 15px; font-size: 14px; color: var(--ink);
+/* The hero headline: the one sentence in the tool that states a conclusion
+   rather than data, so it is deliberately the largest thing on the page -
+   larger than any h2 elsewhere, Poppins ExtraLight, a short Verdigris rule
+   underneath standing in for the h2's usual underline treatment, and one
+   quiet supporting line in figures below that. */
+.hero-headline { margin-bottom: var(--space-16); }
+.hero-sentence {
+  font-size: 36px; line-height: 1.2; color: var(--aberdeen-blue);
+  letter-spacing: -.015em; max-width: 66ch;
 }
-.chip b { font-size: 19px; font-weight: 500; color: var(--aberdeen-blue); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
-/* A structural zero (no Rebuild role at all) reads as a deliberate finding,
-   not an empty/broken chip - same "dash over a bold 0" logic as .tile. */
-.chip-zero { background: var(--surface-sunk); border-color: var(--hairline-strong); }
-.chip-zero b { color: var(--ink-2); }
-.chip .info-ico { margin-left: 1px; font-style: normal; cursor: help; color: var(--ink-3); }
-.chip .info-ico:hover, .chip .info-ico:focus-visible { color: var(--aberdeen-blue); outline: none; }
-.stat-chips-link { font-size: 12.5px; }
-.stat-chips-link .link-btn { font-size: 12.5px; }
+.hero-rule { width: 44px; height: 3px; border-radius: 2px; background: var(--verdigris); margin-top: 10px; }
+.hero-support { font-size: 13px; color: var(--ink-2); margin-top: 8px; }
+.hero-support .hero-link { font-size: 13px; }
 /* A compact filter select sitting in a card-head next to its hint text,
    not a full labeled .field block - the card-head is already the label. */
 .card-head-select { min-width: 0; font-size: 13px; padding: 6px 9px; }
+
+/* ----------------------------------------------------- dashboard layout */
+
+/* The Stakeholder Impact tab's two-column dashboard: tier cards ranked
+   top-to-bottom on the left, the chart and its weighting sliders on the
+   right - sized (roughly 35/65) so both columns, plus the hero headline
+   above them, fit one 1440x800+ screen with no scrolling. Role-level
+   detail (the table) sits below this grid, under the fold on purpose. */
+.dashboard-grid { display: grid; grid-template-columns: 7fr 13fr; gap: var(--space-16); align-items: start; }
+.dashboard-cards { display: flex; flex-direction: column; gap: var(--space-12); min-width: 0; }
+.dashboard-chart-col { display: flex; flex-direction: column; gap: var(--space-12); min-width: 0; }
+
+@media (max-width: 1100px) {
+  /* Collapses to one column, in source order: headline (above this grid),
+     cards, chart, sliders - then the table, already its own element below
+     the grid. */
+  .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+/* A shorter viewport (a 720p laptop screen, browser chrome included) can't
+   fit the chart, the cards AND the full slider panel without scrolling -
+   the cards and the chart are the two things that must never shrink or
+   scroll, so the slider panel's own lower rows are what gives, clipped
+   (not scrolled) rather than pushing anything above it down the page. */
+@media (min-width: 1101px) and (max-height: 760px) {
+  .hero-headline { margin-bottom: var(--space-12); }
+  .hero-sentence { font-size: 30px; }
+  .tier-tile-wide { padding: 13px 18px; }
+  .tm-val { font-size: 19px; }
+  .tuner-body { max-height: 84px; overflow: hidden; }
+}
 
 /* -------------------------------------------------------------- tier chips */
 
@@ -819,21 +857,25 @@ table.mini.milestones tr.today-marker td {
   color: var(--aberdeen-blue); background: var(--flag-wash); padding: 3px var(--space-8); border-radius: 3px; border-bottom: none;
 }
 
-/* weight tuner */
+/* weight tuner - always visible now (not a collapsed <details>), and
+   compact: it sits directly under the chart in the dashboard's right
+   column, budgeted to roughly 155px total so the chart above it never has
+   to shrink to make room. */
 .tuner {
   background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius);
-  margin-bottom: var(--space-16); box-shadow: var(--elev-2);
+  box-shadow: var(--elev-2);
 }
-.tuner > summary {
-  cursor: pointer; padding: 11px var(--space-16); font-size: 13.5px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+.tuner-head {
+  padding: 10px 14px; font-size: 13.5px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--hairline);
 }
-.tuner > summary::marker { color: var(--ink-3); }
-.tuner > summary .lbl { flex: 1 1 auto; }
-.tuner > summary .state { font-size: 12px; color: var(--ink-3); margin-left: auto; text-align: right; }
-.tuner-body { padding: 0 var(--space-16) var(--space-16); border-top: 1px solid var(--hairline); padding-top: var(--space-12); }
-.wt-grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); margin-top: 10px; }
-.wt-axis h5 { margin: 0 0 var(--space-8); font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); }
-.wt-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(90px, 150px) 44px; gap: 10px; align-items: center; margin-bottom: 7px; font-size: 13px; }
+.tuner-head .lbl { font-weight: 500; }
+.tuner-head .state { font-size: 11.5px; color: var(--ink-3); }
+.tuner-head .btn { margin-left: auto; padding: 4px 11px; font-size: 12px; }
+.tuner-body { padding: 8px 14px 10px; }
+.wt-grid { display: grid; gap: 10px 18px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.wt-axis h5 { margin: 0 0 4px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.wt-row { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(70px, 120px) 38px; gap: 8px; align-items: center; margin-bottom: 3px; font-size: 12px; }
 .wt-row .lbl { color: var(--ink-2); }
 .wt-row input[type="range"] { width: 100%; accent-color: var(--aberdeen-blue); }
 .wt-row .v { text-align: right; font-weight: 500; }
@@ -1002,9 +1044,16 @@ table.data td .incflag {
   .cols-2 { display: block; }
   /* keep the metric tiles four-across on paper, they are small */
   .cols-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6pt; }
+  /* The screen dashboard's two-column layout (cards beside the chart) is a
+     screen-only convenience for fitting everything above the fold - on
+     paper, stack them so neither column gets squeezed into an unreadable
+     sliver at print width. */
+  .dashboard-grid { display: block; }
+  .dashboard-cards { margin-bottom: 10pt; }
   .tile { box-shadow: none; }
   .tile .value { font-size: 18pt; font-weight: 500; color: var(--ink); }
   .tier-tile { background: var(--surface); box-shadow: none; }
+  .hero-sentence { font-size: 22pt; }
   .ba { display: grid; grid-template-columns: 1fr 1fr; }
   .tile { break-inside: avoid; margin-bottom: 10pt; }
   .view-head .lede { display: none; }

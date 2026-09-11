@@ -142,6 +142,37 @@ function useRevealGroup(containerRef, selector, { max = 8, start = 'top 85%' } =
   }, [containerRef, selector, max, start]);
 }
 
+/* GSAP's ticker runs on requestAnimationFrame, which every browser throttles
+   or fully suspends in a backgrounded tab. Left alone, a count-up or reveal
+   tween that was mid-flight when the tab lost focus resumes wherever rAF
+   left it once the tab is foregrounded again - which reads as a tier card
+   showing the wrong number until the tween eventually catches up, or (worse)
+   never catching up at all if the browser never resumes that frame. Mounted
+   once, for the app's whole lifetime, not per-hook: this has to reach every
+   tween any hook anywhere has started, not just the ones a single component
+   owns. On hidden, every child of gsap.globalTimeline is force-advanced to
+   its own completion (still running each tween's own onUpdate/onComplete,
+   so useCountUp's "last rendered value" bookkeeping stays correct) and then
+   killed outright, so nothing is left ticking in the background and nothing
+   is left for gsap.globalTimeline.getChildren() to accumulate. On visible
+   again, this does nothing at all - the settled state is already correct,
+   and the contract is "do not replay." */
+function useFreezeAnimationsOnHide() {
+  useEffect(() => {
+    if (!window.gsap) return undefined;
+    const freeze = () => {
+      if (!document.hidden) return;
+      const tweens = gsap.globalTimeline.getChildren(true, true, true);
+      tweens.forEach((t) => {
+        try { t.progress(1); } catch (e) { /* a tween that errors mid-jump is still killed below */ }
+        t.kill();
+      });
+    };
+    document.addEventListener('visibilitychange', freeze);
+    return () => document.removeEventListener('visibilitychange', freeze);
+  }, []);
+}
+
 // A count-up number outside a Tile card (e.g. a figure inline in a
 // sentence or a tier-card row): same exact-final-value/interruptible
 // contract as Tile's own count-up, just not wrapped in the tile chrome.
@@ -3965,18 +3996,28 @@ function useTiltHover(ref) {
   }, [ref]);
 }
 
+// Wide and short, not tall and stacked: the four cards need to sit in one
+// left-hand column, in severity order, without pushing the chart below the
+// fold. The package description (what used to be a standing sentence under
+// the tier name) is real, useful content but not glanceable at this size,
+// so it moves to the tier name's own hover/focus tooltip instead of taking
+// a line of its own.
 const TierSummaryTile = React.memo(function TierSummaryTile({ tier: t, b, flash }) {
   const ref = useRef(null);
   useTiltHover(ref);
+  const pkg = TIERS[t].package.join(', ') + '.';
   return (
-    <div ref={ref} className={'tile tier-tile' + (flash ? ' tile-flash' : '')} style={{ '--tier-color': TIERS[t].hex }}>
-      <div className="tier-name"><i className="dot" style={{ '--dot': TIERS[t].hex }} />{t}</div>
-      <div className="tier-desc">{TIERS[t].package.join(', ')}.</div>
-      <div className="rows">
-        <div className="row"><span>Roles</span><b><CountUpText value={b.roles} /></b></div>
-        <div className="row"><span>People</span><b><CountUpText value={b.people} /></b></div>
-        <div className="row"><span>% of population</span><b>{pct(b.popShare)}</b></div>
-        <div className="row"><span>Share of change effort</span><b>{pct(b.effortShare)}</b></div>
+    <div ref={ref} className={'tile tier-tile tier-tile-wide' + (flash ? ' tile-flash' : '')} style={{ '--tier-color': TIERS[t].hex }}>
+      <div className="tier-name" title={pkg} tabIndex={0} aria-label={`${t}: ${pkg}`}>
+        <i className="dot" style={{ '--dot': TIERS[t].hex }} />
+        {t}
+        <i className="info-ico" aria-hidden="true">ⓘ</i>
+      </div>
+      <div className="tier-metrics">
+        <div className="tm"><span className="tm-lbl" title="Roles">Roles</span><b className="tm-val"><CountUpText value={b.roles} /></b></div>
+        <div className="tm"><span className="tm-lbl" title="People">People</span><b className="tm-val"><CountUpText value={b.people} /></b></div>
+        <div className="tm"><span className="tm-lbl" title="% of population">% of pop.</span><b className="tm-val">{pct(b.popShare)}</b></div>
+        <div className="tm"><span className="tm-lbl" title="Share of change effort">Effort share</span><b className="tm-val">{pct(b.effortShare)}</b></div>
       </div>
     </div>
   );
@@ -4000,7 +4041,10 @@ function WeightNote({ weights, onReset }) {
    7. PORTFOLIO / HEAT MAP
    =========================================================================== */
 
-const MAP = { w: 940, h: 500, l: 62, r: 26, t: 24, b: 54 };
+// Sized for the dashboard's right-hand column (~860x360), flatter than the
+// old full-width chart - margins scaled down to match, not just the plot
+// area, so tick labels and axis sentences stay proportionate.
+const MAP = { w: 860, h: 360, l: 56, r: 22, t: 18, b: 40 };
 
 /* Memoized: an SVG scatter plus tooltip logic over the full role set,
    sitting inside PortfolioView next to the weight tuner, which lives in the
@@ -4349,9 +4393,14 @@ const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId,
   );
 });
 
-/* Weight tuning. The weights are ours, so they are ours to move, and the demo
-   is stronger for showing that the line is a choice, not a fact. Weights are
-   normalized per axis, so scores stay on the 1-5 scale at any setting. */
+/* Weight tuning. The weights are Aberdeen judgment, so they are Aberdeen's
+   to move, and the demo is stronger for showing that the line is a choice,
+   not a fact. Weights are normalized per axis, so scores stay on the 1-5
+   scale at any setting. Always visible now, not a collapsed disclosure -
+   it sits directly under the chart it drives, in the part of the tab
+   nothing should have to click to reveal. The provenance paragraph that
+   used to run under the heading lives in one info-icon tooltip instead, so
+   this compact panel still fits its ~155px budget under the chart. */
 function WeightTuner({ weights, onChange, onReset, citeDeck }) {
   const isDefault = weightsAreDefault(weights);
   const eff = (factors, f) => {
@@ -4372,24 +4421,22 @@ function WeightTuner({ weights, onChange, onReset, citeDeck }) {
       ))}
     </div>
   );
+  const noteText = `${NOTE.weights(citeDeck)} Weights are normalized per axis, so every score stays on the 1–5 scale, and the tiering moves in front of the room. Effective weight shown to the right of each slider; each axis always sums to 1.00.`;
   return (
-    <details className="tuner no-print">
-      <summary>
+    <div className="tuner no-print">
+      <div className="tuner-head">
         <span className="lbl">Weighting</span>
         <span className="state">{isDefault ? 'default: 0.45 / 0.25 / 0.30 and 0.40 / 0.35 / 0.25' : 'changed from default'}</span>
-      </summary>
+        <i className="info-ico" tabIndex={0} title={noteText} aria-label={`About this weighting: ${noteText}`}>ⓘ</i>
+        <button className="btn" type="button" onClick={onReset} disabled={isDefault}>Reset to defaults</button>
+      </div>
       <div className="tuner-body">
-        <p className="sub">{NOTE.weights(citeDeck)} Weights are normalized per axis, so every score stays on the 1–5 scale, and the tiering moves in front of the room.</p>
         <div className="wt-grid">
           {axis('Impact severity', IMPACT_FACTORS)}
           {axis('Adoption risk', RISK_FACTORS)}
         </div>
-        <div className="btn-row" style={{ marginTop: 'var(--space-12)' }}>
-          <button className="btn" type="button" onClick={onReset} disabled={isDefault}>Reset to defaults</button>
-          <span className="sub">Effective weight shown to the right of each slider; each axis always sums to 1.00.</span>
-        </div>
       </div>
-    </details>
+    </div>
   );
 }
 
@@ -4425,48 +4472,46 @@ function concentrationFinding(agg) {
   };
 }
 
-/* The headline finding, as three scannable stat chips instead of a
-   paragraph - nobody reads a two-sentence banner during a demo. The full
-   arithmetic behind whichever chip needs defending sits one hover away, on
-   its own info affordance; the cross-reference to the effort-weighting
-   panel is a single link underneath, not a sentence woven into the chips. */
-function headlineChips(finding, agg) {
+// Which tier, below Rebuild, is the heaviest one actually present - the
+// zero-Rebuild headline still needs to say something concrete rather than
+// just "nothing," and this is the same "heaviest intervention present" fact
+// the old prose used to state.
+function heaviestTierBelowRebuild(agg) {
+  return TIER_ORDER.slice(1).find((t) => agg.byTier[t].roles > 0) || null;
+}
+
+/* The headline finding, as the one sentence in the tool that states a
+   conclusion rather than data - the hero of the tab, styled far larger than
+   anything else on it. Three real variants (concentrated / distributed /
+   in-between), plus the zero-Rebuild edge case, each producing a different
+   sentence because a different distribution genuinely is a different
+   finding (see concentrationFinding's own comment on why). A quiet second
+   line underneath carries the same two counting numbers the sentence just
+   used, in figures, plus - only when the sentence actually cites an effort
+   share - a single small link to where that weighting comes from. */
+function headlineFinding(finding, agg) {
   const reb = finding.reb;
   if (finding.mode === 'none') {
+    const heaviest = heaviestTierBelowRebuild(agg);
     return {
-      chips: [
-        { value: '0', label: 'Rebuild roles', zero: true,
-          rule: 'At the current weights and threshold, nothing here needs a full role redesign — the heaviest intervention present is Enable or lighter.' },
-      ],
+      sentence: 'No role in this population sits in Rebuild.',
+      support: heaviest ? `Heaviest intervention present: ${heaviest}.` : 'No intervention above Inform is present.',
       showEffortLink: false,
     };
   }
   if (finding.mode === 'broad') {
     return {
-      chips: [
-        { value: finding.highRoles.toLocaleString(), label: finding.highRoles === 1 ? 'role' : 'roles', suffix: ' across Rebuild and Enable' },
-        { value: `${finding.highPeople.toLocaleString()} of ${agg.totalPeople.toLocaleString()}`, label: 'people' },
-        { value: pct(finding.highEffortShare), label: 'of the effort',
-          rule: `${pluralize(finding.highRoles, 'role')} across Rebuild and Enable, ${finding.highPeople.toLocaleString()} of ${agg.totalPeople.toLocaleString()} people, carry ${pct(finding.highEffortShare)} of the effort — a whole-organization change, not a targeted one.` },
-      ],
+      sentence: `${pct(finding.highPopShare)} of the population sits in the two highest-intervention tiers — a whole-organization change, not a targeted one.`,
+      support: `${pluralize(finding.highRoles, 'role')} across Rebuild and Enable · ${finding.highPeople.toLocaleString()} of ${agg.totalPeople.toLocaleString()} people`,
       showEffortLink: true,
     };
   }
-  // concentrated and between share the same three chips; only "between"
-  // drops the ratio's implied "this is the deliverable" framing, per
-  // concentrationFinding's own comment on why the two modes are distinct.
-  const chips = [
-    { value: reb.roles.toLocaleString(), label: reb.roles === 1 ? 'Rebuild role' : 'Rebuild roles' },
-    { value: `${reb.people.toLocaleString()} of ${agg.totalPeople.toLocaleString()}`, label: 'people' },
-  ];
-  if (finding.mode === 'concentrated' && finding.ratio != null) {
-    chips.push({ value: `${finding.ratio.toFixed(1)}×`, label: 'effort share',
-      rule: `${pct(reb.popShare)} of the population carries ${pct(reb.effortShare)} of the effort — a ${finding.ratio.toFixed(1)}× concentration versus a flat headcount split.` });
-  } else {
-    chips.push({ value: pct(reb.effortShare), label: 'of the effort',
-      rule: `${pct(reb.popShare)} of the population carries ${pct(reb.effortShare)} of the effort.` });
-  }
-  return { chips, showEffortLink: true };
+  const base = `${pct(reb.popShare)} of the population absorbs ${pct(reb.effortShare)} of the effort.`;
+  return {
+    sentence: finding.mode === 'between' ? `${base} Not a small targeted group, and not the whole organization either.` : base,
+    support: `${pluralize(reb.roles, 'Rebuild role')} · ${reb.people.toLocaleString()} of ${agg.totalPeople.toLocaleString()} people`,
+    showEffortLink: true,
+  };
 }
 
 function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights, weightDeltas,
@@ -4489,7 +4534,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
 
   const agg = useMemo(() => aggregate(filtered), [filtered]);
   const finding = useMemo(() => concentrationFinding(agg), [agg]);
-  const { chips, showEffortLink } = useMemo(() => headlineChips(finding, agg), [finding, agg]);
+  const { sentence, support, showEffortLink } = useMemo(() => headlineFinding(finding, agg), [finding, agg]);
 
   const siteFilterControl = siteScopeOptionCount > 1 && (
     <select id="f-sa" className="card-head-select no-print" aria-label="Filter by site archetype"
@@ -4508,13 +4553,21 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
 
   return (
     <>
-      {/* 1. THE HEADLINE FINDING, then 2. THE FOUR TIER CARDS: together, the
-          first thing a viewer sees, with no site-archetype filter or
-          multi-line prose above them pushing the cards below the fold. The
-          filter still scopes the cards, the chart and the table alike - it
-          just lives with the chart now, not above the cards. */}
-      <div className="view-head">
-        <h2>Impact heat map</h2>
+      {/* 1. THE HEADLINE: the hero of the tab, the one place this tool
+          states a conclusion rather than data. Everything below it, on this
+          screen and past the fold, is the evidence for this sentence. */}
+      <div className="hero-headline">
+        <h2 className="hero-sentence">{sentence}</h2>
+        <div className="hero-rule" aria-hidden="true" />
+        <p className="hero-support">
+          {support}
+          {showEffortLink && (
+            <>
+              {' · '}
+              <button type="button" className="link-btn hero-link no-print" onClick={onOpenEffortWeights}>effort weighting →</button>
+            </>
+          )}
+        </p>
       </div>
 
       {filteredIncomplete.length > 0 && (
@@ -4526,42 +4579,33 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         </div>
       )}
 
-      <div className="stat-chips" style={{ marginBottom: showEffortLink ? 6 : 'var(--space-16)' }}>
-        {chips.map((c, i) => (
-          <span className={'chip' + (c.zero ? ' chip-zero' : '')} key={i}>
-            <b>{c.value}</b> {c.label}{c.suffix || ''}
-            {c.rule && <i className="info-ico" tabIndex={0} title={c.rule} aria-label={`How this is derived: ${c.rule}`}>ⓘ</i>}
-          </span>
-        ))}
-      </div>
-      {showEffortLink && (
-        <p className="stat-chips-link no-print" style={{ marginBottom: 'var(--space-16)' }}>
-          <button type="button" className="link-btn" onClick={onOpenEffortWeights}>See the effort weighting on the Adoption tab →</button>
-        </p>
-      )}
-
-      <div className="grid cols-4" style={{ marginBottom: 'var(--space-16)' }}>
-        {TIER_ORDER.map((t) => (
-          <TierSummaryTile key={t} tier={t} b={agg.byTier[t]} flash={changedTiers.has(t)} />
-        ))}
-      </div>
-
-      {/* 3. THE QUADRANT CHART, with the site-archetype filter in its own
-          card-head. The weighting panel sits right after it: it's the
-          control that moves what the chart plots and how roles tier. */}
-      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
-        <div className="card-head">
-          <h3>Impact severity × adoption risk</h3>
-          <span className="hint">{filtered.length} of {pluralize(scored.length, 'role')} · threshold {THRESHOLD.toFixed(1)} on both axes, inclusive · every point is listed as text in the table below</span>
-          {siteFilterControl}
+      {/* 2. THE DASHBOARD: four tier cards, ranked top-to-bottom, on the
+          left; the quadrant chart and its weighting sliders on the right.
+          Both columns fit above the fold together - role-level detail (the
+          table below) does not have to. */}
+      <div className="dashboard-grid">
+        <div className="dashboard-cards">
+          {TIER_ORDER.map((t) => (
+            <TierSummaryTile key={t} tier={t} b={agg.byTier[t]} flash={changedTiers.has(t)} />
+          ))}
         </div>
-        <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
+
+        <div className="dashboard-chart-col">
+          <div className="card" style={{ marginBottom: 'var(--space-12)' }}>
+            <div className="card-head">
+              <h3>Impact severity × adoption risk</h3>
+              <span className="hint">{filtered.length} of {pluralize(scored.length, 'role')} · threshold {THRESHOLD.toFixed(1)} on both axes, inclusive · every point is listed as text in the table below</span>
+              {siteFilterControl}
+            </div>
+            <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
+          </div>
+
+          <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} citeDeck={citeDeck} />
+        </div>
       </div>
 
-      <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} citeDeck={citeDeck} />
-
-      {/* 4. THE ROLE x SITE TABLE. */}
-      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
+      {/* 3. THE ROLE x SITE TABLE: role-level detail, below the fold. */}
+      <div className="card" style={{ marginTop: 'var(--space-16)', marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Role × site</h3>
           <span className="hint">One row per role × site. Sort any column. Click a row for the one-pager.</span>
@@ -6398,6 +6442,7 @@ function App() {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+  useFreezeAnimationsOnHide();
   const mainRef = useRef(null);
   useTabTransitionIn(mainRef, tab);
   // Opening a role's one-pager from a table row or a chart point far down
@@ -6412,7 +6457,7 @@ function App() {
   // instead of) the whole-tab cross-fade above. Re-runs per tab (key={tab}
   // remounts <main>, so this is a fresh container and a fresh reveal each
   // time, never a replay of the same DOM on scroll-up).
-  useRevealGroup(mainRef, '.card, .grid.cols-4, .grid.cols-2, .tuner', { max: 8 });
+  useRevealGroup(mainRef, '.card, .grid.cols-4, .grid.cols-2, .tuner, .dashboard-cards', { max: 8 });
   // A stale/mistyped tab slug in the URL (e.g. a link built against an old
   // tab id) - shown once, briefly, and the address bar is corrected to
   // match what's actually on screen, rather than the two silently
