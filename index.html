@@ -6382,6 +6382,13 @@ function App() {
   }, []);
   const mainRef = useRef(null);
   useTabTransitionIn(mainRef, tab);
+  // Opening a role's one-pager from a table row or a chart point far down
+  // the page must land on the top of that page, not wherever the trigger
+  // happened to be scrolled to - a one-pager that opens "scrolled down"
+  // reads as broken, not as a deliberate scroll position.
+  useLayoutEffect(() => {
+    if (tab === 'role') window.scrollTo(0, 0);
+  }, [tab, selectedId]);
   // Section-level reveal: the current tab's own cards/KPI grids fade + rise
   // in, staggered, the first time they're on screen - on top of (not
   // instead of) the whole-tab cross-fade above. Re-runs per tab (key={tab}
