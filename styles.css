@@ -210,7 +210,7 @@ a { color: var(--aberdeen-blue); }
 }
 .topbar-row {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  max-width: 1500px; margin: 0 auto; width: 100%;
+  max-width: 1200px; margin: 0 auto; width: 100%;
 }
 /* Deliberately spaced groups, not items scattered along the bar: brand,
    then project context (visually separated by a hairline rule), then
@@ -257,7 +257,7 @@ a { color: var(--aberdeen-blue); }
 /* The brief, non-toast reaction to a weight change: what just moved,
    fading in under the header, gone again a few seconds later. */
 .weight-flash {
-  max-width: 1500px; margin: 10px auto 0; width: 100%;
+  max-width: 1200px; margin: 10px auto 0; width: 100%;
   font-size: 12.5px; color: var(--live); background: var(--live-wash);
   border-radius: var(--radius-s) var(--radius-s) 0 0; padding: 6px var(--space-12);
   animation: weight-flash-in .25s ease-out;
@@ -274,7 +274,7 @@ a { color: var(--aberdeen-blue); }
 }
 
 .tabs {
-  display: flex; gap: 2px; max-width: 1500px; margin: 6px auto 0; width: 100%;
+  display: flex; gap: 2px; max-width: 1200px; margin: 6px auto 0; width: 100%;
   overflow-x: auto;
 }
 .tab {
@@ -295,12 +295,12 @@ a { color: var(--aberdeen-blue); }
   border-bottom-color: var(--page); border-top-color: var(--aberdeen-blue);
 }
 
-/* 1500px, not 1560 - at very wide viewports (1900px+) the page was
+/* 1200px, not 1560 - at very wide viewports (1900px+) the page was
    sprawling, which also meant the square chart's column got far wider
    than the square itself needs, exaggerating how much "leftover" space
    sat beside it. Capping page width keeps the two-column proportions
    reading as intentional at any viewport. */
-.main { flex: 1; max-width: 1500px; margin: 0 auto; width: 100%; padding: var(--space-24) 28px var(--space-64); }
+.main { flex: 1; max-width: 1200px; margin: 0 auto; width: 100%; padding: var(--space-24) 28px var(--space-64); }
 
 /* ------------------------------------------------------------- project picker */
 
@@ -545,8 +545,8 @@ a { color: var(--aberdeen-blue); }
    that same height, so every dimension here is smaller than it would be
    as a standalone card. */
 .tier-tile-wide {
-  display: flex; flex-direction: column; justify-content: center; gap: var(--space-8);
-  padding: 14px 16px;
+  display: flex; flex-direction: column; justify-content: center; gap: var(--space-4);
+  padding: 10px 16px;
 }
 .tier-tile-wide .tier-name { display: flex; align-items: center; gap: 7px; font-weight: 500; font-size: 15px; line-height: 1.2; }
 .tier-info {
@@ -554,7 +554,7 @@ a { color: var(--aberdeen-blue); }
   font-size: 12px;
 }
 .tier-tile-wide .tier-metrics {
-  display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-8) var(--space-16);
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4) var(--space-16);
 }
 .tm { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .tm-lbl { font-size: 11px; letter-spacing: .02em; color: var(--ink-2); font-weight: 500; }
@@ -573,7 +573,7 @@ a { color: var(--aberdeen-blue); }
    larger than any h2 elsewhere, Poppins ExtraLight, a short Verdigris rule
    underneath standing in for the h2's usual underline treatment, and one
    quiet supporting line in figures below that. */
-.hero-headline { margin-bottom: var(--space-8); }
+.hero-headline { margin-bottom: var(--space-16); }
 .hero-sentence {
   font-size: 36px; line-height: 1.2; color: var(--aberdeen-blue);
   letter-spacing: -.015em; max-width: 66ch;
@@ -666,19 +666,23 @@ a { color: var(--aberdeen-blue); }
   .dashboard-grid { grid-template-columns: 1fr; flex: none; }
   .dashboard-cards > .tier-tile { flex: none; }
   .dashboard-chart-col > .map-wrap { flex: none; }
-  .chart-square-frame { flex: none; aspect-ratio: 1 / 1; width: 100%; max-width: 460px; margin: 0 auto; }
-  .chart-square { height: auto; width: 100%; }
+  /* The side rail moves below the square instead of beside it - there
+     isn't width to spare for both at a stacked, narrow layout. */
+  .chart-plot-row { flex-direction: column; }
+  .chart-square-frame { flex: none; aspect-ratio: 1 / 1; width: 100%; max-width: 460px; margin: 0 auto; padding-left: 0; }
+  .chart-square { height: auto; width: 100%; max-height: none; }
+  .chart-side-rail { flex-direction: row; flex-wrap: wrap; justify-content: center; padding-right: 0; }
+  .chart-side-rail .card-head-select { width: auto; }
 }
 
 /* A shorter viewport (a 720p laptop screen, browser chrome included) gets
-   a little breathing room back from the headline and cards - the chart
-   and the (now collapsed-by-default, full-width) weighting panel need no
-   help fitting, so nothing here touches either of them. */
+   a little breathing room back from the headline - the cards are already
+   as tight as they go by default now, and the chart and the (collapsed by
+   default, full-width) weighting panel need no help fitting, so nothing
+   here touches any of those. */
 @media (min-width: 1101px) and (max-height: 760px) {
-  .hero-headline { margin-bottom: var(--space-12); }
+  .hero-headline { margin-bottom: var(--space-8); }
   .hero-sentence { font-size: 30px; }
-  .tier-tile-wide { padding: var(--space-12) var(--space-16); }
-  .tm-val { font-size: 21px; }
 }
 
 /* -------------------------------------------------------------- tier chips */
@@ -731,22 +735,38 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 /* No card, no border, no background here on purpose: the plot is the
    object on this screen, not a panel holding one - it sits directly on
    the page. .map-wrap fills whatever height .dashboard-chart-col gives it
-   (flex: 1, set on .dashboard-chart-col > .map-wrap above); within that,
-   .chart-square-frame is the one flexible child, so the (fixed-height)
-   legend row always keeps its own natural size and the frame absorbs
-   whatever's left. */
+   (flex: 1, set on .dashboard-chart-col > .map-wrap above). */
 .map-wrap { position: relative; display: flex; flex-direction: column; }
-/* The square itself is sized from height alone and centered in whatever
-   width the frame has - both axes run 1-5, so a plot that isn't a true
-   square (equal pixel width and height) would misrepresent them. */
-.chart-square-frame { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
-.chart-square { display: block; height: 100%; width: auto; max-width: 100%; aspect-ratio: 1 / 1; }
-.map-legend {
-  display: flex; gap: var(--space-12); flex-wrap: wrap; align-items: center;
-  flex: none; padding-top: var(--space-4); font-size: 11px; color: var(--ink-2);
+/* The square can't fill this row at any normal column width (it's sized
+   from height, capped besides - see .chart-square), so the width it
+   leaves over goes to a side rail (the site filter and the bubble-size
+   key) instead of sitting empty. */
+.chart-plot-row { display: flex; flex: 1; min-height: 0; gap: var(--space-16); }
+/* The square itself is sized from height alone, capped so it doesn't
+   grow past a sensible size on very tall viewports, and centered in
+   whatever width the frame has - both axes run 1-5, so a plot that isn't
+   a true square (equal pixel width and height) would misrepresent them.
+   The left padding is a deliberate margin so the square never sits flush
+   against the cards column next to it. */
+.chart-square-frame {
+  flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
+  padding-left: var(--space-12);
 }
-.map-legend .sizes { display: flex; align-items: center; gap: 7px; }
-.map-legend .sizes svg { width: auto; }
+.chart-square { display: block; height: 100%; width: auto; max-width: 100%; max-height: 460px; aspect-ratio: 1 / 1; }
+/* The side rail: fixed to its content's own natural width (the filter
+   select), never stretched - it's a shelf for controls, not a second
+   column competing with the square for space. */
+.chart-side-rail {
+  flex: none; display: flex; flex-direction: column; justify-content: center;
+  gap: var(--space-12); padding-right: var(--space-4);
+}
+.chart-side-rail .card-head-select { margin-left: 0; width: 100%; }
+/* Stacked (the circles above the caption), not side by side - a rail
+   this narrow has no room for "svg beside text." */
+.map-legend {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4);
+  font-size: 11px; color: var(--ink-2);
+}
 
 .pt { cursor: pointer; opacity: 1; transition: opacity .15s ease; }
 /* .mark, not circle.mark, only because pointMark() still returns the
@@ -842,19 +862,25 @@ table.data th.n { text-align: right; }
    sentence in the header explaining that hovering does something. */
 table.data td.has-tip { cursor: help; }
 table.data tbody tr { cursor: pointer; }
-/* An accent bar in the row's own tier color, sliding in from the left on
-   hover - layered on top of the neutral hover/select wash below, which
-   stays as the interaction-state color; this bar is what ties a row back
-   to its tier at a glance. Transform-only (translateX), never a width or
-   left animation, and under 2px of its own vertical displacement (none,
-   in fact - it only moves horizontally). */
-tr.tr-tier { position: relative; }
-tr.tr-tier::before {
-  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--row-tier, transparent);
-  transform: translateX(-100%); transition: transform .18s ease;
+/* An accent bar in the row's own tier color, appearing on hover/select -
+   layered on top of the neutral hover/select wash below, which stays as
+   the interaction-state color; this bar is what ties a row back to its
+   tier at a glance. Lives as an inset box-shadow on the row's first CELL,
+   not a pseudo-element on the <tr> itself: a tr::before, even with
+   position: absolute, risks being blockified into an anonymous
+   table-cell by the table layout algorithm in some engines, which then
+   occupies a real column slot and shifts every subsequent <td> one
+   column right of its <th> - exactly the misalignment this table had.
+   A box-shadow on an existing <td> paints without adding any new box, so
+   it carries none of that risk. */
+table.data tbody tr.tr-tier td:first-child {
+  box-shadow: inset 3px 0 0 transparent;
+  transition: box-shadow .18s ease;
 }
-tr.tr-tier:hover::before, tr.tr-tier.sel::before { transform: translateX(0); }
+table.data tbody tr.tr-tier:hover td:first-child,
+table.data tbody tr.tr-tier.sel td:first-child {
+  box-shadow: inset 3px 0 0 var(--row-tier, transparent);
+}
 table.data tbody tr:hover { background: var(--verdigris-wash); }
 table.data tbody tr.sel { background: var(--verdigris-wash); box-shadow: inset 3px 0 0 var(--verdigris); }
 /* Rows are the only path to the one-pagers, so a keyboard user needs the
