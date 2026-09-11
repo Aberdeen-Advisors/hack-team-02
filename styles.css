@@ -651,7 +651,7 @@ a { color: var(--aberdeen-blue); }
    no wider, so there's never an empty band beside the plot. */
 .above-fold {
   display: flex; flex-direction: column;
-  min-height: calc(100vh - var(--topbar-h) - var(--space-24) - 16px);
+  min-height: calc(100vh - var(--topbar-h) - var(--space-24) - 32px);
 }
 
 /* The Stakeholder Impact tab's two-column dashboard: tier cards ranked
@@ -782,18 +782,19 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
    there is nothing beside the square (no side rail, no legend row), the
    frame IS the wrap's one child. */
 .map-wrap { position: relative; display: flex; flex-direction: column; }
-/* The square itself is sized from height alone, capped only as a safety
-   ceiling for very tall/high-DPI displays - both axes run 1-5, so a plot
-   that isn't a true square (equal pixel width and height) would
-   misrepresent them. No padding here: the chart column's width is set
-   (in PortfolioView, from this element's own measured width) to be
+/* The square itself is sized from height alone, capped at 760px - a
+   middle ground between an earlier 600px (too small, left an empty band
+   beside it in a wide column) and a later 920px (technically filled the
+   column, but read as oversized, dominating the screen along with the
+   cards it drags up to match). No padding here: the chart column's width
+   is set (in PortfolioView, from this element's own measured width) to be
    exactly the square's width, so there is no slack for justify-content to
    distribute either way - flex-end is still correct rather than center,
    so that any leftover sub-pixel rounding lands on the left (against the
    .dashboard-grid gap already separating it from the cards) and never on
    the right, which would read as an empty band next to the plot. */
 .chart-square-frame { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: flex-end; }
-.chart-square { display: block; height: 100%; width: auto; max-width: 100%; max-height: 920px; aspect-ratio: 1 / 1; }
+.chart-square { display: block; height: 100%; width: auto; max-width: 100%; max-height: 760px; aspect-ratio: 1 / 1; }
 
 .pt { cursor: pointer; opacity: 1; transition: opacity .15s ease; }
 /* .mark, not circle.mark, only because pointMark() still returns the
