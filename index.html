@@ -4045,12 +4045,15 @@ function WeightNote({ weights, onReset }) {
    7. PORTFOLIO / HEAT MAP
    =========================================================================== */
 
-// Sized for the dashboard's right-hand column (~860x360), flatter than the
-// old full-width chart - margins scaled down to match, not just the plot
-// area, so tick labels and axis titles stay proportionate. t is taller than
-// the plot strictly needs, so the y-axis title (horizontal now, not
-// rotated - see the axis-title text below) has somewhere to sit.
-const MAP = { w: 860, h: 360, l: 56, r: 22, t: 30, b: 40 };
+// A true square, in viewBox units: both axes run 1-5, so the plot area
+// itself has to have equal pixel length on both, not just a similar-looking
+// aspect ratio. w === h, and the horizontal margin sum (l + r = 66) equals
+// the vertical margin sum (t + b = 66), so the plot area inside them
+// (w - l - r) × (h - t - b) is exactly square too. The real rendered pixel
+// size is driven entirely by CSS (.chart-square, height-based - see
+// styles.css), not by these numbers; this is only the coordinate system
+// px()/py() below map data values into.
+const MAP = { w: 460, h: 460, l: 46, r: 20, t: 24, b: 42 };
 
 /* Memoized: an SVG scatter plus tooltip logic over the full role set,
    sitting inside PortfolioView next to the weight tuner, which lives in the
@@ -4098,9 +4101,15 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
     [roles]
   );
 
+  // tip.x/y are real screen pixels (from getBoundingClientRect), never
+  // MAP.w/MAP.h - those are viewBox units, and the actual rendered square
+  // is sized in CSS from the available height, independently of them, so
+  // clamping the tooltip's position against MAP.w/h would drift from
+  // reality the moment the two diverge. box.width/height are captured
+  // alongside x/y so the render below clamps against the real box.
   const move = (e, r) => {
     const box = wrap.current.getBoundingClientRect();
-    setTip({ r, x: e.clientX - box.left, y: e.clientY - box.top });
+    setTip({ r, x: e.clientX - box.left, y: e.clientY - box.top, boxW: box.width, boxH: box.height });
   };
 
   const quads = [
@@ -4189,7 +4198,13 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
 
   return (
     <div className="map-wrap" ref={wrap}>
-      <svg viewBox={`0 0 ${MAP.w} ${MAP.h}`} role="img"
+      {/* .chart-square-frame centers the plot horizontally and is the flex
+          child that actually grows to fill the wrap's height; .chart-square
+          (the svg itself) is sized from that height alone (height: 100%,
+          aspect-ratio: 1, width: auto in styles.css) - a true square, never
+          stretched to the frame's width. */}
+      <div className="chart-square-frame">
+      <svg className="chart-square" viewBox={`0 0 ${MAP.w} ${MAP.h}`} role="img"
            aria-label="Impact severity against adoption risk, one point per role, colored by intervention tier."
            aria-describedby="role-site-table-desc">
         <defs>
@@ -4250,13 +4265,14 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
           </g>
         ))}
       </svg>
+      </div>
       <p id="role-site-table-desc" className="sr">
         Every plotted role&rsquo;s identity, scores and tier are listed as text in the sortable Role × site table below this chart - the
         accessible source of truth for this scatter plot.
       </p>
 
       {tip && (
-        <div className="tip" style={{ left: Math.min(tip.x + 14, MAP.w - 40), top: Math.max(tip.y - 12, 4),
+        <div className="tip" style={{ left: Math.min(tip.x + 14, tip.boxW - 220), top: Math.max(tip.y - 12, 4),
                                        '--tier-color': TIERS[tip.r.tier].hex }}>
           <div className="tip-role">{tip.r.role}</div>
           <div className="tip-scope">{tip.r.siteArchetype}{tip.r.deskless ? ' · deskless' : ''} · {pluralize(tip.r.headcount, 'person', 'people')}</div>
@@ -4579,60 +4595,65 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
 
   return (
     <>
-      {/* 1. THE HEADLINE: the hero of the tab, the one place this tool
-          states a conclusion rather than data. Everything below it, on this
-          screen and past the fold, is the evidence for this sentence. */}
-      <div className="hero-headline">
-        <h2 className="hero-sentence">{sentence}</h2>
-        <div className="hero-rule" aria-hidden="true" />
-        <p className="hero-support">
-          {support}
-          {showEffortLink && (
-            <>
-              {' · '}
-              <button type="button" className="link-btn hero-link no-print" onClick={onOpenEffortWeights}>effort weighting →</button>
-            </>
-          )}
-        </p>
-      </div>
-
-      {filteredIncomplete.length > 0 && (
-        <div className="note warn" style={{ marginBottom: 'var(--space-16)' }}>
-          <b>{filteredIncomplete.length} row{filteredIncomplete.length === 1 ? '' : 's'} incomplete: not scored, not tiered, not plotted.</b>
-          <span className="sub">
-            {filteredIncomplete.map((r) => `${r.role} (${r.missing.length} of 6 sub-factors missing)`).join(' · ')}. {NOTE.incomplete}
-          </span>
-        </div>
-      )}
-
-      {/* 2. THE DASHBOARD: four tier cards, ranked top-to-bottom, on the
-          left (~30%); the quadrant chart on the right (~70%, no card
-          chrome - the plot itself is the object here), sized so the
-          Inform card's bottom edge lands exactly on the chart's. Both
-          columns fit above the fold together - role-level detail (the
-          table) and the weighting panel below do not have to. */}
-      <div className="dashboard-grid">
-        <div className="dashboard-cards">
-          {TIER_ORDER.map((t) => (
-            <TierSummaryTile key={t} tier={t} b={agg.byTier[t]} flash={changedTiers.has(t)} />
-          ))}
+      {/* Everything that has to fit on one screen with no scrolling -
+          headline, the two-column dashboard, the collapsed weighting row -
+          lives inside this one height-constrained wrapper (see .above-fold
+          in styles.css). The table below it is deliberately outside: it's
+          fine, expected even, for it to need a scroll to reach. */}
+      <div className="above-fold">
+        {/* 1. THE HEADLINE: the hero of the tab, the one place this tool
+            states a conclusion rather than data. Everything below it is
+            the evidence for this sentence. */}
+        <div className="hero-headline">
+          <h2 className="hero-sentence">{sentence}</h2>
+          <div className="hero-rule" aria-hidden="true" />
+          <p className="hero-support">
+            {support}
+            {showEffortLink && (
+              <>
+                {' · '}
+                <button type="button" className="link-btn hero-link no-print" onClick={onOpenEffortWeights}>effort weighting →</button>
+              </>
+            )}
+          </p>
         </div>
 
-        {/* No card chrome here on purpose: the plot itself, not a panel
-            containing it, is the object on this screen. */}
-        <div className="dashboard-chart-col">
-          <div className="chart-head-row">
-            <h3 className="chart-card-label">Impact severity × adoption risk</h3>
-            {siteFilterControl}
+        {filteredIncomplete.length > 0 && (
+          <div className="note warn" style={{ marginBottom: 'var(--space-16)' }}>
+            <b>{filteredIncomplete.length} row{filteredIncomplete.length === 1 ? '' : 's'} incomplete: not scored, not tiered, not plotted.</b>
+            <span className="sub">
+              {filteredIncomplete.map((r) => `${r.role} (${r.missing.length} of 6 sub-factors missing)`).join(' · ')}. {NOTE.incomplete}
+            </span>
           </div>
-          <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
-        </div>
-      </div>
+        )}
 
-      {/* 3. THE WEIGHTING PANEL: full width, closed by default - a control
-          for tuning the model, not part of the finding itself. */}
-      <div style={{ marginTop: 'var(--space-16)' }}>
-        <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} citeDeck={citeDeck} />
+        {/* 2. THE DASHBOARD: four tier cards, ranked top-to-bottom, on the
+            left (~30%); the quadrant chart on the right (~70%, no card
+            chrome - the plot itself is the object here), sized so the
+            Inform card's bottom edge lands exactly on the chart's. */}
+        <div className="dashboard-grid">
+          <div className="dashboard-cards">
+            {TIER_ORDER.map((t) => (
+              <TierSummaryTile key={t} tier={t} b={agg.byTier[t]} flash={changedTiers.has(t)} />
+            ))}
+          </div>
+
+          {/* No card chrome here on purpose: the plot itself, not a panel
+              containing it, is the object on this screen. */}
+          <div className="dashboard-chart-col">
+            <div className="chart-head-row">
+              <h3 className="chart-card-label">Impact severity × adoption risk</h3>
+              {siteFilterControl}
+            </div>
+            <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
+          </div>
+        </div>
+
+        {/* 3. THE WEIGHTING PANEL: full width, closed by default - a
+            control for tuning the model, not part of the finding itself. */}
+        <div style={{ marginTop: 'var(--space-16)' }}>
+          <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} citeDeck={citeDeck} />
+        </div>
       </div>
 
       {/* 4. THE ROLE x SITE TABLE: role-level detail, below the fold. */}
