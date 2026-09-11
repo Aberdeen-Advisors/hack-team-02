@@ -3997,27 +3997,31 @@ function useTiltHover(ref) {
 }
 
 // Wide and short, not tall and stacked: the four cards need to sit in one
-// left-hand column, in severity order, without pushing the chart below the
-// fold. The package description (what used to be a standing sentence under
-// the tier name) is real, useful content but not glanceable at this size,
-// so it moves to the tier name's own hover/focus tooltip instead of taking
-// a line of its own.
+// left-hand column, in severity order, stretched to fill it exactly (see
+// .dashboard-cards/.tier-tile-wide in styles.css), without pushing the
+// chart below the fold. The package description (what used to be a
+// standing sentence under the tier name) is real, useful content but not
+// glanceable at this size, so it moves to the info icon's own hover/focus
+// tooltip in the card's corner instead of taking a line of its own. Metrics
+// are a 2x2 grid, not a single row - four short labels ("Roles", "People",
+// "% of pop.", "Effort share") always have room to sit on one line at this
+// width, where a 4-across row was cramped enough to truncate "Effort share".
 const TierSummaryTile = React.memo(function TierSummaryTile({ tier: t, b, flash }) {
   const ref = useRef(null);
   useTiltHover(ref);
   const pkg = TIERS[t].package.join(', ') + '.';
   return (
     <div ref={ref} className={'tile tier-tile tier-tile-wide' + (flash ? ' tile-flash' : '')} style={{ '--tier-color': TIERS[t].hex }}>
-      <div className="tier-name" title={pkg} tabIndex={0} aria-label={`${t}: ${pkg}`}>
+      <i className="info-ico tier-info" tabIndex={0} title={pkg} aria-label={`${t} package: ${pkg}`}>ⓘ</i>
+      <div className="tier-name">
         <i className="dot" style={{ '--dot': TIERS[t].hex }} />
         {t}
-        <i className="info-ico" aria-hidden="true">ⓘ</i>
       </div>
       <div className="tier-metrics">
-        <div className="tm"><span className="tm-lbl" title="Roles">Roles</span><b className="tm-val"><CountUpText value={b.roles} /></b></div>
-        <div className="tm"><span className="tm-lbl" title="People">People</span><b className="tm-val"><CountUpText value={b.people} /></b></div>
-        <div className="tm"><span className="tm-lbl" title="% of population">% of pop.</span><b className="tm-val">{pct(b.popShare)}</b></div>
-        <div className="tm"><span className="tm-lbl" title="Share of change effort">Effort share</span><b className="tm-val">{pct(b.effortShare)}</b></div>
+        <div className="tm"><span className="tm-lbl">Roles</span><b className="tm-val"><CountUpText value={b.roles} /></b></div>
+        <div className="tm"><span className="tm-lbl">People</span><b className="tm-val"><CountUpText value={b.people} /></b></div>
+        <div className="tm"><span className="tm-lbl">% of pop.</span><b className="tm-val">{pct(b.popShare)}</b></div>
+        <div className="tm"><span className="tm-lbl">Effort share</span><b className="tm-val">{pct(b.effortShare)}</b></div>
       </div>
     </div>
   );
@@ -4043,8 +4047,10 @@ function WeightNote({ weights, onReset }) {
 
 // Sized for the dashboard's right-hand column (~860x360), flatter than the
 // old full-width chart - margins scaled down to match, not just the plot
-// area, so tick labels and axis sentences stay proportionate.
-const MAP = { w: 860, h: 360, l: 56, r: 22, t: 18, b: 40 };
+// area, so tick labels and axis titles stay proportionate. t is taller than
+// the plot strictly needs, so the y-axis title (horizontal now, not
+// rotated - see the axis-title text below) has somewhere to sit.
+const MAP = { w: 860, h: 360, l: 56, r: 22, t: 30, b: 40 };
 
 /* Memoized: an SVG scatter plus tooltip logic over the full role set,
    sitting inside PortfolioView next to the weight tuner, which lives in the
@@ -4201,7 +4207,7 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
         </defs>
         {quads.map((q) => (
           <g key={q.tier}>
-            <rect x={q.x} y={q.y} width={q.w} height={q.h} fill={TIERS[q.tier].hex} opacity="0.045" />
+            <rect x={q.x} y={q.y} width={q.w} height={q.h} fill={TIERS[q.tier].hex} opacity="0.09" />
             <text className="quad-label" x={q.tx} y={q.ty} textAnchor={q.anchor}>{q.tier}</text>
           </g>
         ))}
@@ -4224,8 +4230,12 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
         <line x1={x0} y1={y0} x2={x1} y2={y0} stroke="var(--hairline-strong)" strokeWidth="1" />
         <line x1={x0} y1={y1} x2={x0} y2={y0} stroke="var(--hairline-strong)" strokeWidth="1" />
 
-        <text className="axis-title" x={(x0 + x1) / 2} y={MAP.h - 14} textAnchor="middle">Impact severity: how much the work changes</text>
-        <text className="axis-title" transform={`rotate(-90 16 ${(y0 + y1) / 2})`} x="16" y={(y0 + y1) / 2} textAnchor="middle">Adoption risk: how likely it is to fail</text>
+        {/* Both axis titles horizontal now, and matching in length and
+            phrasing - the y-axis title used to run rotated along the left
+            edge, which is hard to read at any size; shortened and moved
+            above the y-axis instead of turned sideways. */}
+        <text className="axis-title" x={(x0 + x1) / 2} y={MAP.h - 14} textAnchor="middle">Impact severity</text>
+        <text className="axis-title" x={x0} y={MAP.t - 12} textAnchor="start">Adoption risk</text>
 
         {ordered.map((r) => (
           <g key={r.id} ref={(el) => { if (el) pointElsRef.current[r.id] = el; }}
@@ -4258,18 +4268,19 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
         </div>
       )}
 
+      {/* The tier colour legend used to repeat here is pure duplication:
+          the four tier cards sit immediately to the chart's left, in the
+          same four colours, with their names spelled out - so only the
+          bubble-size key (which the cards don't carry) earns a place here. */}
       <div className="map-legend">
-        {TIER_ORDER.map((t) => (
-          <span className="item" key={t}>
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">{pointMark(t, 7, 7, 4)}</svg>
-            {t}
-          </span>
-        ))}
         <span className="sizes">
-          <svg viewBox="0 0 108 30" width="108" height="30" aria-hidden="true">
-            <circle cx="8" cy="20" r="5" fill="var(--ink-3)" fillOpacity=".45" />
-            <circle cx="30" cy="17" r="9" fill="var(--ink-3)" fillOpacity=".45" />
-            <circle cx="62" cy="13" r="15" fill="var(--ink-3)" fillOpacity=".45" />
+          {/* Bottom-aligned circles in a viewBox tall enough for the
+              largest one (r=15) plus a few px of margin - the previous
+              30-tall box clipped that circle's own top by 2px. */}
+          <svg viewBox="0 0 108 36" width="108" height="36" aria-hidden="true">
+            <circle cx="8" cy="27" r="5" fill="var(--ink-3)" fillOpacity=".45" />
+            <circle cx="30" cy="23" r="9" fill="var(--ink-3)" fillOpacity=".45" />
+            <circle cx="62" cy="17" r="15" fill="var(--ink-3)" fillOpacity=".45" />
           </svg>
           point area = headcount
         </span>
@@ -4396,11 +4407,14 @@ const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId,
 /* Weight tuning. The weights are Aberdeen judgment, so they are Aberdeen's
    to move, and the demo is stronger for showing that the line is a choice,
    not a fact. Weights are normalized per axis, so scores stay on the 1-5
-   scale at any setting. Always visible now, not a collapsed disclosure -
-   it sits directly under the chart it drives, in the part of the tab
-   nothing should have to click to reveal. The provenance paragraph that
-   used to run under the heading lives in one info-icon tooltip instead, so
-   this compact panel still fits its ~155px budget under the chart. */
+   scale at any setting. A collapsed disclosure, closed by default: it now
+   spans the full page width below the two-column dashboard, so nothing
+   above it (the cards, the chart) ever needs to make room for it, and the
+   collapsed row alone is all the "above the fold" budget has to account
+   for. The panel sizes to its own content when open - no fixed height, no
+   overflow: hidden, no inner scroll - so every slider row is always fully
+   visible; expanding it can only push the role table further down, never
+   move the dashboard above it. */
 function WeightTuner({ weights, onChange, onReset, citeDeck }) {
   const isDefault = weightsAreDefault(weights);
   const eff = (factors, f) => {
@@ -4423,20 +4437,23 @@ function WeightTuner({ weights, onChange, onReset, citeDeck }) {
   );
   const noteText = `${NOTE.weights(citeDeck)} Weights are normalized per axis, so every score stays on the 1–5 scale, and the tiering moves in front of the room. Effective weight shown to the right of each slider; each axis always sums to 1.00.`;
   return (
-    <div className="tuner no-print">
-      <div className="tuner-head">
+    <details className="tuner no-print">
+      <summary>
         <span className="lbl">Weighting</span>
         <span className="state">{isDefault ? 'default: 0.45 / 0.25 / 0.30 and 0.40 / 0.35 / 0.25' : 'changed from default'}</span>
-        <i className="info-ico" tabIndex={0} title={noteText} aria-label={`About this weighting: ${noteText}`}>ⓘ</i>
-        <button className="btn" type="button" onClick={onReset} disabled={isDefault}>Reset to defaults</button>
-      </div>
+        <i className="info-ico" tabIndex={0} title={noteText} aria-label={`About this weighting: ${noteText}`}
+           onClick={(e) => e.stopPropagation()}>ⓘ</i>
+      </summary>
       <div className="tuner-body">
         <div className="wt-grid">
           {axis('Impact severity', IMPACT_FACTORS)}
           {axis('Adoption risk', RISK_FACTORS)}
         </div>
+        <div className="btn-row" style={{ marginTop: 'var(--space-12)' }}>
+          <button className="btn" type="button" onClick={onReset} disabled={isDefault}>Reset to defaults</button>
+        </div>
       </div>
-    </div>
+    </details>
   );
 }
 
@@ -4580,9 +4597,11 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       )}
 
       {/* 2. THE DASHBOARD: four tier cards, ranked top-to-bottom, on the
-          left; the quadrant chart and its weighting sliders on the right.
-          Both columns fit above the fold together - role-level detail (the
-          table below) does not have to. */}
+          left (~30%); the quadrant chart on the right (~70%), sized to the
+          taller column, so the Inform card's bottom edge lands exactly on
+          the chart card's. Both columns fit above the fold together -
+          role-level detail (the table) and the weighting panel below do
+          not have to. */}
       <div className="dashboard-grid">
         <div className="dashboard-cards">
           {TIER_ORDER.map((t) => (
@@ -4591,20 +4610,23 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         </div>
 
         <div className="dashboard-chart-col">
-          <div className="card" style={{ marginBottom: 'var(--space-12)' }}>
+          <div className="card">
             <div className="card-head">
-              <h3>Impact severity × adoption risk</h3>
-              <span className="hint">{filtered.length} of {pluralize(scored.length, 'role')} · threshold {THRESHOLD.toFixed(1)} on both axes, inclusive · every point is listed as text in the table below</span>
+              <h3 className="chart-card-label">Impact severity × adoption risk</h3>
               {siteFilterControl}
             </div>
             <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
           </div>
-
-          <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} citeDeck={citeDeck} />
         </div>
       </div>
 
-      {/* 3. THE ROLE x SITE TABLE: role-level detail, below the fold. */}
+      {/* 3. THE WEIGHTING PANEL: full width, closed by default - a control
+          for tuning the model, not part of the finding itself. */}
+      <div style={{ marginTop: 'var(--space-16)' }}>
+        <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} citeDeck={citeDeck} />
+      </div>
+
+      {/* 4. THE ROLE x SITE TABLE: role-level detail, below the fold. */}
       <div className="card" style={{ marginTop: 'var(--space-16)', marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Role × site</h3>

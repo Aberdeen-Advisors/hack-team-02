@@ -206,8 +206,12 @@ a { color: var(--aberdeen-blue); }
    then project context (visually separated by a hairline-on-dark rule),
    then actions - pushed right as their own group. */
 .tb-brand { display: flex; align-items: center; gap: 10px; }
+/* Center-aligned, not baseline: a rounded pill and a plain text line have
+   no shared baseline to speak of, and center is what reads as "these two
+   are one deliberate group" rather than two unrelated bits of type that
+   happen to be next to each other. */
 .tb-context {
-  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   padding-left: 16px; margin-left: 2px; border-left: 1px solid rgba(255,255,255,.2);
 }
 .tb-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
@@ -215,10 +219,12 @@ a { color: var(--aberdeen-blue); }
 .topbar h1 { font-size: 17px; letter-spacing: -.01em; font-weight: 200; }
 .project-tag {
   font-size: 12px; font-weight: 500; color: #fff; white-space: nowrap;
-  background: rgba(255,255,255,.14); border-radius: 999px; padding: 3px 11px;
+  background: rgba(255,255,255,.14); border-radius: 999px; padding: 4px 12px;
 }
+/* Same weight as the pill beside it, not a quieter afterthought - the two
+   are one group (what project, how big), so they carry matching emphasis. */
 .topbar .sub {
-  font-size: 13px; color: rgba(255,255,255,.66);
+  font-size: 13px; font-weight: 500; color: rgba(255,255,255,.72); font-variant-numeric: tabular-nums;
 }
 .topbar .btn { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.22); color: #fff; }
 .topbar .btn:hover { background: rgba(255,255,255,.18); }
@@ -478,19 +484,18 @@ a { color: var(--aberdeen-blue); }
 .tile-simulated .value { font-size: 22px; }
 .tile-simulated .sim-tag { vertical-align: 4px; }
 
-/* A substantial colored edge plus a soft tint/glow in the tier's own
-   color, so the card reads as belonging to its tier at a glance - not
-   just a hairline top border shared by every card on the page. */
+/* A full border in the tier's own color plus a strengthened tint, so the
+   card reads as deliberately belonging to its tier at a glance - a single,
+   consistent border treatment on all four (not a left-only accent bar
+   combined with fully rounded corners, which read as unfinished). */
 .tier-tile {
-  border-top: none; border-left: 4px solid var(--tier-color, var(--ink-3));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--tier-color, var(--ink-3)) 7%, var(--surface)) 0%, var(--surface) 55%);
-  box-shadow: var(--elev-1), 0 0 0 1px color-mix(in srgb, var(--tier-color, var(--ink-3)) 12%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--tier-color, var(--ink-3)) 45%, var(--hairline-strong));
+  background: linear-gradient(165deg, color-mix(in srgb, var(--tier-color, var(--ink-3)) 15%, var(--surface)) 0%, var(--surface) 65%);
+  box-shadow: var(--elev-1);
   position: relative; overflow: hidden;
   transition: box-shadow .2s ease;
 }
-.tier-tile:hover {
-  box-shadow: var(--elev-3), 0 0 0 1px color-mix(in srgb, var(--tier-color, var(--ink-3)) 12%, transparent);
-}
+.tier-tile:hover { box-shadow: var(--elev-3); }
 /* Specular highlight tracking the cursor, driven by --spot-* custom
    properties from useTiltHover - a plain CSS reaction to a JS-updated
    position, no extra DOM node. */
@@ -507,25 +512,27 @@ a { color: var(--aberdeen-blue); }
   0% { box-shadow: 0 0 0 3px var(--aberdeen-blue-line); background: var(--aberdeen-blue-wash); }
   100% { box-shadow: 0 0 0 0 transparent; background: var(--surface); }
 }
-/* The wide/short tier card: tier name (with its package description as a
-   hover/focus tooltip, not a standing line) on the left, the four metrics
-   as a single row on the right - this is what makes ~470x120 possible
-   where the old tall stacked layout needed roughly triple the height. */
-.tier-tile-wide { display: flex; align-items: center; gap: var(--space-16); padding: 24px 22px; }
-.tier-tile-wide .tier-name {
-  display: flex; align-items: center; gap: 7px; font-weight: 500; font-size: 15px;
-  flex: 0 0 auto; width: 128px; cursor: help;
+/* The wide/short tier card: tier name up top, a 2x2 metrics grid below it
+   (row 1 Roles/People, row 2 % of pop./Effort share - so no label is ever
+   squeezed into a quarter-width column the way a 4-across row was), and
+   the info affordance pinned to the card's own top-right corner rather
+   than sitting inline after the tier name. Stretches to fill the left
+   column exactly (see .dashboard-cards) - no fixed height here. */
+.tier-tile-wide {
+  display: flex; flex-direction: column; justify-content: center; gap: var(--space-16);
+  padding: var(--space-16) var(--space-24);
+}
+.tier-tile-wide .tier-name { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 16px; }
+.tier-info {
+  position: absolute; top: var(--space-12); right: var(--space-12); margin: 0;
+  font-size: 13px;
 }
 .tier-tile-wide .tier-metrics {
-  flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-12);
-  min-width: 0;
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-16) var(--space-24);
 }
 .tm { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.tm-lbl {
-  font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase;
-  color: var(--caption); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.tm-val { font-size: 27px; font-weight: 200; color: var(--aberdeen-blue); letter-spacing: -.01em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.tm-lbl { font-size: 12px; letter-spacing: .02em; color: var(--ink-2); font-weight: 500; }
+.tm-val { font-size: 26px; font-weight: 200; color: var(--aberdeen-blue); letter-spacing: -.01em; font-variant-numeric: tabular-nums; line-height: 1.1; }
 
 .banner {
   background: var(--aberdeen-blue-wash); border: 1px solid var(--aberdeen-blue-line);
@@ -546,41 +553,61 @@ a { color: var(--aberdeen-blue); }
   letter-spacing: -.015em; max-width: 66ch;
 }
 .hero-rule { width: 44px; height: 3px; border-radius: 2px; background: var(--verdigris); margin-top: 10px; }
-.hero-support { font-size: 13px; color: var(--ink-2); margin-top: 8px; }
+.hero-support { font-size: 13px; color: var(--ink-2); margin-top: 8px; font-variant-numeric: tabular-nums; }
 .hero-support .hero-link { font-size: 13px; }
-/* A compact filter select sitting in a card-head next to its hint text,
-   not a full labeled .field block - the card-head is already the label. */
-.card-head-select { min-width: 0; font-size: 13px; padding: 6px 9px; }
+/* The chart card's own title, deliberately quiet: a section label sitting
+   under the hero headline, not a second heading competing with it.
+   Selector includes .card-head so it outranks the generic .card-head h3
+   rule (a class + element pair) rather than losing to it on specificity. */
+.card-head .chart-card-label {
+  font-size: 12.5px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--ink-3); font-weight: 500;
+}
+/* A compact filter select sitting in a card-head next to the chart's own
+   label, not a full labeled .field block - the card-head is already the
+   label. Pushed to the row's far right since the label no longer carries
+   a .hint span with its own margin-left: auto to ride along with. */
+.card-head-select { min-width: 0; font-size: 13px; padding: 6px 9px; margin-left: auto; }
 
 /* ----------------------------------------------------- dashboard layout */
 
 /* The Stakeholder Impact tab's two-column dashboard: tier cards ranked
-   top-to-bottom on the left, the chart and its weighting sliders on the
-   right - sized (roughly 35/65) so both columns, plus the hero headline
-   above them, fit one 1440x800+ screen with no scrolling. Role-level
-   detail (the table) sits below this grid, under the fold on purpose. */
-.dashboard-grid { display: grid; grid-template-columns: 7fr 13fr; gap: var(--space-16); align-items: start; }
-.dashboard-cards { display: flex; flex-direction: column; gap: var(--space-12); min-width: 0; }
-.dashboard-chart-col { display: flex; flex-direction: column; gap: var(--space-12); min-width: 0; }
+   top-to-bottom on the left (~30%), the chart on the right (~70%, it
+   needs the horizontal room) - sized so both columns, plus the hero
+   headline above them and the collapsed weighting row below them, fit one
+   1440x800+ screen with no scrolling. Role-level detail (the table) and
+   the weighting panel's own expanded content sit below this grid, under
+   the fold on purpose.
+   align-items: stretch (the grid default, stated explicitly) makes both
+   columns exactly as tall as the taller one - here, always the chart
+   column, since the weighting panel now lives in its own full-width row
+   below this grid, not inside it. .dashboard-cards then stretches to fill
+   that same height, and its four children share it equally via flex: 1 on
+   each .tier-tile, so the Inform card's bottom edge always lands exactly
+   on the chart card's bottom edge - a relationship this can maintain at
+   any chart size, without a hand-tuned card height anywhere. */
+.dashboard-grid { display: grid; grid-template-columns: 3fr 7fr; gap: var(--space-16); align-items: stretch; }
+.dashboard-cards { display: flex; flex-direction: column; gap: var(--space-16); min-width: 0; }
+.dashboard-cards > .tier-tile { flex: 1 1 0; }
+.dashboard-chart-col { display: flex; flex-direction: column; min-width: 0; }
 
 @media (max-width: 1100px) {
   /* Collapses to one column, in source order: headline (above this grid),
-     cards, chart, sliders - then the table, already its own element below
-     the grid. */
+     cards, chart - then the weighting panel and the table, already their
+     own elements below the grid. */
   .dashboard-grid { grid-template-columns: 1fr; }
+  .dashboard-cards > .tier-tile { flex: none; }
 }
 
-/* A shorter viewport (a 720p laptop screen, browser chrome included) can't
-   fit the chart, the cards AND the full slider panel without scrolling -
-   the cards and the chart are the two things that must never shrink or
-   scroll, so the slider panel's own lower rows are what gives, clipped
-   (not scrolled) rather than pushing anything above it down the page. */
+/* A shorter viewport (a 720p laptop screen, browser chrome included) gets
+   a little breathing room back from the headline and cards - the chart
+   and the (now collapsed-by-default, full-width) weighting panel need no
+   help fitting, so nothing here touches either of them. */
 @media (min-width: 1101px) and (max-height: 760px) {
   .hero-headline { margin-bottom: var(--space-12); }
   .hero-sentence { font-size: 30px; }
-  .tier-tile-wide { padding: 13px 18px; }
-  .tm-val { font-size: 19px; }
-  .tuner-body { max-height: 84px; overflow: hidden; }
+  .tier-tile-wide { padding: var(--space-12) var(--space-16); }
+  .tm-val { font-size: 21px; }
 }
 
 /* -------------------------------------------------------------- tier chips */
@@ -630,19 +657,20 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 
 /* ---------------------------------------------------------------- heat map */
 
-/* Faint inset shadow so the points read as sitting inside a surface,
-   not floating on a flat white rectangle. */
+/* Faint inset shadow so the points read as sitting inside a surface, not
+   floating on a flat white rectangle - no hairline ring here, since the
+   .card this sits inside already draws the one border this element needs;
+   a second one directly inside it read as a mistake, not a design. */
 .map-wrap {
   position: relative; border-radius: var(--radius-s);
-  box-shadow: inset 0 1px 3px rgba(9,55,95,.06), inset 0 0 0 1px var(--hairline);
+  box-shadow: inset 0 1px 3px rgba(9,55,95,.06);
 }
 .map-wrap svg { display: block; width: 100%; height: auto; }
 .map-legend {
   display: flex; gap: var(--space-16); flex-wrap: wrap; align-items: center;
   padding: 10px 18px 14px; font-size: 12.5px; color: var(--ink-2);
 }
-.map-legend .item { display: flex; align-items: center; gap: 6px; }
-.map-legend .sizes { display: flex; align-items: center; gap: 7px; margin-left: auto; }
+.map-legend .sizes { display: flex; align-items: center; gap: 7px; }
 .map-legend .sizes svg { width: auto; }
 
 .pt { cursor: pointer; opacity: 1; transition: opacity .15s ease; }
@@ -677,7 +705,7 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
    below, not this label's color - a role's name itself only ever shows
    on hover/focus (the tooltip), never sitting permanently on the plot. */
 .quad-label { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; fill: var(--ink-2); }
-.axis-t { font-size: 10.5px; fill: var(--ink-3); }
+.axis-t { font-size: 10.5px; fill: var(--ink-3); font-variant-numeric: tabular-nums; }
 .axis-title { font-size: 11px; fill: var(--ink-2); font-weight: 500; }
 
 .tip {
@@ -834,7 +862,7 @@ table.data td .newflag {
 }
 .pkg-extra h5 { margin: 0 0 6px; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
 .pkg-extra p { margin-bottom: .5em; }
-.pkg-extra .sub, .tuner .sub, .btn-row .sub { font-size: 12px; color: var(--ink-3); }
+.pkg-extra .sub, .btn-row .sub { font-size: 12px; color: var(--ink-3); }
 .pkg-extra ol.esc, .assume ol.esc { margin: 0; padding-left: 18px; }
 .pkg-extra ol.esc li, .assume ol.esc li { margin-bottom: 2px; }
 
@@ -857,28 +885,40 @@ table.mini.milestones tr.today-marker td {
   color: var(--aberdeen-blue); background: var(--flag-wash); padding: 3px var(--space-8); border-radius: 3px; border-bottom: none;
 }
 
-/* weight tuner - always visible now (not a collapsed <details>), and
-   compact: it sits directly under the chart in the dashboard's right
-   column, budgeted to roughly 155px total so the chart above it never has
-   to shrink to make room. */
+/* weight tuner - a full-width row below the two-column dashboard, closed
+   by default. The collapsed <summary> is the only thing "above the fold"
+   ever has to budget for; the expanded body below it sizes purely to its
+   own content (no max-height, no overflow: hidden) so all three rows in
+   each axis are always fully visible, however tall that turns out to be. */
 .tuner {
   background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius);
   box-shadow: var(--elev-2);
 }
-.tuner-head {
-  padding: 10px 14px; font-size: 13.5px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  border-bottom: 1px solid var(--hairline);
+.tuner > summary {
+  cursor: pointer; list-style: none;
+  padding: var(--space-12) var(--space-16); font-size: 13.5px;
+  display: flex; align-items: center; gap: var(--space-12); flex-wrap: wrap;
 }
-.tuner-head .lbl { font-weight: 500; }
-.tuner-head .state { font-size: 11.5px; color: var(--ink-3); }
-.tuner-head .btn { margin-left: auto; padding: 4px 11px; font-size: 12px; }
-.tuner-body { padding: 8px 14px 10px; }
-.wt-grid { display: grid; gap: 10px 18px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-.wt-axis h5 { margin: 0 0 4px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
-.wt-row { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(70px, 120px) 38px; gap: 8px; align-items: center; margin-bottom: 3px; font-size: 12px; }
+.tuner > summary::-webkit-details-marker { display: none; }
+.tuner[open] > summary { border-bottom: 1px solid var(--hairline); }
+.tuner > summary .lbl { font-weight: 500; }
+.tuner > summary .state { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+/* A CSS-drawn chevron, not the browser's own inconsistent marker glyph -
+   points down collapsed, flips to point up expanded, pushed to the row's
+   far right by the auto margin below. */
+.tuner > summary::after {
+  content: ''; width: 7px; height: 7px; flex: none; margin-left: auto;
+  border-right: 1.5px solid var(--ink-3); border-bottom: 1.5px solid var(--ink-3);
+  transform: rotate(45deg); transition: transform .15s ease;
+}
+.tuner[open] > summary::after { transform: rotate(-135deg); }
+.tuner-body { padding: var(--space-4) var(--space-16) var(--space-16); }
+.wt-grid { display: grid; gap: var(--space-12) var(--space-24); grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: var(--space-8); }
+.wt-axis h5 { margin: 0 0 var(--space-8); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.wt-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(90px, 150px) 40px; gap: var(--space-8); align-items: center; margin-bottom: var(--space-8); font-size: 13px; }
 .wt-row .lbl { color: var(--ink-2); }
 .wt-row input[type="range"] { width: 100%; accent-color: var(--aberdeen-blue); }
-.wt-row .v { text-align: right; font-weight: 500; }
+.wt-row .v { text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; }
 
 /* notes that must not be mistaken for the concentration banner */
 .note {
