@@ -4324,7 +4324,7 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
 function columnsFor(comboExample) {
   return [
     { key: 'role', label: 'Role',
-      render: (r) => <><span className="rolename">{r.role}</span>{r.isNewRole && <span className="newflag">new role</span>}</> },
+      render: (r) => <span className="rolename">{r.role}</span> },
     { key: 'siteArchetype', label: 'Sites', title: comboExample
         ? `The site archetype (or combination) this row scopes to, e.g. "${comboExample}"`
         : 'The site archetype this row scopes to. Every role in this project sits at a single archetype, none span more than one.',
@@ -4335,10 +4335,10 @@ function columnsFor(comboExample) {
       title: 'How many individual sites are in this row\'s scope. Not the same as the Sites column, which names the '
            + 'archetype, not how many of it there are.',
       render: (r) => r.siteCount },
-    { key: 'impact', label: 'Impact', n: true, width: 96, title: 'Impact severity: hover a value to see its weighted breakdown',
+    { key: 'impact', label: 'Impact', n: true, width: 96,
       render: (r, incomplete) => incomplete ? 'N/A' : r.scores.impact.toFixed(1),
       cellTitle: (r, incomplete) => incomplete ? null : axisFormula(IMPACT_FACTORS, r.impact, r.scores.impact) },
-    { key: 'risk', label: 'Risk', n: true, width: 96, title: 'Adoption risk: hover a value to see its weighted breakdown',
+    { key: 'risk', label: 'Risk', n: true, width: 96,
       render: (r, incomplete) => incomplete ? 'N/A' : r.scores.risk.toFixed(1),
       cellTitle: (r, incomplete) => incomplete ? null : axisFormula(RISK_FACTORS, r.risk, r.scores.risk) },
     { key: 'tier', label: 'Tier', width: 132,
@@ -4407,7 +4407,8 @@ const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId,
                 onClick={() => onSelect(r.id)}
                 role="button" tabIndex={0} aria-label={`Open one-pager for ${r.role}`} onKeyDown={rowKeyHandler(r.id)}>
               {columns.map((c) => (
-                <td key={c.key} className={c.n ? 'n' : undefined} title={c.cellTitle ? c.cellTitle(r, false) : undefined}>
+                <td key={c.key} className={(c.n ? 'n' : '') + (c.cellTitle ? ' has-tip' : '')}
+                    title={c.cellTitle ? c.cellTitle(r, false) : undefined}>
                   {c.render(r, false)}
                 </td>
               ))}
@@ -4660,8 +4661,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       <div className="card" style={{ marginTop: 'var(--space-16)', marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Role × site</h3>
-          <span className="hint">One row per role × site. Sort any column. Click a row for the one-pager.</span>
-          <button type="button" className="btn no-print"
+          <button type="button" className="btn no-print" style={{ marginLeft: 'auto' }}
                   onClick={() => downloadCSV(`${(projectName || 'roles').replace(/[^a-z0-9]+/gi, '-')}-role-table.csv`, rolesToCSV(filtered))}>
             Export to CSV
           </button>
@@ -4904,7 +4904,7 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
       <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="op-head">
           <div className="t">
-            <h2>{role.role}{role.isNewRole && <span className="newflag">new role</span>}</h2>
+            <h2>{role.role}</h2>
             <div className="crumbs">
               <span>{role.siteArchetype}</span>
               <span>{role.siteCount} {role.siteCount === 1 ? 'site' : 'sites'}</span>
@@ -5051,7 +5051,7 @@ function Slider({ factor, weightFactors, value, onChange, citeDeck }) {
             <span className="at">{hit.text}</span>
           </>
         ) : (
-          <span className="at">Move the slider to see what the score means. Every point on the scale is anchored.</span>
+          <span className="at">Not set. Every point on the scale is anchored.</span>
         )}
       </div>
       <details className="anchor-all">
