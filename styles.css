@@ -62,6 +62,10 @@
   --hairline-strong: #C9C9C9;
   --aberdeen-blue-wash: color-mix(in srgb, var(--aberdeen-blue) 8%, white);
   --aberdeen-blue-line: color-mix(in srgb, var(--aberdeen-blue) 16%, white);
+  /* The topbar's "deeper navy" gradient end - a shade of Aberdeen Blue, not
+     an independent off-palette color: every color on screen traces to one
+     of the four brand tokens or the tier palette, this included. */
+  --aberdeen-blue-deep: color-mix(in srgb, var(--aberdeen-blue) 70%, black);
   /* Verdigris interaction-state family: focus rings, active-tab indicator,
      selected row/point - kept separate from --flag-wash (Verdigris used
      as a "review this" content flag) because these are UI-state washes,
@@ -175,7 +179,7 @@ a { color: var(--aberdeen-blue); }
      visibly sits above the page. Sticky so it can go frosted on scroll
      (see .topbar.scrolled below); background/shadow are transitioned so
      that state change reads as a soft cross-fade, not a hard cut. */
-  background: linear-gradient(165deg, var(--aberdeen-blue) 0%, #062440 100%);
+  background: linear-gradient(165deg, var(--aberdeen-blue) 0%, var(--aberdeen-blue-deep) 100%);
   color: #fff;
   padding: 14px 28px 0;
   border-bottom: 3px solid var(--verdigris);
@@ -185,7 +189,7 @@ a { color: var(--aberdeen-blue); }
 .topbar.scrolled {
   box-shadow: var(--elev-3);
   background-color: color-mix(in srgb, var(--aberdeen-blue) 88%, transparent);
-  background-image: linear-gradient(165deg, var(--aberdeen-blue) 0%, #062440 100%);
+  background-image: linear-gradient(165deg, var(--aberdeen-blue) 0%, var(--aberdeen-blue-deep) 100%);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
@@ -439,7 +443,11 @@ a { color: var(--aberdeen-blue); }
   display: inline-block; margin-left: 5px; font-style: normal; letter-spacing: 0;
   text-transform: none; cursor: help; color: var(--ink-3);
 }
-.tile .label .info-ico:hover, .tile .label .info-ico:focus-visible { color: var(--verdigris); outline: none; }
+/* Aberdeen Blue, not Verdigris: this glyph is rendered via `color`, so it
+   is text for ADA purposes, and Verdigris measures ~2.6:1 on white - well
+   under the 4.5:1 a small icon-as-text needs. The brand's own rule is
+   "never Verdigris text on white," and a colored Unicode glyph is text. */
+.tile .label .info-ico:hover, .tile .label .info-ico:focus-visible { color: var(--aberdeen-blue); outline: none; }
 /* Hero metric: the number is unmistakably the loudest thing on the card -
    large, ExtraLight, Aberdeen Blue, tabular so a re-count-up never jitters
    in width. */
@@ -582,9 +590,8 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 .map-legend .sizes svg { width: auto; }
 
 .pt { cursor: pointer; opacity: 1; transition: opacity .15s ease; }
-/* .mark, not circle.mark: a tier's marker is a circle, a square, a
-   triangle or a diamond now (WCAG 1.4.1, shape carries tier identity too,
-   not just hue), and every shape needs the same stroke treatment. */
+/* .mark, not circle.mark, only because pointMark() still returns the
+   element as a prop-spread JSX node - every point is a circle. */
 .pt .mark {
   stroke: #fff; stroke-width: 2;
   transform-box: fill-box; transform-origin: center; transition: transform .15s ease;
@@ -608,10 +615,17 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 .pt:focus-visible .mark { stroke: var(--verdigris); stroke-width: 3; }
 .pt:focus-visible { outline: none; } /* the thicker stroke above is the indicator; an SVG outline box looks broken */
 
+/* Direct labels for the highest-impact roles: a white halo (paint-order)
+   keeps the name legible over a point, a gridline or a quadrant tint alike,
+   without needing its own background chip. The leader line is deliberately
+   quiet - a hint the label moved to avoid a collision, not a data series. */
+.role-label { font-size: 10.5px; font-weight: 500; fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.role-leader { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 2 2; }
+
 /* Fixed, AA-passing color, not the raw tier hue: gold and sky measure
    1.5:1 and 1.9:1 against white, nowhere near the 4.5:1 an 11px label
-   needs. Tier identity here comes from the marker shape and the quadrant
-   position, not this label's color. */
+   needs. Tier identity here comes from quadrant position, the direct
+   role labels and the table below, not this label's color. */
 .quad-label { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; fill: var(--ink-2); }
 .axis-t { font-size: 10.5px; fill: var(--ink-3); }
 .axis-title { font-size: 11px; fill: var(--ink-2); font-weight: 500; }
@@ -636,8 +650,17 @@ table.data th {
   color: var(--caption); font-weight: 500; white-space: nowrap;
   position: sticky; top: 0; background: var(--surface); z-index: 1;
 }
-table.data th.sortable { cursor: pointer; user-select: none; }
-table.data th.sortable:hover { color: var(--ink); }
+table.data th.sortable { padding: 0; user-select: none; }
+/* A real <button> filling the header cell: native keyboard focus/activation
+   (Enter and Space both worked already via onClick on a real button), not
+   a div/th with a click handler and no way to reach it from a keyboard. */
+.th-sort-btn {
+  appearance: none; background: none; border: 0; cursor: pointer; display: block; width: 100%;
+  padding: 12px var(--space-12); text-align: inherit; font: inherit; color: inherit;
+  text-transform: inherit; letter-spacing: inherit; white-space: inherit;
+}
+.th-sort-btn:hover { color: var(--ink); }
+table.data th.n .th-sort-btn { text-align: right; }
 table.data th .arrow { color: var(--aberdeen-blue); }
 table.data td.n { text-align: right; font-variant-numeric: tabular-nums; }
 table.data th.n { text-align: right; }

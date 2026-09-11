@@ -271,7 +271,7 @@
       "headcount": 58,
       "deskless": false,
       "isNewRole": false,
-      "summary": "Buys indirect materials, spares and local services for a single plant, today with wide discretion over supplier choice and a phone relationship with the maintenance team. ERP routes demand through catalogues and approval limits, so the buyer's autonomy over who gets the order narrows sharply even though the daily volume barely changes.",
+      "summary": "Buys indirect materials, spares and local services for a single plant, today with wide discretion over supplier choice and a phone relationship with the maintenance team. ERP routes demand through catalogs and approval limits, so the buyer's autonomy over who gets the order narrows sharply even though the daily volume barely changes.",
       "impact": {
         "taskShare": 3.9,
         "frequencyVolume": 4.2,
@@ -291,7 +291,7 @@
       ],
       "after": [
         "Converts system-generated requisitions into POs within release strategy",
-        "Buys against group contracts and catalogues where they exist",
+        "Buys against group contracts and catalogs where they exist",
         "Expedites via system-flagged confirmation dates and documented follow-up",
         "Local agreements captured as contracts in master data or they do not exist",
         "Approval limits enforced by the system, not by custom"
@@ -303,7 +303,7 @@
       "constraints": [
         "Decision rights on supplier selection move to category management",
         "6 plants with 6 different local supplier bases",
-        "Maintenance downtime pressure makes off-catalogue buying the default habit"
+        "Maintenance downtime pressure makes off-catalog buying the default habit"
       ]
     },
     {
@@ -631,7 +631,7 @@
       "after": [
         "Loads contracts as ERP agreements with pricing and release rules",
         "Sees off-contract buying as it happens, not months later",
-        "Catalogue and source list steer demand automatically",
+        "Catalog and source list steer demand automatically",
         "Savings measured against system-held baselines",
         "Plant escalations arrive as workflow items with context attached"
       ],
@@ -673,7 +673,7 @@
       "after": [
         "Reviews requisitions raised by requesters in self-service",
         "Approvals route automatically through release strategy",
-        "Sources against catalogues and contracts first, ad hoc by exception",
+        "Sources against catalogs and contracts first, ad hoc by exception",
         "Order status visible to requesters without asking",
         "Focuses on sourcing the exceptions and onboarding suppliers"
       ],

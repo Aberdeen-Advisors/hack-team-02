@@ -1448,7 +1448,7 @@ const SEED_ROLES = /*__SEED__*/[
     "headcount": 58,
     "deskless": false,
     "isNewRole": false,
-    "summary": "Buys indirect materials, spares and local services for a single plant, today with wide discretion over supplier choice and a phone relationship with the maintenance team. ERP routes demand through catalogues and approval limits, so the buyer's autonomy over who gets the order narrows sharply even though the daily volume barely changes.",
+    "summary": "Buys indirect materials, spares and local services for a single plant, today with wide discretion over supplier choice and a phone relationship with the maintenance team. ERP routes demand through catalogs and approval limits, so the buyer's autonomy over who gets the order narrows sharply even though the daily volume barely changes.",
     "impact": {
       "taskShare": 3.9,
       "frequencyVolume": 4.2,
@@ -1468,7 +1468,7 @@ const SEED_ROLES = /*__SEED__*/[
     ],
     "after": [
       "Converts system-generated requisitions into POs within release strategy",
-      "Buys against group contracts and catalogues where they exist",
+      "Buys against group contracts and catalogs where they exist",
       "Expedites via system-flagged confirmation dates and documented follow-up",
       "Local agreements captured as contracts in master data or they do not exist",
       "Approval limits enforced by the system, not by custom"
@@ -1480,7 +1480,7 @@ const SEED_ROLES = /*__SEED__*/[
     "constraints": [
       "Decision rights on supplier selection move to category management",
       "6 plants with 6 different local supplier bases",
-      "Maintenance downtime pressure makes off-catalogue buying the default habit"
+      "Maintenance downtime pressure makes off-catalog buying the default habit"
     ]
   },
   {
@@ -1808,7 +1808,7 @@ const SEED_ROLES = /*__SEED__*/[
     "after": [
       "Loads contracts as ERP agreements with pricing and release rules",
       "Sees off-contract buying as it happens, not months later",
-      "Catalogue and source list steer demand automatically",
+      "Catalog and source list steer demand automatically",
       "Savings measured against system-held baselines",
       "Plant escalations arrive as workflow items with context attached"
     ],
@@ -1850,7 +1850,7 @@ const SEED_ROLES = /*__SEED__*/[
     "after": [
       "Reviews requisitions raised by requesters in self-service",
       "Approvals route automatically through release strategy",
-      "Sources against catalogues and contracts first, ad hoc by exception",
+      "Sources against catalogs and contracts first, ad hoc by exception",
       "Order status visible to requesters without asking",
       "Focuses on sourcing the exceptions and onboarding suppliers"
     ],
@@ -4001,6 +4001,31 @@ function WeightNote({ weights, onReset }) {
    =========================================================================== */
 
 const MAP = { w: 940, h: 500, l: 62, r: 26, t: 24, b: 54 };
+const ROLE_LABEL_COUNT = 6;
+
+/* Direct labels for the highest-impact roles - outlier identification is
+   the whole point of a scatter chart, and labeling the handful that
+   matter beats a legend no one cross-references. Simple greedy vertical
+   collision avoidance: process labels in priority order (highest impact
+   first) and nudge a new one upward until it clears every label already
+   placed. Good enough for the handful of labels this ever renders (six) -
+   not a general-purpose layout engine. */
+function layoutRoleLabels(candidates, bounds) {
+  const placed = [];
+  return candidates.map((c) => {
+    const halfW = Math.max(16, c.name.length * 3.15 + 4);
+    const h = 8;
+    const lx = Math.min(bounds.x1 - halfW, Math.max(bounds.x0 + halfW, c.x));
+    let ly = c.y - c.r - 9;
+    let tries = 0;
+    const overlaps = () => placed.some((p) => Math.abs(lx - p.lx) < halfW + p.halfW + 3 && Math.abs(ly - p.ly) < h + p.h + 3);
+    while (tries < 12 && overlaps()) { ly -= 13; tries += 1; }
+    if (ly < bounds.top + 8) ly = bounds.top + 8;
+    placed.push({ lx, ly, halfW, h });
+    const dy = ly - (c.y - c.r - 9);
+    return { ...c, lx, ly, needsLeader: Math.abs(lx - c.x) > 3 || Math.abs(dy) > 12 };
+  });
+}
 
 /* Memoized: an SVG scatter plus tooltip logic over the full role set,
    sitting inside PortfolioView next to the weight tuner, which lives in the
@@ -4008,36 +4033,17 @@ const MAP = { w: 940, h: 500, l: 62, r: 26, t: 24, b: 54 };
    doesn't change `roles`, `selectedId` or `onSelect` would still force a
    full re-render of the chart. Its own hover state stays local (`tip`), so
    memoizing the outer shell doesn't touch that. */
-/* The scatter plot's only per-point differentiator used to be fill color -
-   a real WCAG 1.4.1 (Use of Color) failure: a color-blind reader, or
-   anyone on a bad projector, cannot tell Rebuild from Enable from Reassure
-   from Inform by hue alone. Shape now carries the same information hue
-   does, so it survives grayscale. Each shape's area is scaled to match a
-   circle of the same radius, so "point area = headcount" in the legend
-   stays true for every tier, not just Rebuild's circles. */
-function tierMark(tier, cx, cy, r, extraProps) {
-  const fill = TIERS[tier].hex;
-  const props = { fill, fillOpacity: '0.78', ...extraProps };
-  switch (tier) {
-    case 'Enable': {
-      const s = r * 0.8862 * 2;
-      return <rect x={cx - s / 2} y={cy - s / 2} width={s} height={s} {...props} />;
-    }
-    case 'Reassure': {
-      const R = r * 1.5551;
-      const pts = [-90, 30, 150].map((deg) => {
-        const rad = (deg * Math.PI) / 180;
-        return `${cx + R * Math.cos(rad)},${cy + R * Math.sin(rad)}`;
-      }).join(' ');
-      return <polygon points={pts} {...props} />;
-    }
-    case 'Inform': {
-      const d = r * 1.2533;
-      return <polygon points={`${cx},${cy - d} ${cx + d},${cy} ${cx},${cy + d} ${cx - d},${cy}`} {...props} />;
-    }
-    default: // Rebuild
-      return <circle cx={cx} cy={cy} r={r} {...props} />;
-  }
+/* Every point is a circle; tier is carried by fill color plus two other
+   channels, neither of which depends on shape or hue: the highest-impact
+   roles are labeled directly on the plot (see roleLabels below), and the
+   Role x site table immediately beneath states every point's tier as text
+   for every role, not just the labeled handful - the recognized accessible
+   fallback for a scatter plot, made explicit via the chart's own
+   aria-describedby. Area still encodes headcount, at 0.6-0.8 fill opacity
+   so a dense project's near-coincident points still read as overlapping
+   density instead of hiding each other. */
+function pointMark(tier, cx, cy, r, extraProps) {
+  return <circle cx={cx} cy={cy} r={r} fill={TIERS[tier].hex} fillOpacity="0.78" {...extraProps} />;
 }
 
 const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
@@ -4049,7 +4055,7 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
   // touches those attributes. It only overlays a transform on the <g> that
   // starts a moved point back at its old screen position and eases it to
   // zero offset (i.e. its new, already-correct position), and a matching
-  // opacity dip so a tier (and therefore shape/color) change doesn't read
+  // opacity dip so a tier (and therefore color) change doesn't read
   // as a hard cut. Transform + opacity only, per the motion hard constraint.
   const pointElsRef = useRef({});
   const prevPosRef = useRef({});
@@ -4079,6 +4085,17 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
     { tier: 'Enable',   x: xm, y: ym, w: x1 - xm, h: y0 - ym, tx: x1 - 12, ty: y0 - 12, anchor: 'end' },
   ];
 
+  // The handful of roles worth labeling directly, not all of them - see
+  // layoutRoleLabels above for the placement/collision-avoidance rule.
+  const roleLabels = useMemo(() => {
+    const top = [...roles].sort((a, b) => b.scores.impact - a.scores.impact).slice(0, Math.min(ROLE_LABEL_COUNT, roles.length));
+    const candidates = top.map((r) => ({
+      id: r.id, name: r.role, x: px(r.scores.impact), y: py(r.scores.risk), r: rad(r.headcount),
+    }));
+    return layoutRoleLabels(candidates, { x0, x1, top: MAP.t });
+    // eslint-disable-next-line
+  }, [roles]);
+
   useLayoutEffect(() => {
     if (REDUCE_MOTION || !window.gsap) return undefined;
     const nodes = pointElsRef.current;
@@ -4092,15 +4109,17 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
       const byImpact = [...ordered].sort((a, b) => b.scores.impact - a.scores.impact);
       const els = byImpact.map((r) => nodes[r.id]).filter(Boolean);
       if (els.length) {
+        // power2.out, not an overshoot ease: these points are data, and the
+        // hard rule is no overshoot on any numeric value, cards excepted.
         gsap.set(els, { opacity: 0, scale: 0, transformOrigin: '50% 50%' });
         gsap.to(els, {
-          opacity: 1, scale: 1, duration: 0.4, ease: 'back.out(1.6)',
+          opacity: 1, scale: 1, duration: 0.4, ease: 'power2.out',
           stagger: Math.min(0.025, 0.9 / els.length), clearProps: 'opacity,transform',
         });
       }
-      // Direct labels (quadrant names, axis ticks/titles) fade in after the
+      // Chart furniture and the per-role direct labels fade in after the
       // points have settled, not simultaneously.
-      const labels = wrap.current ? wrap.current.querySelectorAll('.quad-label, .axis-t, .axis-title') : [];
+      const labels = wrap.current ? wrap.current.querySelectorAll('.quad-label, .axis-t, .axis-title, .role-label, .role-leader') : [];
       if (labels.length) {
         gsap.set(labels, { opacity: 0 });
         gsap.to(labels, { opacity: 1, duration: 0.4, delay: 0.35, ease: 'power1.out' });
@@ -4115,7 +4134,7 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
     // React has already rendered the true, correct cx/cy/fill; this only
     // eases the visual transition to it. A tier crossing the threshold
     // line shows as movement plus a brief opacity dip standing in for the
-    // shape/color change, rather than a hard cut.
+    // color change, rather than a hard cut.
     const prev = prevPosRef.current;
     ordered.forEach((r) => {
       const el = nodes[r.id];
@@ -4124,7 +4143,7 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
       if (!el || !now) return;
       if (!was) {
         gsap.fromTo(el, { opacity: 0, scale: 0, transformOrigin: '50% 50%' },
-          { opacity: 1, scale: 1, duration: 0.3, ease: 'back.out(1.6)', clearProps: 'opacity,transform' });
+          { opacity: 1, scale: 1, duration: 0.3, ease: 'power2.out', clearProps: 'opacity,transform' });
         return;
       }
       const movedX = was.x - now.x, movedY = was.y - now.y;
@@ -4133,7 +4152,7 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
         const curY = gsap.getProperty(el, 'y') || 0;
         gsap.set(el, { x: curX + movedX, y: curY + movedY });
         gsap.to(el, { x: 0, y: 0, duration: 0.7, ease: 'power2.inOut', overwrite: 'auto' });
-        // The opacity dip stands in for the shape/color swap React already
+        // The opacity dip stands in for the color swap React already
         // made instantly; clearProps hands opacity back to CSS afterward so
         // the plain :hover dim/highlight interaction (see styles.css) still
         // works on a point that has settled from a recompute.
@@ -4157,12 +4176,11 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
   return (
     <div className="map-wrap" ref={wrap}>
       <svg viewBox={`0 0 ${MAP.w} ${MAP.h}`} role="img"
-           aria-label="Impact severity against adoption risk, one point per role, colored by intervention tier. The sortable table below carries the same values.">
+           aria-label="Impact severity against adoption risk, one point per role, colored by intervention tier."
+           aria-describedby="role-site-table-desc">
         <defs>
           {/* One gradient per tier (not per point): a soft radial highlight
-              offset toward the top-left, consistently, on every mark shape -
-              objectBoundingBox units make the offset proportional whether
-              the mark is a circle, square, triangle or diamond. */}
+              offset toward the top-left, consistently, on every point. */}
           {TIER_ORDER.map((t) => (
             <radialGradient key={t} id={`sphere-${t}`} cx="32%" cy="26%" r="78%">
               <stop offset="0%" stopColor={`color-mix(in srgb, ${TIERS[t].hex} 45%, white)`} />
@@ -4208,12 +4226,29 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
              onClick={() => onSelect(r.id)} tabIndex="0"
              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(r.id); } }}
              role="button" aria-label={`${r.role}. Impact ${r.scores.impact}, risk ${r.scores.risk}, tier ${r.tier}, ${pluralize(r.headcount, 'person', 'people')}.`}>
-            {tierMark(r.tier, px(r.scores.impact), py(r.scores.risk), rad(r.headcount), {
+            {pointMark(r.tier, px(r.scores.impact), py(r.scores.risk), rad(r.headcount), {
               className: 'mark', fill: `url(#sphere-${r.tier})`, filter: 'url(#pt-shadow)',
             })}
           </g>
         ))}
+
+        {/* Direct labels for the highest-impact roles - the accessible
+            identification of every other point is the table below (see
+            the sr-only description after this svg), not a shape or a
+            second color channel on the plot itself. */}
+        {roleLabels.map((l) => (
+          <g key={l.id} aria-hidden="true">
+            {l.needsLeader && (
+              <line className="role-leader" x1={l.x} y1={l.y - l.r - 2} x2={l.lx} y2={l.ly + 3} />
+            )}
+            <text className="role-label" x={l.lx} y={l.ly} textAnchor="middle">{l.name}</text>
+          </g>
+        ))}
       </svg>
+      <p id="role-site-table-desc" className="sr">
+        Every plotted role&rsquo;s identity, scores and tier are listed as text in the sortable Role × site table below this chart - the
+        accessible source of truth for this scatter plot.
+      </p>
 
       {tip && (
         <div className="tip" style={{ left: Math.min(tip.x + 14, MAP.w - 40), top: Math.max(tip.y - 12, 4) }}>
@@ -4228,7 +4263,7 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
       <div className="map-legend">
         {TIER_ORDER.map((t) => (
           <span className="item" key={t}>
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">{tierMark(t, 7, 7, 4)}</svg>
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">{pointMark(t, 7, 7, 4)}</svg>
             {t}
           </span>
         ))}
@@ -4308,9 +4343,11 @@ const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId,
         <thead>
           <tr>
             {columns.map((c) => (
-              <th key={c.key} className={'sortable' + (c.n ? ' n' : '')} onClick={() => click(c.key)} title={c.title}
+              <th key={c.key} className={'sortable' + (c.n ? ' n' : '')} title={c.title}
                   aria-sort={sort.key === c.key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
-                {c.label}{sort.key === c.key && <span className="arrow"> {sort.dir === 1 ? '▲' : '▼'}</span>}
+                <button type="button" className="th-sort-btn" onClick={() => click(c.key)}>
+                  {c.label}{sort.key === c.key && <span className="arrow"> {sort.dir === 1 ? '▲' : '▼'}</span>}
+                </button>
               </th>
             ))}
           </tr>
@@ -4547,7 +4584,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Impact severity × adoption risk</h3>
-          <span className="hint">{filtered.length} of {pluralize(scored.length, 'role')} · threshold {THRESHOLD.toFixed(1)} on both axes, inclusive</span>
+          <span className="hint">{filtered.length} of {pluralize(scored.length, 'role')} · threshold {THRESHOLD.toFixed(1)} on both axes, inclusive · every point is listed as text in the table below</span>
         </div>
         <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
       </div>
