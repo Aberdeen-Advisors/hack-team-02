@@ -4031,6 +4031,21 @@ function WeightNote({ weights, onReset }) {
   );
 }
 
+/* Every tab heading below Stakeholder Impact reads "<Tab name>: <plain
+   descriptor>" - the tab name and its colon in Poppins Medium, the
+   descriptor at the heading's own lighter weight, same size and color
+   throughout (see .th-emph in styles.css). Derived from TAB_LABELS, the
+   one place a tab's display name already lives, rather than re-typing
+   each tab's name here as a second, independent string to keep in sync if
+   a heading is ever reworded. Falls back to the plain heading, unbolded,
+   if the text doesn't actually start with "<label>:" - a silent mismatch
+   here is a bug to notice, not one to paper over with a guess. */
+function TabHeadline({ tab, text }) {
+  const prefix = `${TAB_LABELS[tab]}:`;
+  if (!text.startsWith(prefix)) return <h2>{text}</h2>;
+  return <h2><span className="th-emph">{prefix}</span>{text.slice(prefix.length)}</h2>;
+}
+
 /* ===========================================================================
    7. PORTFOLIO / HEAT MAP
    =========================================================================== */
@@ -5405,7 +5420,7 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
   return (
     <>
       <div className="view-head">
-        <h2>Redesign: how the work changes, role by role</h2>
+        <TabHeadline tab="redesign" text="Redesign: how the work changes, role by role" />
         <p className="lede">Before-and-after task lists and FTE impact for every role, at a glance.</p>
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
@@ -5459,7 +5474,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
   return (
     <>
       <div className="view-head">
-        <h2>Training: total required hours, delivery format and job aids, by role</h2>
+        <TabHeadline tab="training" text="Training: total required hours, delivery format and job aids, by role" />
         <p className="lede">Required hours come from tier; deskless changes the format, not the volume.</p>
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
@@ -5592,7 +5607,7 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
   return (
     <>
       <div className="view-head">
-        <h2>Communication: a timed plan by intervention tier</h2>
+        <TabHeadline tab="comms" text="Communication: a timed plan by intervention tier" />
         <p className="lede">{goLiveLede}Lead time mirrors each tier's hypercare tail; channel follows deskless vs. desk-based.</p>
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
@@ -5671,18 +5686,6 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
         <p className="footnote">{incomplete.length} incomplete role{incomplete.length === 1 ? '' : 's'}, no tier yet, not shown here.</p>
       )}
 
-      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
-        <div className="card-head"><h3>The five milestones</h3><span className="hint">Aberdeen OCM delivery material</span></div>
-        <div className="card-body">
-          <table className="mini milestones">
-            <tbody>
-              {COMMS_MILESTONES.map((m) => (
-                <tr key={m.name}><th scope="row">{m.name}</th><td className="ch">{m.objective}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
       <p className="footnote">All figures illustrative. All data synthetic.</p>
     </>
   );
@@ -7235,44 +7238,47 @@ function App() {
   return (
     <div className="app">
       <header className={'topbar no-print' + (scrolled ? ' scrolled' : '')}>
-        <div className="topbar-row">
-          <div className="tb-brand">
-            <img src="assets/brand/logo-blue.svg" alt="Aberdeen Advisors" className="brand-logo" />
-            <h1>Change Impact Assessment Tool</h1>
-          </div>
-          <div className="tb-context">
-            <span className="project-tag" title={`${project.name}${project.industry ? ` · ${project.industry}` : ''}`}>
-              {project.name}{project.industry ? ` · ${project.industry}` : ''}
-            </span>
-            <span className="sub">
-              {pluralize(all.length, 'role')} · {pluralize(all.reduce((s, r) => s + (r.headcount || 0), 0), 'person', 'people')}
-              {incomplete.length ? ` · ${pluralize(incomplete.length, 'incomplete role')}` : ''}
-            </span>
-          </div>
-          <div className="tb-actions">
-            {!weightsAreDefault(weights) && (
-              <span className="weight-alert">
-                Custom weighting active
-                <button type="button" className="link-btn" onClick={resetWeights}>Reset</button>
+        <div className="topbar-inner">
+          <div className="topbar-row">
+            <div className="tb-brand">
+              <img src="assets/brand/logo-blue.svg" alt="Aberdeen Advisors" className="brand-logo" />
+              <span className="tb-divider" aria-hidden="true" />
+              <h1>Change Impact Assessment Tool</h1>
+            </div>
+            <div className="tb-context">
+              <span className="project-tag" title={`${project.name}${project.industry ? ` · ${project.industry}` : ''}`}>
+                {project.name}{project.industry ? ` · ${project.industry}` : ''}
               </span>
-            )}
-            <button className="btn" onClick={backToProjects}>← All projects</button>
+              <span className="sub">
+                {pluralize(all.length, 'role')} · {pluralize(all.reduce((s, r) => s + (r.headcount || 0), 0), 'person', 'people')}
+                {incomplete.length ? ` · ${pluralize(incomplete.length, 'incomplete role')}` : ''}
+              </span>
+            </div>
+            <div className="tb-actions">
+              {!weightsAreDefault(weights) && (
+                <span className="weight-alert">
+                  Custom weighting active
+                  <button type="button" className="link-btn" onClick={resetWeights}>Reset</button>
+                </span>
+              )}
+              <button className="btn" onClick={backToProjects}>← All projects</button>
+            </div>
           </div>
+          {routeNotice && (
+            <div className="weight-flash route-notice">{routeNotice}</div>
+          )}
+          {weightDeltas && (
+            <div className="weight-flash">
+              Just moved: {weightDeltas.map(formatWeightDelta).join(' · ')}
+            </div>
+          )}
+          <nav className="tabs" role="tablist" aria-label="Views">
+            {ALL_TABS.map((t) => (
+              <button key={t.id} className="tab" role="tab" aria-selected={tab === t.id}
+                      onClick={() => switchTab(t.id)}>{t.label}</button>
+            ))}
+          </nav>
         </div>
-        {routeNotice && (
-          <div className="weight-flash route-notice">{routeNotice}</div>
-        )}
-        {weightDeltas && (
-          <div className="weight-flash">
-            Just moved: {weightDeltas.map(formatWeightDelta).join(' · ')}
-          </div>
-        )}
-        <nav className="tabs" role="tablist" aria-label="Views">
-          {ALL_TABS.map((t) => (
-            <button key={t.id} className="tab" role="tab" aria-selected={tab === t.id}
-                    onClick={() => switchTab(t.id)}>{t.label}</button>
-          ))}
-        </nav>
       </header>
 
       <div className="only-print" style={{ marginBottom: 'var(--space-12)' }}>

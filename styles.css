@@ -131,8 +131,13 @@
      compute how much vertical space is actually left for the Stakeholder
      Impact tab's height-driven dashboard. Update this if the topbar's own
      padding/font-size changes meaningfully; it is a real measurement of
-     that CSS, not an independent guess. */
-  --topbar-h: 76px;
+     that CSS, not an independent guess.
+     Was 76px before the brand lockup grew (18px logo/15px h1); estimated
+     back up to 88px for the 30px logo/21px h1 now in .brand-logo/.topbar h1
+     - no live browser in this environment to re-measure it directly, so
+     treat this as the one figure in this file worth double-checking against
+     a real render before trusting it at the pixel level. */
+  --topbar-h: 88px;
 
   /* Poppins per the brand system: ExtraLight headings, Medium subheadings,
      Regular body (see the self-hosted @font-face rules above), with Arial
@@ -191,12 +196,18 @@ a { color: var(--aberdeen-blue); }
      that state change reads as a soft cross-fade, not a hard cut. */
   background: var(--surface);
   color: var(--ink);
-  padding: 8px 28px 0;
+  padding: 10px 0 0;
   border-bottom: 4px solid var(--verdigris);
   box-shadow: var(--elev-1);
   position: sticky; top: 0; z-index: 50;
   transition: background-color .25s ease, box-shadow .25s ease, backdrop-filter .25s ease;
 }
+/* The one place the bar's horizontal inset is set - max-width + padding
+   here, nowhere else, so this box is pixel-identical to .main's own (same
+   1400px cap, same 28px side padding, same centering), and everything
+   inside it (the brand row, the tabs) just fills 100% of it rather than
+   each re-deriving its own inset and drifting out of alignment. */
+.topbar-inner { max-width: 1400px; margin: 0 auto; width: 100%; padding: 0 28px; }
 .topbar.scrolled {
   box-shadow: var(--elev-3);
   background-color: color-mix(in srgb, var(--surface) 88%, transparent);
@@ -216,42 +227,59 @@ a { color: var(--aberdeen-blue); }
    ellipsis) rather than let the whole row wrap or push the button off the
    end. */
 .topbar-row {
-  display: flex; align-items: center; gap: 14px; flex-wrap: nowrap;
-  max-width: 1400px; margin: 0 auto; width: 100%;
+  display: flex; align-items: center; gap: 16px; flex-wrap: nowrap; width: 100%;
 }
-/* Deliberately spaced groups, not items scattered along the bar: brand,
-   then project context (visually separated by a hairline rule), then
-   actions - pushed right as their own group. Brand and actions never
-   shrink - the wordmark and the "All projects" button are always fully
-   visible; tb-context is the one group allowed to give up space. */
-.tb-brand { display: flex; align-items: center; gap: 10px; flex: none; }
+/* Three deliberate groups spanning the bar's full width, not everything
+   clustered left: brand at the left (flex: none - the wordmark is always
+   fully visible), "All projects" hard right (flex: none, margin-left:
+   auto), and tb-context - the project pill plus the roles/people count -
+   filling and centering itself in whatever's left between them. */
+.tb-brand { display: flex; align-items: center; gap: 14px; flex: none; }
+/* A plain 1px rule between the Aberdeen mark and this app's own product
+   name - two different naming authorities sitting in one lockup, same
+   divider job .tb-context's own border-left does further along the bar.
+   align-self: stretch, not a fixed height, so it always matches whatever
+   the row's own height is (driven by the logo/title next to it) instead
+   of needing to be re-tuned by hand if either one changes size again. */
+.tb-divider { width: 1px; align-self: stretch; background: var(--hairline-strong); flex: none; }
 /* Center-aligned, not baseline: a rounded pill and a plain text line have
    no shared baseline to speak of, and center is what reads as "these two
    are one deliberate group" rather than two unrelated bits of type that
    happen to be next to each other. min-width: 0 is load-bearing: a flex
    item's default min-width is auto (its content size), which would
    otherwise refuse to shrink below the pill's full, untruncated width and
-   defeat the ellipsis entirely. */
+   defeat the ellipsis entirely. justify-content: center makes this middle
+   group sit centered in the space between the brand lockup and "All
+   projects", not merely left-aligned against the divider. */
 .tb-context {
-  display: flex; align-items: center; gap: 14px; flex-wrap: nowrap;
+  display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: nowrap;
   padding-left: 16px; margin-left: 2px; border-left: 1px solid var(--hairline-strong);
   flex: 1 1 auto; min-width: 0; overflow: hidden;
 }
 .tb-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: none; }
-.brand-logo { height: 18px; width: auto; align-self: center; display: block; }
-.topbar h1 { font-size: 15px; letter-spacing: -.01em; font-weight: 200; color: var(--aberdeen-blue); white-space: nowrap; }
+/* The brand mark, scaled to actually read as a mark, not an artifact next
+   to the product name - .picker-head's own 30px large-logo treatment is
+   the same size, for the same reason. */
+.brand-logo { height: 30px; width: auto; align-self: center; display: block; }
+/* Clearly the second-largest thing in the bar after the logo, same
+   ExtraLight weight and Aberdeen Blue every other Poppins heading in the
+   app uses - ITS own size, not the logo's, is what says "product name". */
+.topbar h1 { font-size: 21px; letter-spacing: -.01em; font-weight: 200; color: var(--aberdeen-blue); white-space: nowrap; }
 /* A light, brand-compliant tinted pill (Aberdeen Blue on its own wash),
    not the dark chip a solid white-on-navy treatment would have left
-   behind on this now-light header. Truncates with an ellipsis rather than
-   wrapping or pushing "All projects" off the row - project.name plus a
-   long industry string is the one thing on this row with no natural
-   length limit; the full text is still available as a native tooltip
-   (see the title attribute in App()). */
+   behind on this now-light header. Full text at 1440px and up - there's
+   room for it once the bar's own inset bug is fixed (see .topbar-inner) -
+   truncating only below that, where the media query re-imposes a cap; the
+   full string is still available as a native tooltip either way (see the
+   title attribute in App()). */
 .project-tag {
   font-size: 12px; font-weight: 500; color: var(--aberdeen-blue); white-space: nowrap;
   background: var(--aberdeen-blue-wash); border: 1px solid var(--aberdeen-blue-line);
   border-radius: 999px; padding: 3px 10px;
-  overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 320px;
+  overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+@media (max-width: 1439px) {
+  .project-tag { max-width: 320px; }
 }
 /* Same weight as the pill beside it, not a quieter afterthought - the two
    are one group (what project, how big), so they carry matching emphasis.
@@ -278,7 +306,7 @@ a { color: var(--aberdeen-blue); }
 /* The brief, non-toast reaction to a weight change: what just moved,
    fading in under the header, gone again a few seconds later. */
 .weight-flash {
-  max-width: 1400px; margin: 10px auto 0; width: 100%;
+  margin-top: 10px; width: 100%;
   font-size: 12.5px; color: var(--live); background: var(--live-wash);
   border-radius: var(--radius-s) var(--radius-s) 0 0; padding: 6px var(--space-12);
   animation: weight-flash-in .25s ease-out;
@@ -295,7 +323,7 @@ a { color: var(--aberdeen-blue); }
 }
 
 .tabs {
-  display: flex; gap: 2px; max-width: 1400px; margin: 6px auto 0; width: 100%;
+  display: flex; gap: 2px; margin-top: 6px; width: 100%;
   overflow-x: auto;
 }
 .tab {
@@ -445,6 +473,10 @@ a { color: var(--aberdeen-blue); }
   content: ''; position: absolute; left: 0; bottom: 0;
   width: 36px; height: 3px; border-radius: 2px; background: var(--verdigris);
 }
+/* The tab-name prefix on a heading (see TabHeadline in index.html): Poppins
+   Medium against the heading's own ExtraLight, same size and color either
+   side - weight is the only thing that changes. */
+.th-emph { font-weight: 500; }
 .view-head .lede { color: var(--ink-2); font-size: 14.5px; max-width: 78ch; margin-top: var(--space-8); }
 .weight-note { color: var(--ink-3); font-size: 12.5px; margin-top: 6px; }
 
@@ -822,19 +854,22 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
    there is nothing beside the square (no side rail, no legend row), the
    frame IS the wrap's one child. */
 .map-wrap { position: relative; display: flex; flex-direction: column; }
-/* The square itself is sized from height alone, capped at 760px - a
+/* The square itself is sized from height alone, capped at 748px - a
    middle ground between an earlier 600px (too small, left an empty band
    beside it in a wide column) and a later 920px (technically filled the
    column, but read as oversized, dominating the screen along with the
-   cards it drags up to match). No padding here: the chart column's width
-   is set (in PortfolioView, from this element's own measured width) to be
+   cards it drags up to match). Was 760px; trimmed by the same ~12px the
+   topbar grew by (--topbar-h 76px -> 88px, see :root) when the brand
+   lockup scaled up, so the Stakeholder Impact dashboard keeps fitting one
+   screen with no scroll. No padding here: the chart column's width is set
+   (in PortfolioView, from this element's own measured width) to be
    exactly the square's width, so there is no slack for justify-content to
    distribute either way - flex-end is still correct rather than center,
    so that any leftover sub-pixel rounding lands on the left (against the
    .dashboard-grid gap already separating it from the cards) and never on
    the right, which would read as an empty band next to the plot. */
 .chart-square-frame { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: flex-end; }
-.chart-square { display: block; height: 100%; width: auto; max-width: 100%; max-height: 760px; aspect-ratio: 1 / 1; }
+.chart-square { display: block; height: 100%; width: auto; max-width: 100%; max-height: 748px; aspect-ratio: 1 / 1; }
 
 .pt { cursor: pointer; opacity: 1; transition: opacity .15s ease; }
 /* .mark, not circle.mark, only because pointMark() still returns the
@@ -1301,7 +1336,7 @@ table.data td .incflag {
 .only-print { display: none; }
 
 @media (max-width: 720px) {
-  .topbar, .main { padding-left: var(--space-16); padding-right: var(--space-16); }
+  .topbar-inner, .main { padding-left: var(--space-16); padding-right: var(--space-16); }
   .topbar .sub { display: none; }
 }
 
