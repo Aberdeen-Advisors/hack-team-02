@@ -1420,7 +1420,7 @@ table.data td .incflag {
 .ask-input-row input { flex: 1; min-width: 0; font-size: 13px; padding: 7px 10px; }
 .ask-input-row button { padding: 7px 14px; font-size: 13px; }
 
-@media (max-width: 700px) {
+@media (max-width: 767px) {
   .ask-panel {
     left: var(--space-16); right: var(--space-16); bottom: 0; width: auto;
     height: min(75vh, 560px); max-height: calc(100vh - 90px);
@@ -1476,7 +1476,7 @@ table.data td .incflag {
 }
 .draft-text:focus-visible { outline: 2px solid var(--verdigris); outline-offset: 1px; }
 
-@media (max-width: 700px) {
+@media (max-width: 767px) {
   .drafts-overlay { padding: 0; align-items: flex-end; }
   .drafts-panel { max-width: none; max-height: 88vh; border-radius: var(--radius) var(--radius) 0 0; }
 }
@@ -1486,7 +1486,7 @@ table.data td .incflag {
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .only-print { display: none; }
 
-@media (max-width: 720px) {
+@media (max-width: 767px) {
   .topbar-inner, .main { padding-left: var(--space-16); padding-right: var(--space-16); }
   .topbar .sub { display: none; }
 }
@@ -1532,4 +1532,108 @@ table.data td .incflag {
   .tile { break-inside: avoid; margin-bottom: 10pt; }
   .view-head .lede { display: none; }
   a[href]::after { content: ""; }
+}
+
+/* =============================================================================
+   RESPONSIVE: PHONE (<768px) + TABLET (768-1024px)
+   This is a desktop dashboard first - the bar here is "not embarrassing on a
+   phone", not a redesigned mobile product. Below 768px everything collapses
+   to one column in reading order; 768-1024px keeps the existing two/three-
+   column desktop layouts (already handled by the 1100px breakpoints above)
+   but gets its own pass for touch targets and any density that's fine with
+   a mouse but too tight for a finger. No rule in this section may cause
+   horizontal scroll on the page itself - only .table-scroll's own tables
+   (now converted to card lists below 768px anyway) and the quadrant chart
+   at its 320px floor are ever allowed to scroll internally.
+   ============================================================================= */
+
+@media (max-width: 1024px) {
+  /* Every touch target gets Apple/Android's own 44px minimum - a mouse-era
+     .tab or .th-sort-btn padded for a 13.5px label is well under that. */
+  .tab { min-height: 44px; display: flex; align-items: center; }
+  .th-sort-btn { min-height: 44px; display: flex; align-items: center; }
+  .btn, .link-btn, .ask-fab, .clear-btn { min-height: 44px; }
+  .tuner > summary { min-height: 44px; }
+  .link-btn { display: inline-flex; align-items: center; }
+}
+
+@media (max-width: 767px) {
+  /* ---- header: logo/title, project context and actions stack -------- */
+  .topbar-row { flex-wrap: wrap; row-gap: var(--space-8); }
+  .tb-brand { flex: 1 1 100%; }
+  .tb-context {
+    flex: 1 1 100%; flex-wrap: wrap; row-gap: 4px;
+    padding-left: 0; margin-left: 0; border-left: none;
+  }
+  .tb-actions { flex: 1 1 100%; margin-left: 0; flex-wrap: wrap; }
+
+  /* ---- tab bar: already horizontally scrollable (.tabs, unchanged) - a
+     swipe snaps to a tab edge here, and App()'s own effect scrollIntoView()s
+     the active tab whenever it changes programmatically (route restore, a
+     cross-reference), so it's never left scrolled out of view either way. */
+  .tab[aria-selected="true"] { scroll-snap-align: start; }
+  .tabs { scroll-snap-type: x proximity; }
+
+  /* ---- every KPI/tile grid collapses to one column, in source order -- */
+  .cols-2, .cols-3, .cols-4, .cols-5 { grid-template-columns: 1fr; }
+
+  /* ---- quadrant chart: square, full width, never below a 320px side.
+     Above 1100px wide the chart still uses its height-driven desktop
+     sizing (untouched); this only ever matters below that, where the
+     1100px rules already switched it to width-driven - this just adds
+     the floor and lets THIS ONE element scroll horizontally if the
+     viewport itself is somehow narrower than 320px + gutters, rather
+     than shrinking the plot into something unreadable. */
+  .chart-square-frame { min-width: 320px; }
+  .map-wrap { overflow-x: auto; }
+
+  /* ---- Redesign's row header: name (+ chevron) on their own line, then
+     site/headcount, then the metric columns wrapping freely, then the
+     tier badge - the fixed-width aligned columns are a desktop scanning
+     aid (see the per-row alignment fix above); on a phone, each row is
+     already its own stacked card, so they wrap instead of holding a
+     fixed width. */
+  .draft-row-head { flex-wrap: wrap; row-gap: 6px; }
+  .draft-row-head .drn { flex: 1 1 auto; }
+  .draft-row-head .drx { flex: none; }
+  .draft-row-head .drm {
+    flex: 1 1 100%; white-space: normal; overflow: visible; text-overflow: clip;
+  }
+  .draft-row-head .drm-stats { flex: 1 1 100%; flex-wrap: wrap; row-gap: 6px; }
+  .draft-row-head .stat { width: auto; }
+
+  /* ---- data tables become card lists: one card per role, a label/value
+     pair per row inside it - never a horizontally-scrolled table, the
+     worst option on a phone. Driven by the data-label attribute every
+     <td> in RoleTable/TrainingView/CommunicationView's own tables
+     already carries. */
+  .table-scroll { overflow-x: visible; }
+  table.data thead { display: none; }
+  table.data, table.data tbody, table.data tr, table.data td { display: block; width: 100%; }
+  table.data tbody tr {
+    border: 1px solid var(--hairline); border-radius: var(--radius-s);
+    margin-bottom: var(--space-8); padding: var(--space-8) var(--space-12);
+    box-shadow: none;
+  }
+  table.data td {
+    display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-12);
+    padding: 5px 0; border-bottom: none; text-align: right;
+  }
+  table.data td::before {
+    content: attr(data-label); flex: none; text-align: left;
+    color: var(--ink-3); font-size: 11.5px; font-weight: 500;
+  }
+  /* The role name is the card's own heading, not a labeled field. */
+  table.data td[data-label="Role"] {
+    display: block; text-align: left; font-size: 15px;
+    padding-bottom: 7px; margin-bottom: 4px; border-bottom: 1px solid var(--hairline);
+  }
+  table.data td[data-label="Role"]::before { content: none; }
+  table.data tbody tr.tr-tier td:first-child { box-shadow: none !important; }
+
+  /* ---- weighting panel: .wt-grid's own auto-fit(260px) already collapses
+     to one slider per row at this width; nothing further needed here. */
+
+  /* ---- explainer: already a full-width bottom sheet at this same
+     breakpoint (.ask-panel's own rule above); nothing further needed. */
 }

@@ -4891,7 +4891,7 @@ const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId,
                 role="button" tabIndex={0} aria-label={`Open one-pager for ${r.role}`} onKeyDown={rowKeyHandler(r.id)}>
               {columns.map((c) => (
                 <td key={c.key} className={(c.n ? 'n' : '') + (c.cellTitle ? ' has-tip' : '')}
-                    title={c.cellTitle ? c.cellTitle(r, false) : undefined}>
+                    title={c.cellTitle ? c.cellTitle(r, false) : undefined} data-label={c.label}>
                   {c.render(r, false)}
                 </td>
               ))}
@@ -4902,7 +4902,7 @@ const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId,
                 role="button" tabIndex={0} aria-label={`Open one-pager for ${r.role}, incomplete`} onKeyDown={rowKeyHandler(r.id)}
                 title={`${r.missing.length} of 6 sub-factors missing: ${r.missing.join(', ')}`}>
               {columns.map((c) => (
-                <td key={c.key} className={c.n ? 'n' : undefined}>{c.render(r, true)}</td>
+                <td key={c.key} className={c.n ? 'n' : undefined} data-label={c.label}>{c.render(r, true)}</td>
               ))}
             </tr>
           ))}
@@ -5986,11 +5986,11 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, goLi
               <tr key={role.id} className={selectedId === role.id ? 'sel' : ''} onClick={() => onSelect(role.id)}
                   role="button" tabIndex={0} aria-label={`Open one-pager for ${role.role}`}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(role.id); } }}>
-                <td><span className="rolename">{role.role}</span></td>
-                <td><TierBadge tier={role.tier} /></td>
-                <td className="n">{pluralize(design.hours, 'hour')}</td>
-                <td>{design.primary.method}</td>
-                <td>{design.deliveryConstraint || '—'}</td>
+                <td data-label="Role"><span className="rolename">{role.role}</span></td>
+                <td data-label="Tier"><TierBadge tier={role.tier} /></td>
+                <td className="n" data-label="Total required hours">{pluralize(design.hours, 'hour')}</td>
+                <td data-label="How it's delivered">{design.primary.method}</td>
+                <td data-label="Delivery constraint">{design.deliveryConstraint || '—'}</td>
               </tr>
             ))}
             {!rows.length && (
@@ -6214,11 +6214,11 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
               <tr key={role.id} className={selectedId === role.id ? 'sel' : ''} onClick={() => onSelect(role.id)}
                   role="button" tabIndex={0} aria-label={`Open one-pager for ${role.role}`}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(role.id); } }}>
-                <td><span className="rolename">{role.role}</span></td>
-                <td><TierBadge tier={role.tier} /></td>
-                <td>{milestones[3].channel}</td>
-                <td>{(role.risk.decisionRights >= 4 || role.tier === 'Reassure') ? 'Yes' : 'No'}</td>
-                <td className="no-print">
+                <td data-label="Role"><span className="rolename">{role.role}</span></td>
+                <td data-label="Tier"><TierBadge tier={role.tier} /></td>
+                <td data-label="Go-live channel">{milestones[3].channel}</td>
+                <td data-label="Manager briefing needed?">{(role.risk.decisionRights >= 4 || role.tier === 'Reassure') ? 'Yes' : 'No'}</td>
+                <td className="no-print" data-label="Message drafts">
                   <button type="button" className="link-btn" onClick={(e) => { e.stopPropagation(); setDraftsView({ mode: 'role', roleId: role.id }); }}>
                     Open drafts →
                   </button>
@@ -8327,6 +8327,17 @@ function App() {
   useFreezeAnimationsOnHide();
   const mainRef = useRef(null);
   useTabTransitionIn(mainRef, tab);
+  // The tab bar scrolls horizontally on a narrow screen (five tabs don't
+  // fit at once below ~700px) - a tab switch that happens without the
+  // user's own scroll gesture (a route restore, a cross-reference like
+  // "open drafts" from a one-pager) still has to bring the now-active tab
+  // into view, not leave it scrolled off to one side.
+  const tabsRef = useRef(null);
+  useEffect(() => {
+    if (!tabsRef.current) return;
+    const active = tabsRef.current.querySelector('[aria-selected="true"]');
+    if (active) active.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [tab]);
   // Opening a role's one-pager from a table row or a chart point far down
   // the page must land on the top of that page, not wherever the trigger
   // happened to be scrolled to - a one-pager that opens "scrolled down"
@@ -8602,7 +8613,7 @@ function App() {
               Just moved: {weightDeltas.map(formatWeightDelta).join(' · ')}
             </div>
           )}
-          <nav className="tabs" role="tablist" aria-label="Views">
+          <nav className="tabs" role="tablist" aria-label="Views" ref={tabsRef}>
             {ALL_TABS.map((t) => (
               <button key={t.id} className="tab" role="tab" aria-selected={tab === t.id}
                       onClick={() => switchTab(t.id)}>{t.label}</button>
