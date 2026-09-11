@@ -5873,9 +5873,17 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
 
   return (
     <>
+      <div className="view-head">
+        <TabHeadline tab="plan" text="Adoption: how the change is landing since go-live" />
+        <WeightNote weights={weights} onReset={onResetWeights} />
+      </div>
+
       {/* Same hero treatment as Stakeholder Impact's headline, same position
-          (the very top of the tab) - the one conclusion-shaped number this
-          tab has, styled to match, so the five tabs read as one product. */}
+          right below the page heading - the one conclusion-shaped number
+          this tab has, styled to match, so the five tabs read as one
+          product. The heading stays at the other tabs' own 24px, well
+          under the hero's 36px, so it introduces the tab without competing
+          with the number as the tab's actual focal point. */}
       <div className="hero-headline">
         <h2 className="hero-sentence hero-stat">
           <span className="hero-num">{hero.num}</span>
@@ -5884,7 +5892,6 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         <div className="hero-rule" aria-hidden="true" />
         <p className="hero-support">{hero.support}</p>
       </div>
-      <WeightNote weights={weights} onReset={onResetWeights} />
 
       <div className="grid cols-5" style={{ marginBottom: 'var(--space-16)', marginTop: 'var(--space-16)' }}>
         <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} countTo={metrics.signOnRate} countFormat={{ suffix: '%' }} meta="of in-scope headcount, at least once" />
@@ -7186,6 +7193,11 @@ function App() {
   // return tab inside the app, not exit the app entirely.
   const closeRole = useCallback(() => {
     setTab(returnTab);
+    // Leaving the one-pager clears which role is "selected" too - otherwise
+    // that role's point/row keeps its persistent selected ring/highlight for
+    // the rest of the session, on every list view, until some other role
+    // happens to be opened next.
+    setSelectedId(null);
     syncRoute({ tab: returnTab }, 'push');
   }, [returnTab, syncRoute]);
 

@@ -242,19 +242,21 @@ a { color: var(--aberdeen-blue); }
    the row's own height is (driven by the logo/title next to it) instead
    of needing to be re-tuned by hand if either one changes size again. */
 .tb-divider { width: 1px; align-self: stretch; background: var(--hairline-strong); flex: none; }
-/* Center-aligned, not baseline: a rounded pill and a plain text line have
-   no shared baseline to speak of, and center is what reads as "these two
-   are one deliberate group" rather than two unrelated bits of type that
-   happen to be next to each other. min-width: 0 is load-bearing: a flex
-   item's default min-width is auto (its content size), which would
-   otherwise refuse to shrink below the pill's full, untruncated width and
-   defeat the ellipsis entirely. justify-content: center makes this middle
-   group sit centered in the space between the brand lockup and "All
-   projects", not merely left-aligned against the divider. */
+/* Left-aligned against the divider, not centered: the pill and the count
+   are a fixed-size group (neither one shrinks - see .project-tag and
+   .topbar .sub), so whatever room .tb-context has left over after them is
+   real slack, not content, and it has to go somewhere. Center would split
+   that slack into two gaps (one on each side of the group); left-aligned
+   puts all of it in one place - the gap between the count and "All
+   projects" - which is also the one spot on the bar with nothing else
+   that could use it. No min-width: 0 / overflow: hidden here any more:
+   both were quietly re-enabling exactly the shrink-and-clip behavior the
+   fix below removes from .project-tag itself, which is what made the
+   previous attempt at this not actually change anything. */
 .tb-context {
-  display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: nowrap;
+  display: flex; align-items: center; gap: 14px; flex-wrap: nowrap;
   padding-left: 16px; margin-left: 2px; border-left: 1px solid var(--hairline-strong);
-  flex: 1 1 auto; min-width: 0; overflow: hidden;
+  flex: 1 1 auto;
 }
 .tb-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: none; }
 /* The brand mark, scaled to actually read as a mark, not an artifact next
@@ -267,19 +269,30 @@ a { color: var(--aberdeen-blue); }
 .topbar h1 { font-size: 21px; letter-spacing: -.01em; font-weight: 200; color: var(--aberdeen-blue); white-space: nowrap; }
 /* A light, brand-compliant tinted pill (Aberdeen Blue on its own wash),
    not the dark chip a solid white-on-navy treatment would have left
-   behind on this now-light header. Full text at 1440px and up - there's
-   room for it once the bar's own inset bug is fixed (see .topbar-inner) -
-   truncating only below that, where the media query re-imposes a cap; the
-   full string is still available as a native tooltip either way (see the
-   title attribute in App()). */
+   behind on this now-light header. flex: none is load-bearing: without
+   it, a flex item's default flex-shrink: 1 lets the row compress this pill
+   below its own content width the moment space is tight, and the previous
+   attempt at this fix left exactly that default in place - min-width: 0
+   plus overflow: hidden + text-overflow: ellipsis were sitting here
+   unconditionally (not just below the breakpoint), so the pill was always
+   eligible to shrink and clip, at any width, regardless of the max-width
+   cap added below. flex: none removes the eligibility entirely above the
+   breakpoint: the pill can only ever render at its full, untruncated
+   content width there. The media query re-enables shrinking (and the clip
+   that goes with it) only below 1280px, where truncating is acceptable;
+   the full string is always available as a native tooltip either way (see
+   the title attribute in App()). */
 .project-tag {
   font-size: 12px; font-weight: 500; color: var(--aberdeen-blue); white-space: nowrap;
   background: var(--aberdeen-blue-wash); border: 1px solid var(--aberdeen-blue-line);
   border-radius: 999px; padding: 3px 10px;
-  overflow: hidden; text-overflow: ellipsis; min-width: 0;
+  flex: none;
 }
-@media (max-width: 1439px) {
-  .project-tag { max-width: 320px; }
+@media (max-width: 1279px) {
+  .project-tag {
+    flex: 0 1 auto; min-width: 0; max-width: 320px;
+    overflow: hidden; text-overflow: ellipsis;
+  }
 }
 /* Same weight as the pill beside it, not a quieter afterthought - the two
    are one group (what project, how big), so they carry matching emphasis.
