@@ -5421,7 +5421,6 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
     <>
       <div className="view-head">
         <TabHeadline tab="redesign" text="Redesign: how the work changes, role by role" />
-        <p className="lede">Before-and-after task lists and FTE impact for every role, at a glance.</p>
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
@@ -5475,7 +5474,6 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
     <>
       <div className="view-head">
         <TabHeadline tab="training" text="Training: total required hours, delivery format and job aids, by role" />
-        <p className="lede">Required hours come from tier; deskless changes the format, not the volume.</p>
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
@@ -5500,7 +5498,13 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
         <table className="data">
           <thead>
             <tr>
-              <th>Role</th><th>Tier</th><th className="n" title="Total curriculum hours required, set by tier alone (DOSES[tier].curriculumHours) - never by complexity or deskless status. Not the same as a session's typical length, shown in the delivery standards below.">Total required hours</th>
+              <th>Role</th><th>Tier</th>
+              <th className="n">
+                Total required hours
+                <i className="info-ico" tabIndex={0}
+                   title="Required hours come from tier alone (DOSES[tier].curriculumHours), never from complexity or deskless status. Deskless changes the delivery format - on shift, hands-on - not the number of hours. Not the same as a session's typical length, shown in the delivery standards below."
+                   aria-label="How required hours are set: from tier alone, never complexity or deskless status; deskless changes the delivery format, not the number of hours.">ⓘ</i>
+              </th>
               <th>Method</th><th>Complexity</th><th className="n">Job aids</th>
               <th title="What shaped the delivery format, not the volume">Delivery constraint</th>
             </tr>
@@ -5603,12 +5607,15 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
     : (daysLive !== null && daysLive >= 0)
       ? `Anchored to the ${fmtShortDate(new Date(goLiveDate + 'T00:00:00'))} go-live, ${daysLive === 0 ? 'today' : `${pluralize(daysLive, 'day')} ago`}. Milestones already reached are marked done below. `
       : `Anchored to the ${fmtShortDate(new Date(goLiveDate + 'T00:00:00'))} target go-live, working backward. `;
+  // Same content the page used to state as a lede sentence, kept reachable
+  // as an info affordance instead - still fully dynamic (project-specific
+  // date, live/upcoming/no-date phrasing), not frozen into static copy.
+  const channelHint = `${goLiveLede}Lead time mirrors each tier's hypercare tail; channel follows deskless vs. desk-based.`;
 
   return (
     <>
       <div className="view-head">
         <TabHeadline tab="comms" text="Communication: a timed plan by intervention tier" />
-        <p className="lede">{goLiveLede}Lead time mirrors each tier's hypercare tail; channel follows deskless vs. desk-based.</p>
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
@@ -5664,7 +5671,13 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
 
       <div className="table-scroll" style={{ marginBottom: 'var(--space-16)' }}>
         <table className="data">
-          <thead><tr><th>Role</th><th>Tier</th><th>Go-live channel</th><th>Cascade needed?</th></tr></thead>
+          <thead><tr><th>Role</th><th>Tier</th>
+            <th>
+              Go-live channel
+              <i className="info-ico" tabIndex={0} title={channelHint}
+                 aria-label={`How milestone timing and channel are set: ${channelHint}`}>ⓘ</i>
+            </th>
+            <th>Cascade needed?</th></tr></thead>
           <tbody>
             {rows.map(({ role, milestones }) => (
               <tr key={role.id} className={selectedId === role.id ? 'sel' : ''} onClick={() => onSelect(role.id)}
