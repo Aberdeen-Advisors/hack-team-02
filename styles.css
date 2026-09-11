@@ -554,8 +554,11 @@ a { color: var(--aberdeen-blue); }
 .card-head .hint { font-size: 12.5px; color: var(--ink-3); margin-left: auto; }
 .card-body { padding: 18px; }
 
+/* Stays collapsed in print too, deliberately - the one-pager's print test
+   is one page, and the full per-factor breakdown does not fit on it. The
+   collapsed one-line summary above it (impact/risk score -> tier) carries
+   the print/copy case on its own. */
 .score-detail.collapsed { display: none; }
-@media print { .score-detail.collapsed { display: block; } }
 
 .grid { display: grid; gap: var(--space-16); }
 .cols-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
@@ -1109,7 +1112,15 @@ table.data td .rolename { font-weight: 500; }
   background: var(--surface-sunk); border: 1px solid var(--hairline); border-left: 3px solid var(--aberdeen-blue);
   font-size: 13.5px;
 }
-.mod h5 { margin: 0 0 5px; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
+/* Sentence case, small, with a Verdigris rule - not shouty all-caps, and
+   never exposes a raw scoring threshold in the heading text itself (that
+   lives in .mod's own trigger sentence, in plain language). Shared by
+   .mod/.pkg-extra's own h5 and by any standalone one-pager sub-heading
+   that opts into .op-kicker directly (constraints, manager actions). */
+.mod h5, .pkg-extra h5, .op-kicker {
+  margin: 0 0 6px; font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+  padding-left: 9px; border-left: 3px solid var(--verdigris); line-height: 1.3;
+}
 .mod ul { margin: 0; padding-left: 17px; }
 .mod li { margin-bottom: 3px; }
 
@@ -1120,11 +1131,18 @@ table.data td .rolename { font-weight: 500; }
   background: var(--surface); border: 1px solid var(--hairline); border-left: 3px solid var(--hairline-strong);
   font-size: 13.5px;
 }
-.pkg-extra h5 { margin: 0 0 6px; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
 .pkg-extra p { margin-bottom: .5em; }
 .pkg-extra .sub, .btn-row .sub { font-size: 12px; color: var(--ink-3); }
-.pkg-extra ol.esc { margin: 0; padding-left: 18px; }
-.pkg-extra ol.esc li { margin-bottom: 2px; }
+
+/* Manager actions: dated, ordered, deliberately plainer than .pkg-list (no
+   pill dose chip) - these are instructions to follow in order, not a menu
+   of options to scan. */
+.manager-actions { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--space-8); }
+.manager-actions li { display: flex; gap: 10px; font-size: 13.5px; align-items: baseline; }
+.manager-actions .when {
+  flex: none; min-width: 108px; font-size: 11.5px; font-weight: 600; color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
 
 .tasklist { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
 .tasklist li { margin-bottom: var(--space-4); }

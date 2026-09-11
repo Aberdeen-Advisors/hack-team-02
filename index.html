@@ -610,32 +610,8 @@ const COMMS_MILESTONES = [
   { name: 'Go-Live',               objective: 'drive adoption' },
   { name: 'Post Go-Live Support',  objective: 'reinforce changes' },
 ];
-const OBJECTIVE_LADDER = ['awareness', 'understanding', 'acceptance', 'commitment'];
-
-/* Support after go-live: four-layer escalation, in order. */
-const SUPPORT_LAYERS = [
-  'How-to guides at the point of work',
-  'Project team',
-  'Trainers and implementation leads',
-  'Leadership: final escalation',
-];
-
-/* What adoption is measured on, over the six-month window after go-live. */
-const ADOPTION_METRICS = [
-  'unique sign-ons',
-  'business processes opened and completed',
-  'how-to guide access rates',
-  'go-live communication click rates',
-  'HR case volume',
-  'qualitative feedback',
-];
-
 const CADENCE = {
-  readinessReassessMonths: '3-4',   // full readiness reassessment
   adoptionWindowMonths: 6,          // adoption measured across this window after go-live
-  townHallMinutes: '45-60',
-  inviteLeadDays: '5-7',
-  changeNetworkOnboardMonths: 3,    // change network onboarded ~3 months before go-live
 };
 
 /* Ours: above this headcount a centralized classroom cannot reach the population. */
@@ -772,6 +748,27 @@ function trainingLoadForRole(role) {
   const design = trainingDesign(role);
   const sessions = sessionsForRole(role, design);
   return { design, sessions, deliveryHours: sessions * design.hours };
+}
+
+/* One line that can never read as a contradiction: the total required
+   hours always comes first and is always labelled "total"; a session
+   length, if this method has one at all, is always named as a session's
+   own length plus how many sessions - never printed next to the total
+   with nothing to tell them apart. On-shift roles already fold the total
+   into their own duration string (trainingDesign), so they skip straight
+   to that; self-driven methods (web-based, short refreshers) have no
+   session to staff at all, so they read as "completed independently". */
+function trainingDoseLine(role) {
+  const t = trainingDesign(role);
+  const totalHours = `${pluralize(t.hours, 'hour')} total`;
+  if (t.deskless && role.tier !== 'Inform') {
+    return `${totalHours}, delivered ${t.primary.method.toLowerCase()}`;
+  }
+  if (t.trainTheTrainer) {
+    const sessions = sessionsForRole(role, t);
+    return `${totalHours} · ${t.primary.method}, ${pluralize(sessions, 'session')} of ${t.primary.duration} each`;
+  }
+  return `${totalHours} · ${t.primary.method}, completed independently (${t.primary.duration} each sitting)`;
 }
 
 /* The delivery plan for a set of roles: total training hours (the
@@ -1258,7 +1255,7 @@ function packageFor(role) {
   const t = trainingDesign(role);
   const sites = Math.max(1, role.siteCount || 1);
   const aids = `${pluralize(t.aids.count, 'how-to guide')} (${t.aids.band}) · ${t.jobAidMethod.duration} each`;
-  const method = `${t.primary.method} · ${t.primary.duration}`;
+  const method = trainingDoseLine(role);
   switch (role.tier) {
     case 'Rebuild': return [
       { text: 'Role redesign',       dose: `${pluralize(role.tasksRemoved + role.tasksChanged + role.tasksNew, 'task')} re-mapped · 1 workshop per site` },
@@ -1277,7 +1274,7 @@ function packageFor(role) {
     ];
     case 'Reassure': return [
       { text: 'Manager briefings',                dose: `${pluralize(d.cascadeScripts, 'script')} · ${pluralize(d.managerCoachingSessions, 'briefing')}` },
-      { text: 'Address the fear, not the skill',  dose: `${method} awareness` },
+      { text: 'Address the fear, not the skill',  dose: `${method}, awareness only` },
       { text: 'How-to guides',            dose: aids },
       { text: 'Extra support after go-live',      dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
@@ -1306,7 +1303,7 @@ function modifiersFor(role) {
   }
   if (role.risk.decisionRights >= 4) {
     out.push({
-      trigger: `a decision-rights score of ${role.risk.decisionRights.toFixed(1)} or higher`,
+      trigger: 'this role’s decisions are changing',
       title: 'Extra manager briefing (any tier)',
       items: [
         'Add a manager briefing on decision rights: what this role still approves, and what the system now decides',
@@ -1315,6 +1312,40 @@ function modifiersFor(role) {
     });
   }
   return out;
+}
+
+/* "What the manager needs to do": the one thing the one-pager didn't
+   already say directly to the person responsible for this role. Built
+   entirely from data the page already carries - decision-rights change,
+   coaching sessions and floor-presence weeks from this tier's own dose,
+   the milestone dates, and headcount - never generic advice. Always 3-5
+   items: floor presence and "point to the how-to guide" are mutually
+   exclusive (a tier with floor-coaching weeks doesn't also need the
+   fallback, and vice versa), so the count never collapses to under 3 or
+   grows past 5. */
+function managerActions(role, goLiveDate) {
+  const d = DOSES[role.tier];
+  const f = draftFacts(role);
+  const dateAt = (weeks) => (goLiveDate ? fmtShortDate(dateFromGoLive(goLiveDate, weeks)) : fmtWeeksFromGoLive(weeks));
+  const kickoff = dateAt(milestoneWeeksFromGoLive(role.tier, 0));
+  const goLive = dateAt(0);
+
+  const actions = [
+    { when: kickoff, text: `Brief the team on what's changing: ${pluralize(f.removed, 'task')} go away, ${pluralize(f.changed, 'task')} change.` },
+  ];
+  if (f.decisionChanged) {
+    actions.push({ when: kickoff, text: 'Read the manager briefing script. Be ready for "will I lose my job?" before you brief the team.' });
+  }
+  if (d.managerCoachingSessions > 0) {
+    actions.push({ when: `before ${goLive}`, text: `Run ${pluralize(d.managerCoachingSessions, 'coaching session')} with the team.` });
+  }
+  actions.push({ when: goLive, text: `Be present for go-live. You are responsible for ${pluralize(role.headcount, 'person', 'people')} in this role.` });
+  if (d.floorCoachingWeeks > 0) {
+    actions.push({ when: `${goLive} to ${dateAt(d.floorCoachingWeeks)}`, text: `Stay visible on the floor for ${pluralize(d.floorCoachingWeeks, 'week')} after go-live.` });
+  } else {
+    actions.push({ when: `${goLive} onward`, text: 'Point the team to the how-to guide at the point of work if they have questions.' });
+  }
+  return actions;
 }
 
 /* ===========================================================================
@@ -5201,7 +5232,7 @@ function AxisBreakdown({ name, factors, values, score, newRole, citeDeck }) {
   );
 }
 
-function onePagerText(role, citeDeck) {
+function onePagerText(role, citeDeck, goLiveDate) {
   const L = [];
   L.push(`${role.role}: ${role.tier}`);
   L.push(`${role.siteArchetype} · ${pluralize(role.siteCount, 'site')} · ${pluralize(role.headcount, 'person', 'people')}${role.deskless ? ' · on the floor' : ''}`);
@@ -5234,88 +5265,46 @@ function onePagerText(role, citeDeck) {
   const td = trainingDesign(role);
   L.push('');
   L.push('DELIVERY DETAIL (Aberdeen OCM delivery material; the tier -> tactic mapping is Aberdeen judgment)');
-  L.push(`  Training: ${pluralize(td.hours, 'hour')} required for ${role.tier} (by tier alone, not by whether this role works at a desk)`);
-  L.push(`  Delivered as: ${td.primary.method}, ${td.primary.duration}, selected for ${td.why}`);
+  L.push(`  Training: ${trainingDoseLine(role)}, selected for ${td.why}`);
   L.push(`  How-to guides: ${td.aids.count} (${td.aids.band} band), ${td.jobAidMethod.duration} each`);
-  L.push('  Communications milestones:');
-  commsPlan(role).forEach((m) => L.push(`    - ${m.name}: ${m.objective} · ${m.channel}`));
-  L.push('  Support escalation: ' + SUPPORT_LAYERS.join(' -> '));
-  L.push(`  Extra support after go-live: ${pluralize(DOSES[role.tier].hypercareWeeks, 'week')}, the floor in every tier `
-       + `(${TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks); only the duration scales.`);
-  L.push(`  Cadence: readiness reassessed every ${CADENCE.readinessReassessMonths} months; role re-scored every ${pluralize(DOSES[role.tier].rescoreDays, 'day')}`);
-  L.push(`  Adoption measured over a ${CADENCE.adoptionWindowMonths}-month window on: ${ADOPTION_METRICS.join(', ')}`);
+  L.push('  Message drafts for this role: see the Communication tab.');
   // NOTE.ratio cites a specific deck slide for the 1:15 Rebuild ratio - true
   // only for a Rebuild role on a project with a deck to cite (Thornwood).
   // Enable's 1:40 champion ratio, and every non-deck project, has no such
   // citation to make.
   if (role.tier === 'Rebuild' && citeDeck) L.push(`  ${NOTE.ratio}`);
+  const actions = managerActions(role, goLiveDate);
+  if (actions.length) {
+    L.push('');
+    L.push('WHAT THE MANAGER NEEDS TO DO');
+    actions.forEach((a) => L.push(`  - ${a.when}: ${a.text}`));
+  }
   L.push(''); L.push('Aberdeen Advisors · Change Impact Assessment Tool · illustrative figures, synthetic data');
   return L.join('\n');
 }
 
-/* The Aberdeen-derived delivery detail for one role: method and duration,
-   job-aid volume, the five comms milestones, the escalation, the measurement. */
-function DeliveryDetail({ role }) {
-  const t = trainingDesign(role);
-  const plan = commsPlan(role);
-  const d = DOSES[role.tier];
+/* The one line of delivery detail the plan block above doesn't already say:
+   where to find this role's generated message drafts. Communications
+   milestones, support escalation and measurement cadence used to be
+   restated here too, identically on all 38 roles - the plan block already
+   states this role's own support duration, the Communication tab owns the
+   milestones, and the Adoption tab owns measurement, so none of that is
+   repeated on this page any more. */
+function DeliveryDetail({ role, onOpenDrafts }) {
   return (
-    <>
-      <div className="pkg-extra">
-        <h5>Training design: hours set by tier, format set by desk or floor</h5>
-        <p>
-          <b>{pluralize(t.hours, 'hour')} required</b> for {role.tier} - set by tier alone, the same whether or not this role
-          {' '}works on the floor instead of at a desk. Delivered as <b>{t.primary.method}</b>, {t.primary.duration}, selected for {t.why}.
-          {' '}Fits {t.primary.fits}. Delivered {t.trainTheTrainer ? 'by trained in-house trainers' : 'self-driven'}.
-        </p>
-        <p style={{ marginBottom: 0 }}>
-          <b>{pluralize(t.aids.count, 'how-to guide')}</b> at the point of work: {t.aids.band} band,
-          {' '}{t.jobAidMethod.duration} each.
-        </p>
-      </div>
-
-      <div className="pkg-extra">
-        <h5>Communications: five milestones, each with its objective</h5>
-        <table className="mini">
-          <tbody>
-            {plan.map((m) => (
-              <tr key={m.name}>
-                <th scope="row">{m.name}</th>
-                <td>{m.objective}</td>
-                <td className="ch">{m.channel}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="sub">
-          Objective ladder underneath: {OBJECTIVE_LADDER.join(' → ')}. Town hall run-of-show {CADENCE.townHallMinutes} min,
-          invitations {CADENCE.inviteLeadDays} business days ahead.
-        </p>
-      </div>
-
-      <div className="pkg-extra">
-        <h5>Support after go-live: four-layer escalation</h5>
-        <ol className="esc">{SUPPORT_LAYERS.map((s) => <li key={s}>{s}</li>)}</ol>
-        <p className="sub" style={{ marginBottom: 0 }}>
-          This extra support is the floor, not something only added for harder tiers: {d.hypercareWeeks} week{d.hypercareWeeks === 1 ? '' : 's'} for this tier.
-          {' '}Every tier gets it: {TIER_ORDER.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')} weeks. Only the duration changes.
-        </p>
-      </div>
-
-      <div className="pkg-extra">
-        <h5>Measurement</h5>
-        <p>
-          Readiness reassessed every <b>{pluralize(CADENCE.readinessReassessMonths, 'month')}</b>; this role re-scored every
-          {' '}<b>{pluralize(d.rescoreDays, 'day')}</b> as the go-live gate. Adoption measured over a
-          {' '}<b>{CADENCE.adoptionWindowMonths}-month window</b> after go-live on:
-        </p>
-        <div className="constraint-list">{ADOPTION_METRICS.map((m) => <span key={m}>{m}</span>)}</div>
-      </div>
-    </>
+    <div className="pkg-extra">
+      <h5>Message drafts for this role</h5>
+      <p className="sub" style={{ marginBottom: 0 }}>
+        <button type="button" className="link-btn no-print" onClick={() => onOpenDrafts && onOpenDrafts(role.id)}>
+          Open generated message drafts →
+        </button>
+        <span className="only-print">Generated message drafts for this role are in the Communication tab.</span>
+      </p>
+    </div>
   );
 }
 
-function OnePager({ role, onBack, backLabel, citeDeck }) {
+function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts }) {
   const label = backLabel || 'Stakeholder Impact';
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -5345,9 +5334,10 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
   }
   const pkg = packageFor(role);
   const mods = modifiersFor(role);
+  const actions = managerActions(role, goLiveDate);
 
   const copy = async () => {
-    const txt = onePagerText(role, citeDeck);
+    const txt = onePagerText(role, citeDeck, goLiveDate);
     try { await navigator.clipboard.writeText(txt); }
     catch (e) {
       const ta = document.createElement('textarea');
@@ -5378,14 +5368,16 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
         <button className="btn" onClick={() => window.print()}>Print / PDF</button>
       </div>
 
-      {/* 1. HEADER: name, headcount, site, tier, all immediately visible. */}
+      {/* a. HEADER: name, tier, site scope, headcount. Site scope and site
+          count are fused into one phrase (not two separate crumbs) so the
+          "·" separator only ever marks a real boundary: that phrase,
+          headcount, and floor status. */}
       <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="op-head">
           <div className="t">
             <h2>{role.role}</h2>
             <div className="crumbs">
-              <span>{role.siteArchetype}</span>
-              <span>{role.siteCount} {role.siteCount === 1 ? 'site' : 'sites'}</span>
+              <span>{role.siteCount === 1 ? `1 site (${role.siteArchetype})` : `${pluralize(role.siteCount, 'site')} (${role.siteArchetype})`}</span>
               <span>{pluralize(role.headcount, 'person', 'people')}</span>
               {role.deskless && <span>on the floor</span>}
             </div>
@@ -5395,22 +5387,20 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
         {role.deckNote && <div className="card-body"><div className="banner">{role.deckNote}</div></div>}
       </div>
 
-      {/* 2. WHAT'S CHANGING: the most prominent content on the page. */}
+      {/* b. WHAT'S CHANGING: the four metrics. */}
       <div className="view-head" style={{ marginBottom: 10 }}>
         <h3 style={{ margin: 0, fontSize: 17 }}>What's changing</h3>
       </div>
-      <div className="grid cols-4" style={{ marginBottom: 'var(--space-12)' }}>
+      <div className="grid cols-4" style={{ marginBottom: 'var(--space-16)' }}>
         <Tile label="Tasks removed" value={role.tasksRemoved} countTo={role.tasksRemoved} />
         <Tile label="Tasks changed" value={role.tasksChanged} countTo={role.tasksChanged} />
         <Tile label="Tasks new" value={role.tasksNew} countTo={role.tasksNew} />
-        <Tile label="Full-time equivalent (FTE) delta" value={signed(role.fteDelta)} meta="of admin, per site" />
+        <Tile label="Full-time equivalent (FTE) delta" value={signed(role.fteDelta)} />
       </div>
-      {fteConsequenceLine(role.fteDelta) && (
-        <div className="banner" style={{ marginBottom: 'var(--space-16)' }}>
-          <b>{signed(role.fteDelta)} FTE is a decision, not a by-product.</b>
-          <span className="src">{fteConsequenceLine(role.fteDelta)}</span>
-        </div>
-      )}
+
+      {/* c. + d. THE NARRATIVE, then before/after side by side - the most
+          valuable content on the page, given the most room now that the
+          program-level material below has moved to the tabs that own it. */}
       <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-body" style={{ paddingBottom: 'var(--space-4)' }}><p className="op-summary" style={{ marginTop: 0 }}>{role.summary}</p></div>
         <div className="ba">
@@ -5425,9 +5415,66 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
         </div>
       </div>
 
-      {/* 3. WHY IT'S SCORED THIS WAY: collapsed by default, full detail on demand
-          (and always present for print/copy, see .score-detail in styles.css). */}
+      {/* e. THE PLAN: concrete action items, not prose. Prescribed package,
+          modifiers, constraints (f.), and the one-line pointer to this
+          role's message drafts. */}
       <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
+        <div className="card-head">
+          <h3>The plan</h3>
+          <span className="hint">{TIERS[role.tier].quadrant}</span>
+        </div>
+        <div className="card-body">
+          <ul className="pkg-list">
+            {pkg.map((p, i) => (
+              <li key={i}><i className="dot" style={{ '--dot': TIERS[role.tier].hex, marginTop: 7 }} />
+                <span>{p.text}</span><span className="dose">{p.dose}</span></li>
+            ))}
+          </ul>
+          {mods.map((m, i) => (
+            <div className="mod" key={i}>
+              <h5>{m.title} — {m.trigger}</h5>
+              <ul>{m.items.map((it, j) => <li key={j}>{it}</li>)}</ul>
+            </div>
+          ))}
+          {(role.constraints || []).length > 0 && (
+            <div style={{ marginTop: 'var(--space-16)' }}>
+              <h5 className="op-kicker">Constraints on this population</h5>
+              <div className="constraint-list">{role.constraints.map((c, i) => <span key={i}>{c}</span>)}</div>
+            </div>
+          )}
+          {(role.sourceRefs || []).length > 0 && (
+            <div style={{ marginTop: 'var(--space-16)' }}>
+              <h5 className="op-kicker">Mentioned in the uploaded documents</h5>
+              <ul className="source-ref-list">
+                {role.sourceRefs.map((ref, i) => (
+                  <li key={i}><b>{ref.fileName}</b>: “{ref.snippet}”</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <DeliveryDetail role={role} onOpenDrafts={onOpenDrafts} />
+        </div>
+      </div>
+
+      {/* NEW: what the manager needs to do - the one thing nothing else on
+          this page tells the person actually responsible for this role.
+          Every item is dated and drawn from data already on this page. */}
+      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
+        <div className="card-head">
+          <h3>What the manager needs to do</h3>
+        </div>
+        <div className="card-body">
+          <ol className="manager-actions">
+            {actions.map((a, i) => (
+              <li key={i}><span className="when">{a.when}</span><span>{a.text}</span></li>
+            ))}
+          </ol>
+        </div>
+      </div>
+
+      {/* g. SCORES: one line, with the full per-factor breakdown collapsed
+          behind it (and staying collapsed in print, see .score-detail). */}
+      <div className="card">
         <div className="card-head" style={{ cursor: 'pointer' }} onClick={() => setShowScore((s) => !s)}>
           <h3>Why it's scored this way</h3>
           <span className="hint">
@@ -5446,46 +5493,6 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
             <b>→ {role.tier}</b>
           </div>
           <p className="footnote">All figures illustrative. All data synthetic.</p>
-        </div>
-      </div>
-
-      {/* 4. THE PLAN: concrete action items, not prose. Prescribed package,
-          modifiers and constraints from the deterministic engine. */}
-      <div className="card">
-        <div className="card-head">
-          <h3>The plan</h3>
-          <span className="hint">{TIERS[role.tier].quadrant}</span>
-        </div>
-        <div className="card-body">
-          <ul className="pkg-list">
-            {pkg.map((p, i) => (
-              <li key={i}><i className="dot" style={{ '--dot': TIERS[role.tier].hex, marginTop: 7 }} />
-                <span>{p.text}</span><span className="dose">{p.dose}</span></li>
-            ))}
-          </ul>
-          {mods.map((m, i) => (
-            <div className="mod" key={i}>
-              <h5>{m.title}: triggered by {m.trigger}</h5>
-              <ul>{m.items.map((it, j) => <li key={j}>{it}</li>)}</ul>
-            </div>
-          ))}
-          {(role.constraints || []).length > 0 && (
-            <div style={{ marginTop: 'var(--space-16)' }}>
-              <h5 style={{ margin: '0 0 7px', fontSize: 12, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>Constraints on this population</h5>
-              <div className="constraint-list">{role.constraints.map((c, i) => <span key={i}>{c}</span>)}</div>
-            </div>
-          )}
-          {(role.sourceRefs || []).length > 0 && (
-            <div style={{ marginTop: 'var(--space-16)' }}>
-              <h5 style={{ margin: '0 0 7px', fontSize: 12, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>Mentioned in the uploaded documents</h5>
-              <ul className="source-ref-list">
-                {role.sourceRefs.map((ref, i) => (
-                  <li key={i}><b>{ref.fileName}</b>: “{ref.snippet}”</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <DeliveryDetail role={role} />
         </div>
       </div>
       <p className="footnote">All figures illustrative. All data synthetic.</p>
@@ -6084,9 +6091,20 @@ function DraftsPanel({ title, subtitle, drafts, onClose }) {
   );
 }
 
-function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck, goLiveDate, weights, onResetWeights, tierFilter, setTierFilter }) {
+function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck, goLiveDate, weights, onResetWeights, tierFilter, setTierFilter, autoOpenDraftsId, onAutoOpenDraftsConsumed }) {
   const [search, setSearch] = useState('');
   const [draftsView, setDraftsView] = useState(null); // { mode: 'role', roleId } | { mode: 'milestone', tier, milestoneIdx }
+
+  // A cross-reference from a role's own one-pager: open straight to that
+  // role's drafts, then forget it, so revisiting this tab later doesn't
+  // reopen the same panel unprompted.
+  useEffect(() => {
+    if (autoOpenDraftsId) {
+      setDraftsView({ mode: 'role', roleId: autoOpenDraftsId });
+      if (onAutoOpenDraftsConsumed) onAutoOpenDraftsConsumed();
+    }
+  }, [autoOpenDraftsId]);
+
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const commsGroup = plan.find((g) => g.group === 'Communication');
   const daysLive = useMemo(() => daysSince(goLiveDate), [goLiveDate]);
@@ -8081,6 +8099,16 @@ function App() {
     syncRoute({ tab: tabId }, 'push');
   }, [syncRoute]);
 
+  // The one-pager's "message drafts" line is a real cross-reference to the
+  // Communication tab's own drafts panel for this one role, not just prose -
+  // consumed once by CommunicationView's effect so it doesn't reopen on
+  // every later visit to the tab.
+  const [autoOpenDraftsId, setAutoOpenDraftsId] = useState(null);
+  const openDraftsFor = useCallback((id) => {
+    setAutoOpenDraftsId(id);
+    switchTab('comms');
+  }, [switchTab]);
+
   // The Stakeholder Impact tab's effort-share note is a real cross-reference,
   // not prose: clicking it has to actually land on the panel that backs it.
   const openEffortWeights = useCallback(() => switchTab('plan'), [switchTab]);
@@ -8198,7 +8226,8 @@ function App() {
           <CommunicationView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
                               citeDeck={project.hasDeckReproduction} goLiveDate={project.goLiveDate}
                               weights={weights} onResetWeights={resetWeights}
-                              tierFilter={filters.tier} setTierFilter={setFilterTier} />
+                              tierFilter={filters.tier} setTierFilter={setFilterTier}
+                              autoOpenDraftsId={autoOpenDraftsId} onAutoOpenDraftsConsumed={() => setAutoOpenDraftsId(null)} />
         )}
         {tab === 'plan' && (
           <PlanView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
@@ -8207,7 +8236,7 @@ function App() {
         )}
         {tab === 'role' && (
           <OnePager role={selected} onBack={closeRole} backLabel={TAB_LABELS[returnTab] || 'Stakeholder Impact'}
-                    citeDeck={project.hasDeckReproduction} />
+                    citeDeck={project.hasDeckReproduction} goLiveDate={project.goLiveDate} onOpenDrafts={openDraftsFor} />
         )}
         {tab === 'add' && <AddRoleView onCreate={createRole} project={project} comboExample={comboExample} />}
       </main>
