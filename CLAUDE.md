@@ -118,41 +118,21 @@ load time — never stored in the data file.
 
 ## Scoring
 
-- `THRESHOLD = 3.5`, applied **inclusively** on both axes (`>=`).
-- `impactSeverity = 0.45×taskShare + 0.25×frequencyVolume + 0.30×errorConsequence`
-- `adoptionRisk = 0.40×decisionRights + 0.35×capabilityDelta + 0.25×localReadiness`
-- Weights live on the `IMPACT_FACTORS`/`RISK_FACTORS` factor objects themselves
-  and are mutated live by `applyWeights()` when a UI slider moves; `effWeight`
-  re-normalizes per axis so a zeroed axis degrades to an equal split instead of
-  dividing by zero, and a score can never leave 1–5. Round to one decimal
-  before comparing to the threshold.
-- **Completeness gating**: `scoreRole` returns `complete:false, tier:null,
-  scores:{impact:null,risk:null}` if any of the six sub-factors is unset. A
-  half-filled row is never scored, tiered, or plotted — this applies
-  identically to seeded roles, live-added roles, and the add-role form (submit
-  stays disabled).
-- `assignTier(impact, risk)`: `impact≥3.5 & risk≥3.5 → Rebuild`;
-  `impact≥3.5 & risk<3.5 → Enable`; `impact<3.5 & risk≥3.5 → Reassure`;
-  else `Inform`.
+Deterministic — never a model call. The weights, the 3.5 threshold (applied
+**inclusively**, `>=`, on both axes), completeness gating, and tier
+assignment are all directly readable in the SCORING ENGINE banner in
+`index.html` (`scoreRole`, `assignTier`, `IMPACT_FACTORS`, `RISK_FACTORS`,
+`effWeight`) — read those rather than trusting a restatement here.
 
 ## Derived plans
 
 Everything is deterministic JS, driven off `DOSES`, `ASSUMPTIONS`, and the
-Aberdeen delivery tables — never a model call:
+Aberdeen delivery tables — never a model call. Training method, job-aid
+counts, comms milestone dates, sandbox seats, cascade scripts and
+supervisors-briefed are all short, directly-readable functions
+(`trainingDesign`, `jobAidPlan`, `tierCommsTimeline`, `resourcedPlan`) — read
+those rather than trusting a restatement here.
 
-- **Training method**: `trainingDesign(role)` — Inform tier or deskless → nano;
-  else by `complexityBand(impact)` (high/medium/low at 4.0/3.0) → instructor-led
-  or virtual; else by `headcount ≥ LARGE_AUDIENCE (200)` → web-based vs virtual.
-- **Job-aid count**: `jobAidPlan(impact)` via `JOB_AID_BANDS`.
-- **Comms milestone dates**: `tierCommsTimeline` spaces milestones across
-  `±hypercareWeeks`; `dateFromGoLive` converts to calendar dates using the
-  **project's own** `goLiveDate`.
-- **Sandbox seats**: per-role via `sandboxSeatsPerHead`; portfolio-wide via
-  `ASSUMPTIONS.sandboxSeatRatio` in `resourcedPlan`.
-- **Cascade scripts**: 1 per Rebuild role + 1 per non-Rebuild role with
-  `decisionRights ≥ 4`.
-- **Supervisors briefed**: `ceil(heads(Rebuild+Enable+Reassure) /
-  ASSUMPTIONS.supervisorSpanOfControl)`.
 - **Budget share**: `aggregate()` weights headcount by the per-tier weight in
   `BUDGET_WEIGHT_PER_TIER` (derived from the `BUDGET_WEIGHTS` array, a
   module-level constant, not part of `ASSUMPTIONS`), calibrated against
