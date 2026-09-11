@@ -210,7 +210,7 @@ a { color: var(--aberdeen-blue); }
 }
 .topbar-row {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  max-width: 1200px; margin: 0 auto; width: 100%;
+  max-width: 980px; margin: 0 auto; width: 100%;
 }
 /* Deliberately spaced groups, not items scattered along the bar: brand,
    then project context (visually separated by a hairline rule), then
@@ -257,7 +257,7 @@ a { color: var(--aberdeen-blue); }
 /* The brief, non-toast reaction to a weight change: what just moved,
    fading in under the header, gone again a few seconds later. */
 .weight-flash {
-  max-width: 1200px; margin: 10px auto 0; width: 100%;
+  max-width: 980px; margin: 10px auto 0; width: 100%;
   font-size: 12.5px; color: var(--live); background: var(--live-wash);
   border-radius: var(--radius-s) var(--radius-s) 0 0; padding: 6px var(--space-12);
   animation: weight-flash-in .25s ease-out;
@@ -274,7 +274,7 @@ a { color: var(--aberdeen-blue); }
 }
 
 .tabs {
-  display: flex; gap: 2px; max-width: 1200px; margin: 6px auto 0; width: 100%;
+  display: flex; gap: 2px; max-width: 980px; margin: 6px auto 0; width: 100%;
   overflow-x: auto;
 }
 .tab {
@@ -295,12 +295,13 @@ a { color: var(--aberdeen-blue); }
   border-bottom-color: var(--page); border-top-color: var(--aberdeen-blue);
 }
 
-/* 1200px, not 1560 - at very wide viewports (1900px+) the page was
-   sprawling, which also meant the square chart's column got far wider
-   than the square itself needs, exaggerating how much "leftover" space
-   sat beside it. Capping page width keeps the two-column proportions
-   reading as intentional at any viewport. */
-.main { flex: 1; max-width: 1200px; margin: 0 auto; width: 100%; padding: var(--space-24) 28px var(--space-64); }
+/* 980px: narrow enough that the chart column (see .dashboard-grid below)
+   is only about as wide as the square itself needs to be. A square's side
+   is capped by available height, so the only way for it to fill its
+   column - rather than sit in a wide column with empty space beside it -
+   is for the column to be about that same width. Wider page widths
+   (1560, then 1500, then 1200) each still left that gap. */
+.main { flex: 1; max-width: 980px; margin: 0 auto; width: 100%; padding: var(--space-24) 28px var(--space-64); }
 
 /* ------------------------------------------------------------- project picker */
 
@@ -630,7 +631,15 @@ a { color: var(--aberdeen-blue); }
    is given (flex: 1 on .map-wrap), so the Inform card's bottom edge and
    the chart's bottom edge land together regardless of which one would
    naturally be taller on its own. */
-.dashboard-grid { display: grid; grid-template-columns: 3fr 7fr; gap: var(--space-16); align-items: stretch; flex: 1; min-height: 0; }
+/* Cards get a fixed 290px, not a fraction of the column: at this page's
+   980px max-width the two-column split never has to adapt to a wider
+   viewport (max-width caps it first), so a fixed width is simpler than a
+   ratio, and it's the width the 2x2 metric grid was actually checked
+   against. The chart column takes whatever's left (1fr) - at 980px page
+   width that's roughly 620px, just over the square's own 600px cap (see
+   .chart-square), which is exactly why the square now fills it instead of
+   sitting in a wide column with empty space beside it. */
+.dashboard-grid { display: grid; grid-template-columns: 290px 1fr; gap: var(--space-16); align-items: stretch; flex: 1; min-height: 0; }
 .dashboard-cards { display: flex; flex-direction: column; gap: var(--space-16); min-width: 0; }
 /* flex-grow: 1, flex-shrink: 0, flex-basis: auto - each card is NEVER
    smaller than its own natural content height (name + the 2x2 metrics
@@ -644,11 +653,9 @@ a { color: var(--aberdeen-blue); }
 .dashboard-chart-col { display: flex; flex-direction: column; min-width: 0; }
 /* The plot is a true square (see .chart-square in the heat-map section
    below), sized from height alone - never stretched to the column's
-   width, which is wider than the square at any normal viewport. .map-wrap
-   fills whatever height this column ends up with; its own internal
-   .chart-square-frame is the flexible part (the legend row keeps its
-   natural size), so extra height goes into growing the square, not into
-   distorting it or leaving a gap the legend has to chase. */
+   width. .map-wrap fills whatever height this column ends up with; its
+   own internal .chart-square-frame is the flexible part, so extra height
+   goes into growing the square, not into distorting it. */
 .dashboard-chart-col > .map-wrap { flex: 1; }
 
 @media (max-width: 1100px) {
@@ -666,13 +673,8 @@ a { color: var(--aberdeen-blue); }
   .dashboard-grid { grid-template-columns: 1fr; flex: none; }
   .dashboard-cards > .tier-tile { flex: none; }
   .dashboard-chart-col > .map-wrap { flex: none; }
-  /* The side rail moves below the square instead of beside it - there
-     isn't width to spare for both at a stacked, narrow layout. */
-  .chart-plot-row { flex-direction: column; }
-  .chart-square-frame { flex: none; aspect-ratio: 1 / 1; width: 100%; max-width: 460px; margin: 0 auto; padding-left: 0; }
+  .chart-square-frame { flex: none; aspect-ratio: 1 / 1; width: 100%; max-width: 460px; margin: 0 auto; padding-left: 0; justify-content: center; }
   .chart-square { height: auto; width: 100%; max-height: none; }
-  .chart-side-rail { flex-direction: row; flex-wrap: wrap; justify-content: center; padding-right: 0; }
-  .chart-side-rail .card-head-select { width: auto; }
 }
 
 /* A shorter viewport (a 720p laptop screen, browser chrome included) gets
@@ -735,38 +737,25 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 /* No card, no border, no background here on purpose: the plot is the
    object on this screen, not a panel holding one - it sits directly on
    the page. .map-wrap fills whatever height .dashboard-chart-col gives it
-   (flex: 1, set on .dashboard-chart-col > .map-wrap above). */
+   (flex: 1, set on .dashboard-chart-col > .map-wrap above), and now that
+   there is nothing beside the square (no side rail, no legend row), the
+   frame IS the wrap's one child. */
 .map-wrap { position: relative; display: flex; flex-direction: column; }
-/* The square can't fill this row at any normal column width (it's sized
-   from height, capped besides - see .chart-square), so the width it
-   leaves over goes to a side rail (the site filter and the bubble-size
-   key) instead of sitting empty. */
-.chart-plot-row { display: flex; flex: 1; min-height: 0; gap: var(--space-16); }
-/* The square itself is sized from height alone, capped so it doesn't
-   grow past a sensible size on very tall viewports, and centered in
-   whatever width the frame has - both axes run 1-5, so a plot that isn't
-   a true square (equal pixel width and height) would misrepresent them.
-   The left padding is a deliberate margin so the square never sits flush
-   against the cards column next to it. */
+/* The square itself is sized from height alone, capped so it doesn't grow
+   past a sensible size on very tall viewports - both axes run 1-5, so a
+   plot that isn't a true square (equal pixel width and height) would
+   misrepresent them. justify-content: flex-end pushes it to the frame's
+   right edge - at this page's 980px max-width the column is only a little
+   wider than the square's own cap, so this is what makes it fill the
+   column with no empty band on the right; the padding-left is a small,
+   deliberate margin so it still doesn't sit flush against the cards
+   column, and any leftover slack (the column being a little wider than
+   the square plus that margin) lands on the left, not the right. */
 .chart-square-frame {
-  flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
+  flex: 1; min-height: 0; display: flex; align-items: center; justify-content: flex-end;
   padding-left: var(--space-12);
 }
-.chart-square { display: block; height: 100%; width: auto; max-width: 100%; max-height: 460px; aspect-ratio: 1 / 1; }
-/* The side rail: fixed to its content's own natural width (the filter
-   select), never stretched - it's a shelf for controls, not a second
-   column competing with the square for space. */
-.chart-side-rail {
-  flex: none; display: flex; flex-direction: column; justify-content: center;
-  gap: var(--space-12); padding-right: var(--space-4);
-}
-.chart-side-rail .card-head-select { margin-left: 0; width: 100%; }
-/* Stacked (the circles above the caption), not side by side - a rail
-   this narrow has no room for "svg beside text." */
-.map-legend {
-  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4);
-  font-size: 11px; color: var(--ink-2);
-}
+.chart-square { display: block; height: 100%; width: auto; max-width: 100%; max-height: 600px; aspect-ratio: 1 / 1; }
 
 .pt { cursor: pointer; opacity: 1; transition: opacity .15s ease; }
 /* .mark, not circle.mark, only because pointMark() still returns the

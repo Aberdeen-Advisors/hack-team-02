@@ -4074,7 +4074,7 @@ function pointMark(tier, cx, cy, r, extraProps) {
   return <circle cx={cx} cy={cy} r={r} fill={TIERS[tier].hex} fillOpacity="0.78" {...extraProps} />;
 }
 
-const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect, filterControl }) {
+const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
   const [tip, setTip] = useState(null);
   const wrap = useRef(null);
   // Motion bookkeeping: the <g> DOM node per role id, and the last screen
@@ -4198,16 +4198,14 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect, filte
 
   return (
     <div className="map-wrap" ref={wrap}>
-      {/* .chart-plot-row holds the square and the side rail side by side -
-          the square can never fill this row at typical widths (it's sized
-          from height, not width), so the rail uses the width the square
-          leaves behind instead of that space just sitting empty. */}
-      <div className="chart-plot-row">
-      {/* .chart-square-frame centers the plot horizontally and is the flex
-          child that actually grows to fill the row's height; .chart-square
-          (the svg itself) is sized from that height alone (height: 100%,
-          aspect-ratio: 1, width: auto, max-height capped in styles.css) -
-          a true square, never stretched to the frame's width. */}
+      {/* .chart-square-frame is the flex child that grows to fill the
+          wrap's height; .chart-square (the svg itself) is sized from that
+          height alone (height: 100%, aspect-ratio: 1, width: auto,
+          max-height capped in styles.css) - a true square, never stretched
+          to the frame's width. justify-content: flex-end (in styles.css)
+          pushes it to the frame's right edge, so it fills the column with
+          no gap on the right - any slack lands on the left instead, as a
+          small margin against the cards. */}
       <div className="chart-square-frame">
       <svg className="chart-square" viewBox={`0 0 ${MAP.w} ${MAP.h}`} role="img"
            aria-label="Impact severity against adoption risk, one point per role, colored by intervention tier."
@@ -4270,26 +4268,6 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect, filte
           </g>
         ))}
       </svg>
-      </div>
-
-      {/* The side rail: the width the square leaves behind in this column,
-          used for the site filter and the bubble-size key instead of left
-          empty. The tier colour legend that used to sit here too was pure
-          duplication - the four tier cards sit immediately to the chart's
-          left, in the same four colours, with their names spelled out. */}
-      <div className="chart-side-rail">
-        {filterControl}
-        <div className="map-legend">
-          {/* Stacked now, not side by side - there isn't the width for
-              "svg beside text" in a rail this narrow. */}
-          <svg viewBox="0 0 76 26" width="76" height="26" aria-hidden="true">
-            <circle cx="6" cy="21" r="4" fill="var(--ink-3)" fillOpacity=".45" />
-            <circle cx="21" cy="18" r="7" fill="var(--ink-3)" fillOpacity=".45" />
-            <circle cx="43" cy="13" r="11" fill="var(--ink-3)" fillOpacity=".45" />
-          </svg>
-          <span>point area = headcount</span>
-        </div>
-      </div>
       </div>
 
       <p id="role-site-table-desc" className="sr">
@@ -4649,14 +4627,16 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
           </div>
 
           {/* No card chrome here on purpose: the plot itself, not a panel
-              containing it, is the object on this screen. The site filter
-              now lives in HeatMap's own side rail, beside the square, not
-              in this title row - nothing else competes with the label. */}
+              containing it, is the object on this screen. The filter sits
+              top right, aligned to the plot's own right edge (both the
+              label row and the square fill the same column width now that
+              there's no side rail splitting it). */}
           <div className="dashboard-chart-col">
             <div className="chart-head-row">
               <h3 className="chart-card-label">Impact severity × adoption risk</h3>
+              {siteFilterControl}
             </div>
-            <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} filterControl={siteFilterControl} />
+            <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
           </div>
         </div>
 
