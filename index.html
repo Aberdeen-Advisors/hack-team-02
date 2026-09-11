@@ -3942,7 +3942,6 @@ const Tile = React.memo(function Tile({ label, value, meta, rule, accent, emptyN
       </div>
       <div className="value">
         {animated ? <span ref={valueRef}>{formattedValue}</span> : formattedValue}
-        {simulated && <span className="sim-tag">Simulated</span>}
       </div>
       {meta && <div className="meta">{meta}</div>}
     </div>
@@ -5777,7 +5776,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
     <>
       <div className="view-head">
         <h2>Adoption: tracking since go-live</h2>
-        <p className="lede">{liveLede} Training completion and adoption metrics below are simulated for this demo, not measured.</p>
+        <p className="lede">{liveLede} Training completion and adoption metrics below are illustrative for this demo, not measured.</p>
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
@@ -5791,7 +5790,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
 
       <div className="card simulated" style={{ marginBottom: 'var(--space-16)' }} ref={barsRef}>
         <div className="card-head">
-          <h3>Training completion by tier <span className="sim-tag">Simulated</span></h3>
+          <h3>Training completion by tier</h3>
           <span className="hint">Ramps toward a tier-specific ceiling with days live. Editable for this demo.</span>
         </div>
         <div className="card-body">
@@ -5808,7 +5807,6 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
                     <input type="number" min="0" max="100" value={completion[t]}
                            onChange={(e) => setCompletion((c) => ({ ...c, [t]: Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)) }))}
                            style={{ width: 56, textAlign: 'right' }} aria-label={`${t} training completion percent`} />
-                    <span className="sim-tag">Simulated</span>
                   </span>
                 </div>
                 <div className="bar"><i style={{ width: `${completion[t]}%`, background: TIERS[t].hex }} /></div>
@@ -5848,7 +5846,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
       <EffortWeightingPanel agg={agg} />
 
       <div className="card simulated">
-        <div className="card-head"><h3>Qualitative feedback <span className="sim-tag">Simulated</span></h3></div>
+        <div className="card-head"><h3>Qualitative feedback</h3></div>
         <div className="card-body"><p style={{ margin: 0 }}>{metrics.qualitative}</p></div>
       </div>
     </>

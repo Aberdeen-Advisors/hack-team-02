@@ -525,21 +525,15 @@ a { color: var(--aberdeen-blue); }
    reads as a deliberate finding, a bold 0 reads as a KPI regressing. */
 .tile .value.dash { color: var(--ink-3); font-weight: 400; }
 
-/* Simulated/editable demo data (Adoption tab) gets a consistently
-   different container from computed plan output, everywhere it appears -
-   not just a sentence at the top of the page a reader has already
-   scrolled past by the time they reach the number. */
+/* Editable demo data (Adoption tab) still gets a quieter, dashed container
+   than computed plan output, so a reader can tell at a glance which cards
+   hold a number they can edit versus one that's derived - no on-card label
+   needed for that distinction. */
 .tile-simulated, .card.simulated {
   background: var(--surface-sunk); border-style: dashed; border-color: var(--hairline-strong);
 }
 .card.simulated > .card-head { border-bottom-style: dashed; border-bottom-color: var(--hairline-strong); }
-.sim-tag {
-  display: inline-block; font-size: 9.5px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase;
-  color: var(--ink-3); background: var(--surface); border: 1px solid var(--hairline-strong);
-  border-radius: 3px; padding: 1px 5px; margin-left: 7px; vertical-align: middle;
-}
 .tile-simulated .value { font-size: 22px; }
-.tile-simulated .sim-tag { vertical-align: 4px; }
 
 /* A full border in the tier's own color plus a strengthened tint, so the
    card reads as deliberately belonging to its tier at a glance - a single,
