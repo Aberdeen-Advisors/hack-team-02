@@ -5772,8 +5772,11 @@ const RedesignRow = React.memo(function RedesignRow({ role, onSelect }) {
       <button type="button" className="draft-row-head" onClick={() => setOpen((o) => !o)}>
         <span className="drn">{role.role}</span>
         <span className="drm">{role.siteArchetype} · {pluralize(role.headcount || 0, 'person', 'people')}</span>
-        <span className="drm n" title={`${role.tasksRemoved || 0} tasks removed, ${role.tasksChanged || 0} changed, ${role.tasksNew || 0} new, FTE delta ${signed(fte)}`}>
-          −{role.tasksRemoved || 0} removed · ~{role.tasksChanged || 0} changed · +{role.tasksNew || 0} new · FTE {signed(fte)}
+        <span className="drm-stats" title={`${role.tasksRemoved || 0} tasks removed, ${role.tasksChanged || 0} changed, ${role.tasksNew || 0} new, FTE delta ${signed(fte)}`}>
+          <span className="stat"><i className="stat-lbl">removed</i><b className="stat-val">−{role.tasksRemoved || 0}</b></span>
+          <span className="stat"><i className="stat-lbl">changed</i><b className="stat-val">~{role.tasksChanged || 0}</b></span>
+          <span className="stat"><i className="stat-lbl">new</i><b className="stat-val">+{role.tasksNew || 0}</b></span>
+          <span className="stat"><i className="stat-lbl">FTE</i><b className="stat-val">{signed(fte)}</b></span>
         </span>
         {role.complete ? <TierBadge tier={role.tier} /> : <span className="incflag">incomplete</span>}
         <span className="drx" aria-hidden="true">{open ? '▲' : '▼'}</span>
@@ -6515,10 +6518,139 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
    rather than guessing.
    =========================================================================== */
 
+/* Words the free-text matcher below should never treat as meaningful on
+   their own: too generic to point at any one role, tier, tab or metric.
+   Short common English function words plus a handful of domain words
+   ("role", "system", "change"...) that would otherwise match almost
+   everything and drown out a real entity. */
+const ASK_STOPWORDS = new Set([
+  'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'do', 'does', 'did', 'to', 'of', 'in', 'on',
+  'at', 'by', 'or', 'and', 'if', 'so', 'no', 'up', 'my', 'me', 'we', 'he', 'she', 'it', 'i',
+  'what', 'why', 'how', 'who', 'when', 'where', 'which', 'this', 'that', 'these', 'those',
+  'with', 'have', 'has', 'from', 'they', 'their', 'about', 'would', 'could', 'should',
+  'more', 'most', 'less', 'least', 'into', 'than', 'then', 'also', 'been', 'being',
+  'role', 'roles', 'system', 'systems', 'change', 'changes', 'changing', 'changed',
+  'people', 'person', 'work', 'works', 'worker', 'workers', 'staff', 'team', 'teams',
+  'group', 'groups', 'need', 'needs', 'needed', 'affect', 'affects', 'affected', 'impacted',
+  'get', 'gets', 'got', 'like', 'just', 'really', 'actually', 'here', 'there', 'out', 'for',
+]);
+
+/* Crude but sufficient singularization for matching "nurses" -> "nurse",
+   "processes" -> "process" against role names - not a real stemmer, just
+   enough to cover plain English plurals in role titles and questions. */
+function singularize(w) {
+  if (w.length > 4 && w.endsWith('ies')) return w.slice(0, -3) + 'y';
+  if (w.length > 5 && (w.endsWith('sses') || w.endsWith('ches') || w.endsWith('shes'))) return w.slice(0, -2);
+  if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') && !w.endsWith('us')) return w.slice(0, -1);
+  return w;
+}
+
+/* Tokenize into meaningful, singularized, lower-case words - shared by the
+   question side and the role/tab-name side of every entity match below, so
+   "nurses" and "Nurse" tokenize to the same thing. */
+function meaningfulWords(s) {
+  return (String(s || '').toLowerCase().match(/[a-z0-9&]+/g) || [])
+    .map(singularize)
+    .filter((w) => w.length >= 2 && !ASK_STOPWORDS.has(w));
+}
+
+/* Role-name entity detection. An exact full-name match (typing the role
+   name verbatim) always wins outright; otherwise every role is scored by
+   how many of ITS OWN distinctive words appear in the question, and only
+   the role(s) at the highest overlap are returned - "the AP Specialist"
+   matches AP Specialist alone (both its words hit), not every other
+   "...Specialist" role that only shares the one generic word. Plural and
+   partial mentions ("nurses", "scheduler") work because both sides go
+   through the same tokenizer. */
 function findRoleMatches(q, roles) {
-  const needle = q.trim().toLowerCase();
-  if (needle.length < 3) return [];
-  return roles.filter((r) => r.role.toLowerCase().includes(needle));
+  const needleFull = q.trim().toLowerCase();
+  if (needleFull.length >= 3) {
+    const exact = roles.filter((r) => r.role.toLowerCase() === needleFull);
+    if (exact.length) return exact;
+  }
+  const qWords = new Set(meaningfulWords(q));
+  if (!qWords.size) return [];
+  const scored = roles
+    .map((r) => ({ r, overlap: new Set(meaningfulWords(r.role).filter((w) => qWords.has(w))).size }))
+    .filter((x) => x.overlap > 0);
+  if (!scored.length) return [];
+  const maxOverlap = Math.max(...scored.map((x) => x.overlap));
+  return scored.filter((x) => x.overlap === maxOverlap).map((x) => x.r);
+}
+
+/* Tier-name entity: a literal Rebuild/Enable/Reassure/Inform mention. */
+function detectTierEntity(q) {
+  return TIER_ORDER.find((t) => new RegExp(`\\b${t}\\b`, 'i').test(q)) || null;
+}
+
+function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+/* Site/site-type entity: only ever matched against site tokens that
+   actually exist in THIS project's data (a role's own siteArchetype, split
+   on "+" for combos, plus the project's declared base archetypes) - never
+   a hardcoded "HQ/Plant/DC" list, so this degrades correctly for Ashford's
+   single "HQ" and still catches Bellcrest's/Thornwood's own vocabulary.
+   Longest token first so "Field/Commercial" isn't shadowed by a shorter
+   partial. */
+function detectSiteEntity(q, scored, project) {
+  const tokens = new Set();
+  scored.forEach((r) => archetypeParts(r.siteArchetype).forEach((p) => tokens.add(p)));
+  (project.siteArchetypeBase || []).forEach((p) => tokens.add(p));
+  const sorted = [...tokens].sort((a, b) => b.length - a.length);
+  for (const t of sorted) {
+    if (new RegExp(`\\b${escapeRegex(t)}\\b`, 'i').test(q)) return t;
+  }
+  return null;
+}
+
+/* Tab entity: the five tab labels plus a few plain-language aliases for
+   ones a reader wouldn't necessarily call by their on-screen name
+   ("comms", "before and after", "heat map"). */
+const ASK_TAB_ALIASES = {
+  portfolio: ['stakeholder impact', 'stakeholder', 'heat map', 'heatmap', 'quadrant'],
+  redesign: ['redesign', 'before and after', 'before/after', 'task list', 'before-after'],
+  training: ['training'],
+  comms: ['communication', 'communications', 'comms', 'message draft', 'town hall'],
+  plan: ['adoption'],
+};
+function detectTabEntity(q) {
+  const needle = q.toLowerCase();
+  for (const t of ALL_TABS) {
+    if (needle.includes(t.label.toLowerCase())) return t;
+  }
+  for (const [id, aliases] of Object.entries(ASK_TAB_ALIASES)) {
+    if (aliases.some((a) => needle.includes(a))) return { id, label: TAB_LABELS[id] };
+  }
+  return null;
+}
+
+/* Metric/number entity: a named figure the tool tracks, for "what is this
+   number" and for steering other intents (training cost, headcount) to
+   the right scope. */
+const ASK_METRICS = [
+  { key: 'impact', label: 'impact severity', re: /impact severity|impact score|\bimpact\b/i },
+  { key: 'risk', label: 'adoption risk', re: /adoption risk|risk score|\brisk\b/i },
+  { key: 'headcount', label: 'headcount', re: /\bheadcount\b|how many people|population size/i },
+  { key: 'fte', label: 'full-time equivalent (FTE) delta', re: /\bfte\b|full-time equivalent/i },
+  { key: 'trainingHours', label: 'total required training hours', re: /training hours|hours of training|curriculum hours|required hours/i },
+  { key: 'trainerDays', label: 'trainer-days', re: /trainer.?days?/i },
+  { key: 'budget', label: 'share of change effort', re: /budget|share of (the )?effort|effort share/i },
+];
+function detectMetricEntity(q) {
+  return ASK_METRICS.find((m) => m.re.test(q)) || null;
+}
+
+/* Every entity type detected once per question, so every intent below
+   works from the same read of "what is this question actually about"
+   instead of re-parsing the raw string itself. */
+function detectEntities(q, ctx, allRoles) {
+  return {
+    roleMatches: findRoleMatches(q, allRoles),
+    tier: detectTierEntity(q),
+    site: detectSiteEntity(q, ctx.scored, ctx.project),
+    tab: detectTabEntity(q),
+    metric: detectMetricEntity(q),
+  };
 }
 
 const bySeverity = (a, b) => (b.scores.impact + b.scores.risk) - (a.scores.impact + a.scores.risk);
@@ -6547,7 +6679,9 @@ const TIER_PLAIN = {
   },
 };
 
-function askWhichRolesMatter({ project, scored }) {
+function askWhichRolesMatter(ctx, q, entities) {
+  if (entities && entities.site) return askAboutSite(ctx, entities.site);
+  const { project, scored } = ctx;
   const agg = aggregate(scored);
   const rebuild = agg.byTier.Rebuild;
   if (rebuild.roles === 0) {
@@ -6581,9 +6715,8 @@ function askWhichRolesMatter({ project, scored }) {
   };
 }
 
-function askWhatTierMeans({ project, scored }, raw) {
-  const named = TIER_ORDER.find((t) => new RegExp(t, 'i').test(raw || ''));
-  const tier = named || 'Rebuild';
+function askWhatTierMeans({ project, scored }, raw, entities) {
+  const tier = (entities && entities.tier) || TIER_ORDER.find((t) => new RegExp(t, 'i').test(raw || '')) || 'Rebuild';
   const plain = TIER_PLAIN[tier];
   const agg = aggregate(scored);
   const b = agg.byTier[tier];
@@ -6636,29 +6769,34 @@ function askDeskless({ project, scored }) {
   };
 }
 
-function askWhereStart({ project, scored }) {
-  const agg = aggregate(scored);
+function askWhereStart({ project, scored }, q, entities) {
+  const pool = entities && entities.site ? scored.filter((r) => archetypeParts(r.siteArchetype).includes(entities.site)) : scored;
+  const scopeNote = entities && entities.site ? ` at ${entities.site}` : '';
+  const agg = aggregate(pool);
   const rebuild = agg.byTier.Rebuild;
+  if (!pool.length) {
+    return { text: [`No role at ${project.name} is scoped to ${entities.site}.`], chips: ['which-matter'] };
+  }
   if (rebuild.roles === 0) {
     const heaviest = heaviestTierBelowRebuild(agg);
     if (!heaviest) {
       return {
-        text: [`There's no obvious starting point - nothing at ${project.name} needs more than being told what's changing.`],
+        text: [`There's no obvious starting point - nothing${scopeNote} at ${project.name} needs more than being told what's changing.`],
         chips: ['which-matter', 'how-scored'],
       };
     }
-    const roles = scored.filter((r) => r.tier === heaviest).sort(bySeverity);
+    const roles = pool.filter((r) => r.tier === heaviest).sort(bySeverity);
     const b = agg.byTier[heaviest];
     return {
-      text: [`Start with the roles that need the most support: ${pluralize(b.roles, 'role')}, ${b.people.toLocaleString()} people at ${project.name}.`],
+      text: [`Start with the roles that need the most support${scopeNote}: ${pluralize(b.roles, 'role')}, ${b.people.toLocaleString()} people at ${project.name}.`],
       roleLinks: roles.slice(0, 3),
       chips: [{ label: `What does ${heaviest} mean?`, question: `What does ${heaviest} mean?` }, 'how-scored'],
     };
   }
-  const roles = scored.filter((r) => r.tier === 'Rebuild').sort(bySeverity);
+  const roles = pool.filter((r) => r.tier === 'Rebuild').sort(bySeverity);
   return {
     text: [
-      `Start with the roles where the job is changing most and people are most likely to struggle: ${pluralize(rebuild.roles, 'role')}, ${rebuild.people.toLocaleString()} people.`,
+      `Start with the roles${scopeNote} where the job is changing most and people are most likely to struggle: ${pluralize(rebuild.roles, 'role')}, ${rebuild.people.toLocaleString()} people.`,
       `We'll also check back in on them every ${pluralize(DOSES.Rebuild.rescoreDays, 'day')} - more often than any other group - so you get an early read on whether it's actually working.`,
     ],
     roleLinks: roles.slice(0, 3),
@@ -6693,39 +6831,316 @@ function askAboutRoleMatches(matches) {
   };
 }
 
+function askAboutSite({ project, scored }, site) {
+  const roles = scored.filter((r) => archetypeParts(r.siteArchetype).includes(site)).sort(bySeverity);
+  if (!roles.length) return { text: [`No role at ${project.name} is scoped to ${site}.`], chips: ['which-matter'] };
+  const headcount = roles.reduce((s, r) => s + r.headcount, 0);
+  const top = roles[0];
+  return {
+    text: [
+      `${pluralize(roles.length, 'role')} touch ${site} at ${project.name}, ${headcount.toLocaleString()} people.`,
+      `Worst affected there: ${top.role}, impact ${top.scores.impact.toFixed(1)} and risk ${top.scores.risk.toFixed(1)} out of 5.`,
+    ],
+    roleLinks: roles.slice(0, 5),
+    chips: ['which-matter', 'how-scored'],
+  };
+}
+
+const TAB_BLURB = {
+  portfolio: "Stakeholder Impact is the portfolio view: every role plotted by impact and risk on the heat map, with the weighting controls that drive it.",
+  redesign: "Redesign lists exactly what changes for every role - the before and after task lists, side by side, and the FTE effect.",
+  training: "Training turns each role's tier into an actual staffable delivery plan: hours, method, how-to guides, sessions and trainer-days.",
+  comms: "Communication is the milestone timeline by tier, plus the generated message drafts for every role.",
+  plan: "Adoption is what happens after go-live: the support plan and the metrics used to tell whether it's working.",
+};
+function askAboutTab(ctx, tabEntity) {
+  return { text: [TAB_BLURB[tabEntity.id] || `${tabEntity.label} is one of the five tabs.`], chips: ['which-matter', 'how-scored'] };
+}
+
+const ASK_METRIC_EXPLAIN = {
+  impact: "How much of this role's day-to-day work actually changes, out of 5 - built from three things: how much of the daily task load changes, how often that task happens, and what goes wrong if someone gets it wrong.",
+  risk: "How likely people in this role are to struggle with the change, out of 5 - built from how much decision-making authority moves to the system, how big the skill gap is, and how ready that population already is.",
+  headcount: "How many people currently do this job. Drives every per-head number on the page - seats, sessions, budget share.",
+  fte: "The net change in full-time-equivalent staffing this role's redesign implies. Negative means less headcount is needed for the same work.",
+  trainingHours: "The total hours of required training a role's tier calls for - set by tier alone, the same for everyone in that tier whether or not they work at a desk.",
+  trainerDays: "How many trainer-days it takes to actually staff and deliver training to everyone in a role, given how many people fit in one session.",
+  budget: "What share of the total change effort this group of roles is expected to absorb, weighted by how much support each tier needs, not just headcount.",
+};
+function askAboutMetric(ctx, q, entities) {
+  const m = entities.metric;
+  return { text: [ASK_METRIC_EXPLAIN[m.key] || `${m.label} is one of the figures this tool tracks.`], chips: ['how-scored', 'which-matter'] };
+}
+
+function askWhatIsThisTool({ project, scored }) {
+  const agg = aggregate(scored);
+  return {
+    text: [
+      `This is a change impact assessment for ${project.name}: it scores every role on how much the work changes and how likely people are to struggle with it, then builds a training, communication and support plan straight from that score.`,
+      `${project.name} has ${pluralize(agg.totalRoles, 'role')} assessed, covering ${agg.totalPeople.toLocaleString()} people.`,
+      `Every number on screen traces back to the roles themselves - nothing here is invented on the fly.`,
+    ],
+    chips: ['which-matter', 'how-scored', 'where-start'],
+  };
+}
+
+function askTierOverview({ project, scored }) {
+  const agg = aggregate(scored);
+  const active = TIER_ORDER.filter((t) => agg.byTier[t].roles > 0);
+  return {
+    text: active.map((t) => `${t}: ${TIER_PLAIN[t].meaning} - ${pluralize(agg.byTier[t].roles, 'role')}, ${agg.byTier[t].people.toLocaleString()} people at ${project.name}.`),
+    chips: ['which-matter', 'how-scored'],
+  };
+}
+
+function askWhyTier(ctx, q, entities) {
+  if (entities.roleMatches.length === 1) return askAboutRole(entities.roleMatches[0]);
+  if (entities.roleMatches.length > 1 && entities.roleMatches.length <= 6) return askAboutRoleMatches(entities.roleMatches);
+  if (entities.tier) return askWhatTierMeans(ctx, q, entities);
+  return askTierOverview(ctx);
+}
+
+/* "What does it cost in training time" - scoped to whatever entity the
+   question named (specific roles, a tier, a site), or the whole project
+   if none did. Reuses the same aggregateTrainingLoad() the Training tab
+   itself renders from, so this can never disagree with that tab. */
+function askTrainingCost({ scored }, q, entities) {
+  let pool = scored, scopeText = 'the whole project';
+  if (entities.roleMatches.length >= 1 && entities.roleMatches.length <= 6) {
+    pool = entities.roleMatches;
+    scopeText = pool.length === 1 ? pool[0].role : `those ${pluralize(pool.length, 'role')}`;
+  } else if (entities.tier) {
+    pool = scored.filter((r) => r.tier === entities.tier);
+    scopeText = `${entities.tier} roles`;
+  } else if (entities.site) {
+    pool = scored.filter((r) => archetypeParts(r.siteArchetype).includes(entities.site));
+    scopeText = `roles at ${entities.site}`;
+  }
+  if (!pool.length) return { text: [`No roles match ${scopeText} to size training for.`], chips: ['which-matter'] };
+  const load = aggregateTrainingLoad(pool);
+  return {
+    text: [
+      `${scopeText === 'the whole project' ? 'Across the whole project' : `For ${scopeText}`}: ${load.totalHours.toLocaleString()} total training hours, needing about ${pluralize(Math.round(load.trainerDays), 'trainer-day')} to actually deliver.`,
+      `That covers ${pluralize(load.headcount, 'person', 'people')} across ${pluralize(pool.length, 'role')}.`,
+    ],
+    roleLinks: pool.length <= 5 ? pool : undefined,
+    chips: ['which-matter', 'how-scored'],
+  };
+}
+
+function askHowLong({ project, scored }) {
+  const agg = aggregate(scored);
+  const active = TIER_ORDER.filter((t) => agg.byTier[t].roles > 0);
+  const tail = Math.max(...active.map((t) => DOSES[t].hypercareWeeks || 0));
+  return {
+    text: [
+      project.goLiveDate
+        ? `Go-live is targeted for ${fmtShortDate(new Date(project.goLiveDate + 'T00:00:00'))}.`
+        : `No go-live date is set yet for ${project.name}.`,
+      `Extra support then runs on after that - the most-affected roles keep it for ${pluralize(tail, 'week')} past go-live before things settle into normal operation.`,
+      `Every role is also re-checked on a schedule after go-live - the roles needing the most support get checked most often.`,
+    ],
+    chips: ['which-matter', 'where-start'],
+  };
+}
+
+function askGoLive({ project, scored }) {
+  const agg = aggregate(scored);
+  const active = TIER_ORDER.filter((t) => agg.byTier[t].roles > 0);
+  const highSupport = agg.byTier.Rebuild.roles + agg.byTier.Enable.roles;
+  return {
+    text: [
+      `At go-live, every affected role gets a manager briefing or an email telling them what's live and where to get help - the exact channel depends on whether they work at a desk or on the floor.`,
+      highSupport > 0
+        ? `${pluralize(highSupport, 'role')} in the two highest-support groups also get a trained colleague on site and hands-on coaching starting that day.`
+        : `Nothing at ${project.name} needs that level of hands-on support at go-live.`,
+      `Extra support then continues for a set number of weeks per group: ${active.map((t) => `${t} ${DOSES[t].hypercareWeeks}`).join(' · ')}.`,
+    ],
+    chips: ['which-matter', 'where-start'],
+  };
+}
+
+function askWhoNeedsBriefing({ project, scored }) {
+  const need = scored.filter((r) => r.risk.decisionRights >= 4 || r.tier === 'Reassure');
+  if (!need.length) return { text: [`No role at ${project.name} needs an extra manager briefing beyond the standard plan right now.`], chips: ['which-matter'] };
+  const headcount = need.reduce((s, r) => s + r.headcount, 0);
+  return {
+    text: [
+      `${pluralize(need.length, 'role')} need an extra manager briefing - either their decision rights are changing, or they're in the group where the worry itself is the main thing to manage.`,
+      `That's ${headcount.toLocaleString()} people at ${project.name}.`,
+    ],
+    roleLinks: need.slice(0, 5),
+    chips: ['which-matter', 'how-scored'],
+  };
+}
+
+function askDataSource({ project }) {
+  return {
+    text: [
+      `${project.name}'s roles and figures here are illustrative and synthetic, built to show how the tool works - not a real client dataset.`,
+      `In a live engagement this same tool scores real roles from uploaded HR extracts, solution designs and current-state process documents - the "Add a role" flow shows that intake.`,
+    ],
+    chips: ['how-scored', 'which-matter'],
+  };
+}
+
+function askHowManyAffected({ project, scored }) {
+  const agg = aggregate(scored);
+  return {
+    text: [
+      `${agg.totalPeople.toLocaleString()} people across ${pluralize(agg.totalRoles, 'role')} at ${project.name}.`,
+      ...TIER_ORDER.filter((t) => agg.byTier[t].roles > 0).map((t) => `${t}: ${agg.byTier[t].people.toLocaleString()} people (${pct(agg.byTier[t].popShare)})`),
+    ],
+    chips: ['which-matter', 'how-scored'],
+  };
+}
+
+function askSimulatedVsComputed() {
+  return {
+    text: [
+      "Everything under Stakeholder Impact, Redesign, Training and Communication is computed directly from the roles you loaded - the same numbers, every time, for the same data.",
+      'A few figures on the Adoption tab are marked "simulated": since a project hasn\'t actually gone live yet, those are a plausible illustration of what the metric might look like over time, not a real reading. They\'re labelled wherever they appear.',
+    ],
+    chips: ['how-scored', 'which-matter'],
+  };
+}
+
+function askChangeWeighting() {
+  return {
+    text: [
+      "On the Stakeholder Impact tab, each of the six sub-factors has its own weight slider - drag one and every role's score, tier and the heat map all recompute live.",
+      "There's a reset control if you want to get back to the default weighting.",
+    ],
+    chips: ['how-scored', 'which-matter'],
+  };
+}
+
+/* Prepends a short "here's what I found" note to an existing answer,
+   without changing how that answer itself works - used only by the
+   fallback path below. */
+function withNote(answer, note) {
+  return { ...answer, text: [note, ...answer.text] };
+}
+
+/* The fallback is never a dead end. If ANY entity was detected at all -
+   even without a confident intent match - answer from that entity, same
+   as the main path would, just framed as a best guess. Only when nothing
+   in the question maps to anything this tool actually holds does it fall
+   back to a plain orientation answer - never a bare "I don't understand". */
+function askFallback(ctx, q, entities) {
+  if (entities.roleMatches.length === 1) {
+    return withNote(askAboutRole(entities.roleMatches[0]), `Not sure exactly what you're asking, but here's what I have on ${entities.roleMatches[0].role}.`);
+  }
+  if (entities.roleMatches.length > 1 && entities.roleMatches.length <= 6) {
+    return withNote(askAboutRoleMatches(entities.roleMatches), `Not sure exactly what you're asking, but a few roles match that.`);
+  }
+  if (entities.tier) {
+    return withNote(askWhatTierMeans(ctx, q, entities), `Not sure exactly what you're asking, but here's what the ${entities.tier} tier means.`);
+  }
+  if (entities.site) {
+    return withNote(askAboutSite(ctx, entities.site), `Not sure exactly what you're asking, but here's what I have on ${entities.site}.`);
+  }
+  if (entities.tab) {
+    return withNote(askAboutTab(ctx, entities.tab), `Not sure exactly what you're asking, but here's what the ${entities.tab.label} tab covers.`);
+  }
+  if (entities.metric) {
+    return withNote(askAboutMetric(ctx, q, entities), `Not sure exactly what you're asking, but here's what ${entities.metric.label} means.`);
+  }
+  const orient = askWhatIsThisTool(ctx);
+  return { text: [`Not sure exactly what you're asking - this only answers from ${ctx.project.name}'s own data, not general knowledge.`, ...orient.text], chips: ASK_ROOT_CHIPS };
+}
+
+/* Every intent this assistant recognizes, most-specific first so a broad
+   regex late in the list (e.g. how-scored's) never shadows a narrower one
+   that should have won. Each `run` always receives (ctx, q, entities) -
+   most only use ctx, a few use q/entities to specialize or scope the
+   answer to whatever entity was actually named. This list backs both
+   free-text matching (answerQuestion) and every chip in the app (a chip
+   is just this question's own `chip` text, run the same way typing it
+   would be). */
 const ASK_QUESTIONS = [
+  { id: 'why-tier', chip: 'Why is this role in this tier?',
+    keywords: /why (is|does|are).*(tier|rebuild|enable|reassure|inform|scored|sorted|grouped|land)/i,
+    run: askWhyTier },
   { id: 'which-matter', chip: 'Which roles actually matter?',
-    keywords: /matter|which roles?|most important|highest impact|top roles|worth (focusing|prioriti)/i,
+    keywords: /matter|which roles?|most important|highest impact|top roles|worth (focusing|prioriti)|worst affected|most affected|hit hardest|most impacted/i,
     run: askWhichRolesMatter },
   { id: 'what-rebuild', chip: 'What does Rebuild mean?',
     keywords: /what\s+(is|does)\s+(rebuild|enable|reassure|inform)|(rebuild|enable|reassure|inform)\s+mean/i,
     run: askWhatTierMeans },
-  { id: 'how-scored', chip: 'How were these scores calculated?',
-    keywords: /\bscore|calculat|threshold|weight|methodology|how.*work/i,
-    run: askHowScored },
+  { id: 'tier-overview', chip: 'What does each tier mean?',
+    keywords: /each tier|the (four|4) tiers|all (the )?tiers|different tiers/i,
+    run: askTierOverview },
   { id: 'deskless', chip: 'Why do people on the floor get different training?',
     keywords: /deskless|frontline|no desk|shift work|on the floor/i,
     run: askDeskless },
+  { id: 'training-cost', chip: 'What does it cost in training time?',
+    keywords: /training (hours?|time|cost|load|days?)|how (much|long).*train|trainer.?days?/i,
+    run: askTrainingCost },
+  { id: 'how-long', chip: 'How long will this take?',
+    keywords: /how long (will|does|is)|how long.*(take|last)|timeline|duration of (the|this) (program|project|change)/i,
+    run: askHowLong },
+  { id: 'go-live', chip: 'What happens at go-live?',
+    keywords: /(at |on )?go[- ]?live|cutover day|launch day/i,
+    run: askGoLive },
+  { id: 'who-briefing', chip: 'Who needs a manager briefing?',
+    keywords: /who needs?.*briefing|which roles?.*briefing|manager briefing/i,
+    run: askWhoNeedsBriefing },
+  { id: 'data-source', chip: 'Where does this data come from?',
+    keywords: /where.*(data|figures|numbers|information).*(come|from)|data source|synthetic|real data/i,
+    run: askDataSource },
+  { id: 'how-many-affected', chip: 'How many people are affected?',
+    keywords: /how many people|headcount|population size|total (people|headcount)/i,
+    run: askHowManyAffected },
   { id: 'where-start', chip: 'Where would we start?',
-    keywords: /where.*start|\bbegin\b|first step|priorit|sequence|kick ?off/i,
+    keywords: /where.*start|what should we do first|\bbegin\b|first step|priorit|sequence|kick ?off/i,
     run: askWhereStart },
+  { id: 'simulated-vs-computed', chip: 'What is simulated versus computed?',
+    keywords: /simulated|simulation|estimated vs|versus computed|is this real or/i,
+    run: askSimulatedVsComputed },
+  { id: 'change-weighting', chip: 'How do I change the weighting?',
+    keywords: /change the weight|adjust.*weight|weight.*slider|how do i weight/i,
+    run: askChangeWeighting },
+  { id: 'what-tab', chip: 'What is this tab for?',
+    keywords: /what.*(tab|page|screen|view) (for|show|do)|what (is|does) this (tab|page|screen)/i,
+    run: (ctx, q, entities) => (entities.tab ? askAboutTab(ctx, entities.tab) : askWhatIsThisTool(ctx)) },
+  { id: 'what-number', chip: 'What is this number?',
+    keywords: /what.*(this|that) number|what does .*(mean|represent)|what is (impact|risk|fte|headcount|trainer.?days)/i,
+    run: (ctx, q, entities) => (entities.metric ? askAboutMetric(ctx, q, entities) : askHowScored(ctx)) },
+  { id: 'how-scored', chip: 'How were these scores calculated?',
+    keywords: /\bscore|calculat|threshold|weight|methodology|how (is|are) (this|these|scores?) (built|calculated|worked out)|how does (this|scoring) work/i,
+    run: askHowScored },
+  { id: 'what-is-this', chip: 'What is this tool?',
+    keywords: /what is this( tool| app| dashboard| thing)?\??$|what am i looking at|what does this (do|show)/i,
+    run: (ctx) => askWhatIsThisTool(ctx) },
 ];
 
-/* Role names first (a project's own vocabulary always wins over a generic
-   question), then the five canonical questions. Never a fuzzy/partial
-   canonical match dressed up as confidence - if nothing hits, the caller
-   shows the "not sure" fallback and re-offers the suggested questions,
-   rather than this function guessing. */
+/* The five chips shown when the panel first opens - a small curated
+   starting set, not every intent above (which would be a wall of chips). */
+const ASK_ROOT_CHIPS = ['which-matter', 'what-rebuild', 'how-scored', 'deskless', 'where-start'];
+
+/* Entities first, then intent keywords, then a fallback that is never a
+   dead end (see askFallback). A confidently-matched intent runs with
+   whatever entities were also found, so "how much training do the
+   warehouse staff need" scopes to the warehouse roles rather than
+   answering for the whole project; a bare role-name question (no intent
+   keyword at all) still gets a full answer about that role. */
 function answerQuestion(raw, ctx) {
   const q = String(raw || '').trim();
   if (!q) return null;
   const allRoles = [...ctx.scored, ...ctx.incomplete];
-  const roleMatches = findRoleMatches(q, allRoles);
-  if (roleMatches.length === 1) return askAboutRole(roleMatches[0]);
-  if (roleMatches.length > 1 && roleMatches.length <= 6) return askAboutRoleMatches(roleMatches);
+  const entities = detectEntities(q, ctx, allRoles);
+
   const hit = ASK_QUESTIONS.find((qq) => qq.keywords.test(q));
-  if (hit) return hit.run(ctx, q);
-  return null;
+  if (hit) return hit.run(ctx, q, entities);
+
+  if (entities.roleMatches.length === 1) return askAboutRole(entities.roleMatches[0]);
+  if (entities.roleMatches.length > 1 && entities.roleMatches.length <= 6) return askAboutRoleMatches(entities.roleMatches);
+  if (entities.tier) return askWhatTierMeans(ctx, q, entities);
+  if (entities.site) return askAboutSite(ctx, entities.site);
+  if (entities.tab) return askAboutTab(ctx, entities.tab);
+  if (entities.metric) return askAboutMetric(ctx, q, entities);
+
+  return askFallback(ctx, q, entities);
 }
 
 // A chip is either a canonical question id (looked up here) or an inline
@@ -6798,7 +7213,7 @@ function AskAssistant({ project, tab, scored, incomplete, weights, onOpenRole })
       { from: 'user', text: q },
       answer
         ? { from: 'bot', ...answer }
-        : { from: 'bot', text: ["I'm not confident I understood that. Try one of these:"], chips: ASK_QUESTIONS.map((qq) => qq.id) },
+        : { from: 'bot', text: ["I'm not confident I understood that. Try one of these:"], chips: ASK_ROOT_CHIPS },
     ]);
     setInput('');
   }, [ctx]);
@@ -6824,7 +7239,7 @@ function AskAssistant({ project, tab, scored, incomplete, weights, onOpenRole })
 
   const lastMsg = messages[messages.length - 1];
   const showRootChips = messages.length === 0;
-  const chipSource = showRootChips ? ASK_QUESTIONS.map((q) => q.id) : (lastMsg && lastMsg.from === 'bot' ? (lastMsg.chips || []) : []);
+  const chipSource = showRootChips ? ASK_ROOT_CHIPS : (lastMsg && lastMsg.from === 'bot' ? (lastMsg.chips || []) : []);
   const chips = chipSource.map(resolveAskChip).filter(Boolean);
 
   return (

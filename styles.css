@@ -492,6 +492,16 @@ a { color: var(--aberdeen-blue); }
 .draft-row-head .drn { font-weight: 500; font-size: 14px; flex: none; }
 .draft-row-head .drm { color: var(--ink-2); font-size: 12.5px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .draft-row-head .drx { color: var(--ink-3); font-size: 11px; flex: none; }
+
+/* Four fixed-width sub-columns, not one string of varying length - each
+   column's own width never changes row to row, so the number at its right
+   edge lines up down the whole list regardless of how long any other
+   row's numbers or labels are. Labels stay small and quiet; only the
+   value is bold/tabular. */
+.draft-row-head .drm-stats { display: flex; flex: none; gap: var(--space-12); }
+.draft-row-head .stat { display: flex; align-items: baseline; justify-content: flex-end; gap: 4px; width: 74px; }
+.draft-row-head .stat-lbl { font-style: normal; font-size: 10.5px; color: var(--ink-3); white-space: nowrap; }
+.draft-row-head .stat-val { font-size: 12.5px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .draft-row-body { padding: var(--space-4) var(--space-16) var(--space-16); border-top: 1px solid var(--hairline); display: grid; gap: 14px; }
 
 .score-badge {
