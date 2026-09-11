@@ -381,13 +381,13 @@ a { color: var(--aberdeen-blue); }
 
 .ai-rationale { font-size: 12px; color: var(--ink-2); margin-top: 5px; line-height: 1.4; }
 
-.view-head { margin-bottom: 18px; }
+.view-head { margin-bottom: 14px; }
 /* Section heading: ExtraLight per the type scale, Aberdeen Blue, with a
    short Verdigris rule underneath - the one recurring "section heading"
    role in the app is each tab's own h2, nothing else matches this selector. */
 .view-head h2 {
   font-size: 24px; color: var(--aberdeen-blue); font-weight: 200;
-  padding-bottom: 13px; position: relative;
+  padding-bottom: 10px; position: relative;
 }
 .view-head h2::after {
   content: ''; position: absolute; left: 0; bottom: 0;
@@ -421,7 +421,7 @@ a { color: var(--aberdeen-blue); }
 .grid { display: grid; gap: var(--space-16); }
 .cols-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 /* 220px, not 190px: the longest tier-tile row label ("Share of change
-   budget") plus its value needs that much to sit on one line at this font
+   effort") plus its value needs that much to sit on one line at this font
    size. Grid rows always size to content, so a card can still grow taller
    at any narrower width - it never gets cut. */
 .cols-4 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
@@ -510,7 +510,7 @@ a { color: var(--aberdeen-blue); }
 .tier-tile .tier-name { display: flex; align-items: center; gap: 7px; font-weight: 500; font-size: 14px; }
 .tier-tile .tier-desc { margin-top: var(--space-4); font-size: 12px; color: var(--ink-2); line-height: 1.4; }
 .tier-tile .rows { margin-top: 10px; display: grid; gap: 3px; }
-/* flex-wrap so a long label ("Share of change budget") at a narrow card
+/* flex-wrap so a long label ("Share of change effort") at a narrow card
    width drops the value to its own line instead of the two overlapping. */
 .tier-tile .row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0 var(--space-8); font-size: 13px; color: var(--ink-2); }
 .tier-tile .row b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -522,10 +522,28 @@ a { color: var(--aberdeen-blue); }
 }
 .banner b { font-weight: 500; }
 .banner .src { display: block; font-size: 12px; color: var(--ink-3); margin-top: 3px; }
-/* The headline finding: first thing on the Stakeholder Impact tab, and the
-   largest - bigger than the 22px view-head h2 it sits under. */
-.banner.headline { padding: 18px 20px; }
-.banner.headline b { display: block; font-size: 25px; font-weight: 500; line-height: 1.3; letter-spacing: -.01em; margin-bottom: var(--space-4); }
+
+/* The headline finding: first thing on the Stakeholder Impact tab, as a row
+   of scannable stat chips rather than a paragraph - the four tier cards
+   need to land right under them, on screen, with no scrolling. */
+.stat-chips { display: flex; gap: var(--space-12); flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  background: var(--aberdeen-blue-wash); border: 1px solid var(--aberdeen-blue-line);
+  border-radius: 999px; padding: 9px 16px 9px 15px; font-size: 14px; color: var(--ink);
+}
+.chip b { font-size: 19px; font-weight: 500; color: var(--aberdeen-blue); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+/* A structural zero (no Rebuild role at all) reads as a deliberate finding,
+   not an empty/broken chip - same "dash over a bold 0" logic as .tile. */
+.chip-zero { background: var(--surface-sunk); border-color: var(--hairline-strong); }
+.chip-zero b { color: var(--ink-2); }
+.chip .info-ico { margin-left: 1px; font-style: normal; cursor: help; color: var(--ink-3); }
+.chip .info-ico:hover, .chip .info-ico:focus-visible { color: var(--aberdeen-blue); outline: none; }
+.stat-chips-link { font-size: 12.5px; }
+.stat-chips-link .link-btn { font-size: 12.5px; }
+/* A compact filter select sitting in a card-head next to its hint text,
+   not a full labeled .field block - the card-head is already the label. */
+.card-head-select { min-width: 0; font-size: 13px; padding: 6px 9px; }
 
 /* -------------------------------------------------------------- tier chips */
 
@@ -626,17 +644,30 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 
 .tip {
   position: absolute; pointer-events: none; z-index: 20;
-  background: var(--aberdeen-blue); color: #fff; border-radius: 7px;
-  padding: var(--space-8) 11px; font-size: 12.5px; line-height: 1.45;
-  box-shadow: var(--elev-3); max-width: 300px;
+  background: var(--aberdeen-blue); color: #fff; border-radius: 9px;
+  border-left: 3px solid var(--tier-color, var(--verdigris));
+  padding: 11px 14px; font-size: 12.5px; line-height: 1.4;
+  box-shadow: var(--elev-3); max-width: 240px;
 }
-.tip b { font-weight: 500; }
-.tip .r { color: rgba(255,255,255,.72); }
+.tip-role { font-weight: 500; font-size: 13.5px; }
+.tip-scope { color: rgba(255,255,255,.72); margin-top: 2px; }
+.tip-scores { display: flex; gap: 16px; margin: 9px 0; }
+.tip-score { display: flex; flex-direction: column; gap: 1px; }
+.tip-score-lbl { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,.62); }
+.tip-score-val { font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1; }
 
 /* ------------------------------------------------------------------ tables */
 
 table.data { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-table.data th, table.data td { padding: 12px var(--space-12); text-align: left; border-bottom: 1px solid var(--hairline); }
+/* table-layout: fixed, driven by the <colgroup> RoleTable renders, so the
+   sticky <th> row and the <tbody> cells are guaranteed to share the exact
+   same column widths - with table-layout: auto, a sticky th's width can be
+   computed independently of its column's body cells (a real cross-browser
+   quirk, not a styling choice), which is what was producing a header that
+   didn't sit above its own data. Scoped to the Role × site table only -
+   the other .data tables have no <colgroup> and stay on auto layout. */
+table.data.role-site-table { table-layout: fixed; }
+table.data th, table.data td { padding: 12px var(--space-12); text-align: left; border-bottom: 1px solid var(--hairline); overflow-wrap: break-word; }
 table.data th {
   /* Column headers: small, uppercase, letter-spaced, Onyx at reduced
      opacity - not the same weight as the data they label. */

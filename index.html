@@ -194,23 +194,23 @@ const NOTE = {
   // Both this and .anchors below cite "the source deck" unconditionally -
   // true only for a project that has one (Thornwood). Functions of
   // citeDeck, like noteThreshold/noteUnit, not plain strings.
-  weights: (citeDeck) => 'The six sub-factor weights are ours: our default, and tunable. '
+  weights: (citeDeck) => 'The six sub-factor weights are Aberdeen judgment: the default weighting, and tunable. '
       + (citeDeck
           ? 'The source deck states no weights and no aggregation method, so nothing here is inherited from it.'
           : 'No external source for this project states weights or an aggregation method, so nothing here is inherited from anywhere.'),
-  mapping: 'Provenance: the tier → tactic mapping is OURS. Aberdeen’s OCM delivery material supplies the training method table, job-aid ranges, '
-      + 'communications milestones, four-layer support escalation and cadences. It contains no tier-to-tactic mapping, so the mapping is our extension of it, not something inherited.',
+  mapping: 'Provenance: the tier → tactic mapping is Aberdeen judgment. Aberdeen’s OCM delivery material supplies the training method table, job-aid ranges, '
+      + 'communications milestones, four-layer support escalation and cadences. It contains no tier-to-tactic mapping, so the mapping extends it, rather than being inherited from it.',
   ratio: 'The 1:15 super-user ratio comes from Team 2’s own deck (slide 13). Aberdeen’s material states no ratio.',
   hypercare: 'Hypercare is the floor deliverable, not a top-tier extra. Aberdeen’s lowest-ambition delivery tier is defined as training, '
       + 'go-live communications and hypercare, so every tier here carries hypercare and only the duration scales. The 8 weeks at the top of the '
-      + 'range is our own deck’s number (slide 13); how it steps down across the other three tiers is ours.',
+      + 'range is the source deck’s own number (slide 13); how it steps down across the other three tiers is Aberdeen judgment.',
   incomplete: 'A role scores only when all six sub-factors are set. Anything less shows as incomplete, never as a score or a tier.',
   anchors: (citeDeck) => 'Every sub-factor carries a 1–5 anchor, so a score reads as a description rather than a number. '
       + (citeDeck
-          ? 'The source deck states the 1–5 scale and never defines a single point on it, so these ladders are ours to own: '
-          : 'No external source for this project defines a single point on the 1–5 scale, so these ladders are ours to own: ')
-      + 'where Aberdeen’s or the client plan’s band text exists we use it and say so, and where it does not the wording is ours. They are not equally well grounded, and each one says which it is: '
-      + 'capability delta is Aberdeen’s own wording at 1, 3 and 5; frequency and volume is ours end to end, because no source in the evidence base measures it.',
+          ? 'The source deck states the 1–5 scale and never defines a single point on it, so each ladder had to be built to fill that gap. '
+          : 'No external source for this project defines a single point on the 1–5 scale, so each ladder had to be built to fill that gap. ')
+      + 'Each one is tagged Aberdeen standard, where established Aberdeen or client-plan band text exists, or Aberdeen judgment, where it does not. They are not equally well grounded, and each one says which it is: '
+      + 'capability delta carries Aberdeen’s own wording at 1, 3 and 5 (Aberdeen standard); frequency and volume is Aberdeen judgment end to end, because no source in the evidence base measures it.',
 };
 
 function noteThreshold() {
@@ -255,9 +255,9 @@ const RISK_FACTORS = [
 
 const ANCHORS = {
   capabilityDelta: {
-    origin: 'Aberdeen’s own band wording at 1 · 3 · 5',
+    origin: 'Aberdeen standard',
     note: 'The best-grounded of the six. Anchors 1, 3 and 5 are Aberdeen’s Knowledge & Skills and '
-        + 'Organization & Roles band text, quotable to Aberdeen rather than to us; the observable content at 2 and 4 is ours, '
+        + 'Organization & Roles band text, quotable to Aberdeen; the observable content at 2 and 4 is Aberdeen judgment, interpolated '
         + 'over a “small / medium / large” gap gauge.',
     bands: [
       'Minor changes to skills or knowledge required: no specific training need; capabilities already present in the role',
@@ -268,10 +268,10 @@ const ANCHORS = {
     ],
   },
   errorConsequence: {
-    origin: 'Openlink’s four named bands · safety limb ours',
+    origin: 'Aberdeen judgment, informed by Aberdeen standard',
     note: 'Bands follow the Openlink client plan, the only source that bands consequence on named levels with written '
-        + 'descriptors (operational impact, data integrity, legal and compliance). Two authored moves: it has four bands and we need five, '
-        + 'so 3 is our interpolation, and no source in the set scores safety consequence at all, so the safety limb at 5 is ours. '
+        + 'descriptors (operational impact, data integrity, legal and compliance). Two authored moves: it has four bands and this scale needs five, '
+        + 'so 3 is an interpolation, and no source in the set scores safety consequence at all, so the safety limb at 5 is Aberdeen judgment. '
         + 'Say so before a plant manager asks.',
     bands: [
       'An error is self-correcting within the shift and never leaves the team',
@@ -282,10 +282,10 @@ const ANCHORS = {
     ],
   },
   taskShare: {
-    origin: 'Aberdeen band wording · percentage cut-offs ours',
+    origin: 'Aberdeen judgment, informed by Aberdeen standard',
     note: 'The observable wording is Aberdeen’s own process-change band text, on a generic low-to-high magnitude ladder of the kind '
         + 'published assessments use. None of their item wording is reproduced here. The percentage bands are '
-        + 'entirely ours. No source expresses task share as a percentage. They are here because a deterministic scorer needs a '
+        + 'entirely Aberdeen judgment. No source expresses task share as a percentage. They are here because a deterministic scorer needs a '
         + 'countable rule, and the to-be process designs make the numerator and denominator available.',
     bands: [
       'Under 10% of the role’s daily tasks change: limited process change, minimal hand-off change',
@@ -296,13 +296,13 @@ const ANCHORS = {
     ],
   },
   decisionRights: {
-    origin: 'Our ladder · Aberdeen driver vocabulary at 1 · 2 · 4',
+    origin: 'Aberdeen judgment, informed by Aberdeen standard',
     // The anchor-5 sentence traces to Team 2's own deck - true only for a
     // project with a deck to trace to (Thornwood); every other project gets
     // the same fact without inventing a source that doesn't exist for it.
-    note: (citeDeck) => 'The ladder is ours. No instrument in the evidence base scores decision rights as its own dimension, not one of '
-        + 'Prosci’s 28 risk items and none of its 10 impact aspects, which is precisely why it is in our model. The vocabulary at '
-        + `1, 2 and 4 is Aberdeen’s driver wording; the anchor at 5 is ${citeDeck ? 'our own deck’s sentence' : 'ours'}.`,
+    note: (citeDeck) => 'The ladder is Aberdeen judgment. No instrument in the evidence base scores decision rights as its own dimension, not one of '
+        + 'Prosci’s 28 risk items and none of its 10 impact aspects, which is precisely why it is in this model. The vocabulary at '
+        + `1, 2 and 4 is Aberdeen’s driver wording; the anchor at 5 is ${citeDeck ? 'the source deck’s own sentence' : 'Aberdeen judgment'}.`,
     bands: [
       'No change to what the role may approve, release or override',
       'The same approvals, but new evidence or an audit trail is required: a reason code, a second signature',
@@ -312,16 +312,16 @@ const ANCHORS = {
     ],
   },
   localReadiness: {
-    // Both fields cite a specific deck slide for the four-limb construct -
-    // true only for the project that deck actually describes (Thornwood);
-    // every other project owns the same construct without the false citation.
-    origin: (citeDeck) => `Construct from our own${citeDeck ? ' deck' : ''} · all five bands our wording`,
+    // note cites a specific deck slide for the four-limb construct - true
+    // only for the project that deck actually describes (Thornwood); every
+    // other project owns the same construct without the false citation.
+    origin: 'Aberdeen judgment',
     note: (citeDeck) => 'Four limbs, one score: site-leadership capacity, change fatigue and the history of change at the site, digital maturity, '
-        + `and deskless access. The four limbs are our own ${citeDeck ? 'source deck’s ' : ''}definition of local readiness${citeDeck ? ' (slide 7)' : ''}; every word of the five `
-        + 'band descriptions below is ours, written against the construct rather than lifted from an instrument. Licensed assessment '
+        + `and deskless access. The four limbs are Aberdeen’s ${citeDeck ? 'source deck’s ' : ''}definition of local readiness${citeDeck ? ' (slide 7)' : ''}; every word of the five `
+        + 'band descriptions below is Aberdeen judgment, written against the construct rather than lifted from an instrument. Licensed assessment '
         + 'wording is not reproduced anywhere in this tool (docs/source-synthesis.md §8.8). Worth knowing how unevenly the limbs are '
         + 'evidenced: leadership capacity and change fatigue are measured by published instruments, digital maturity is scored by no '
-        + 'source at all, and deskless access rests on a single Aberdeen sentence about site staff with no computer access. Our '
+        + 'source at all, and deskless access rests on a single Aberdeen sentence about site staff with no computer access. This is a '
         + 'recommendation, not a source position: score each limb and take the highest, not the mean. A site where nobody has a screen '
         + 'is not a moderate-risk site.',
     bands: [
@@ -333,14 +333,14 @@ const ANCHORS = {
     ],
   },
   frequencyVolume: {
-    origin: 'OURS end to end: no source measures this',
-    // "Team 2 added this sub-factor" and "our own deck already names as an
-    // input" are both claims about Thornwood's own deck - true only there.
-    note: (citeDeck) => 'This ladder is ours, every word of it. This is the least grounded of the six sub-factors: no source in the evidence base '
+    origin: 'Aberdeen judgment',
+    // "Team 2 added this sub-factor" and "the source deck already names as
+    // an input" are both claims about Thornwood's own deck - true only there.
+    note: (citeDeck) => 'This ladder is Aberdeen judgment, every word of it. This is the least grounded of the six sub-factors: no source in the evidence base '
         + 'scores task frequency or volume. The nearest items measure the frequency of communications and the size of the '
         + `population, which are different things and are not offered as equivalents. ${citeDeck ? 'Team 2 added this sub-factor. ' : ''}The honest defense `
         + (citeDeck
-            ? 'is that it is directly countable from the system transaction lists our own deck already names as an input, and it is the '
+            ? 'is that it is directly countable from the system transaction lists the source deck already names as an input, and it is the '
             : 'is that it is directly countable from the system transaction lists this kind of rollout already generates, and it is the ')
         + 'sub-factor most likely to be challenged.',
     bands: [
@@ -371,7 +371,7 @@ function anchorFor(key, value, citeDeck) {
 }
 
 const ALL_FACTORS = [...IMPACT_FACTORS, ...RISK_FACTORS];
-/* Our default weighting. Frozen, so "Reset to our defaults" always has a home. */
+/* The default weighting. Frozen, so "Reset to defaults" always has a home. */
 const DEFAULT_WEIGHTS = Object.freeze(
   ALL_FACTORS.reduce((o, f) => { o[f.key] = f.weight; return o; }, {})
 );
@@ -771,8 +771,7 @@ function timelineWithToday(timeline, daysLive) {
   return out;
 }
 
-/* Program-level planning + costing assumptions. All visible on screen.
-   The per-head cost weights are ours, not the deck's. */
+/* Program-level planning assumptions. All visible on screen. */
 const ASSUMPTIONS = {
   supervisorSpanOfControl: 10,       // 1 supervisor briefed per 10 people in R/E/R roles
   sandboxSeatRatio: 10,              // 1 sandbox seat per 10 Rebuild people
@@ -780,29 +779,30 @@ const ASSUMPTIONS = {
 
 const TIER_ORDER = ['Rebuild', 'Enable', 'Reassure', 'Inform'];
 
-/* BUDGET_WEIGHTS: the relative cost of supporting one person in each tier,
-   the only input "Share of change budget" is built from (aggregate() below).
+/* EFFORT_WEIGHTS: the relative effort to support one person in each tier,
+   the only input "Share of change effort" is built from (aggregate() below).
    Same shape and same status as IMPACT_FACTORS/RISK_FACTORS: a named,
    inspectable weight per key, not a number buried inside a function. Shown
-   with its arithmetic on the Adoption tab's "Change budget weighting" panel,
-   which is what the Stakeholder Impact tab's budget-share note links to.
+   with its arithmetic on the Adoption tab's "Change effort weighting" panel,
+   which is what the Stakeholder Impact tab's effort-share note links to.
 
-   Provenance, ours end to end: the source deck states Thornwood's final
-   split (55% / 27% / 13% / 5%) but no method for deriving it from headcount,
-   and Aberdeen's OCM material states no per-tier cost figures at all. We
-   built these from what each tier's own package actually costs to run:
-   Rebuild (role redesign, sandbox training, an on-site super-user, manager
-   coaching) is the most expensive per head and is the 1.0 reference every
-   other tier is priced against. Calibrated so Thornwood's dataset reproduces
-   the deck's split within a rounding point; the same four weights apply
-   unchanged to every project, same as the sub-factor weights above. */
-const BUDGET_WEIGHTS = [
+   Provenance, Aberdeen judgment end to end: the source deck states
+   Thornwood's final split (55% / 27% / 13% / 5%) but no method for deriving
+   it from headcount, and Aberdeen's OCM material states no per-tier effort
+   figures at all. These weights were built from what each tier's own
+   package actually takes to run: Rebuild (role redesign, sandbox training,
+   an on-site super-user, manager coaching) takes the most effort per head
+   and is the 1.0 reference every other tier is weighted against. Calibrated
+   so Thornwood's dataset reproduces the deck's split within a rounding
+   point; the same four weights apply unchanged to every project, same as
+   the sub-factor weights above. */
+const EFFORT_WEIGHTS = [
   { tier: 'Rebuild',  weight: 1.0 },
   { tier: 'Enable',   weight: 0.26 },
   { tier: 'Reassure', weight: 0.115 },
   { tier: 'Inform',   weight: 0.032 },
 ];
-const BUDGET_WEIGHT_PER_TIER = BUDGET_WEIGHTS.reduce((o, b) => { o[b.tier] = b.weight; return o; }, {});
+const EFFORT_WEIGHT_PER_TIER = EFFORT_WEIGHTS.reduce((o, b) => { o[b.tier] = b.weight; return o; }, {});
 
 /* Literal hex, not var(--t-*), these feed SVG fill attributes, and must
    mirror the --t-* custom properties in styles.css exactly. Aberdeen brand's
@@ -970,13 +970,13 @@ function aggregate(scored) {
     const b = byTier[r.tier];
     b.roles += 1;
     b.people += r.headcount;
-    b.weight += r.headcount * BUDGET_WEIGHT_PER_TIER[r.tier];
+    b.weight += r.headcount * EFFORT_WEIGHT_PER_TIER[r.tier];
   });
   const people = scored.reduce((s, r) => s + r.headcount, 0) || 1;
   const weight = TIER_ORDER.reduce((s, t) => s + byTier[t].weight, 0) || 1;
   TIER_ORDER.forEach((t) => {
     byTier[t].popShare = byTier[t].people / people;
-    byTier[t].budgetShare = byTier[t].weight / weight;
+    byTier[t].effortShare = byTier[t].weight / weight;
   });
   return { byTier, totalPeople: people, totalRoles: scored.length };
 }
@@ -3801,7 +3801,7 @@ async function suggestScoresForRole({ name, siteArchetype, headcount, summary })
 
 // A share that's genuinely 0 and a share that's merely too small to round
 // to a whole percent are different findings - Bellcrest's Inform tier is
-// 0.2% of the change budget, not 0% of it, and its program cost is very
+// 0.2% of the change effort, not 0% of it, and its program effort is very
 // much not zero. Only an exact 0 renders as "0%"; anything above that,
 // however small, renders as "<1%" rather than rounding itself away.
 const pct = (x) => {
@@ -3976,7 +3976,7 @@ const TierSummaryTile = React.memo(function TierSummaryTile({ tier: t, b, flash 
         <div className="row"><span>Roles</span><b><CountUpText value={b.roles} /></b></div>
         <div className="row"><span>People</span><b><CountUpText value={b.people} /></b></div>
         <div className="row"><span>% of population</span><b>{pct(b.popShare)}</b></div>
-        <div className="row"><span>Share of change budget</span><b>{pct(b.budgetShare)}</b></div>
+        <div className="row"><span>Share of change effort</span><b>{pct(b.effortShare)}</b></div>
       </div>
     </div>
   );
@@ -3991,7 +3991,7 @@ function WeightNote({ weights, onReset }) {
   return (
     <p className="weight-note no-print">
       Reflects custom weighting.{' '}
-      <button type="button" className="link-btn" onClick={onReset}>Reset to our defaults</button>
+      <button type="button" className="link-btn" onClick={onReset}>Reset to defaults</button>
     </p>
   );
 }
@@ -4202,12 +4202,15 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
       </p>
 
       {tip && (
-        <div className="tip" style={{ left: Math.min(tip.x + 14, MAP.w - 40), top: Math.max(tip.y - 12, 4) }}>
-          <b>{tip.r.role}</b><br />
-          <span className="r">{tip.r.siteArchetype} · {pluralize(tip.r.headcount, 'person', 'people')}</span><br />
-          impact {axisFormula(IMPACT_FACTORS, tip.r.impact, tip.r.scores.impact)}<br />
-          risk {axisFormula(RISK_FACTORS, tip.r.risk, tip.r.scores.risk)}<br />
-          <b>{tip.r.tier}</b>
+        <div className="tip" style={{ left: Math.min(tip.x + 14, MAP.w - 40), top: Math.max(tip.y - 12, 4),
+                                       '--tier-color': TIERS[tip.r.tier].hex }}>
+          <div className="tip-role">{tip.r.role}</div>
+          <div className="tip-scope">{tip.r.siteArchetype}{tip.r.deskless ? ' · deskless' : ''} · {pluralize(tip.r.headcount, 'person', 'people')}</div>
+          <div className="tip-scores">
+            <span className="tip-score"><span className="tip-score-lbl">Impact</span><span className="tip-score-val">{tip.r.scores.impact.toFixed(1)}</span></span>
+            <span className="tip-score"><span className="tip-score-lbl">Risk</span><span className="tip-score-val">{tip.r.scores.risk.toFixed(1)}</span></span>
+          </div>
+          <TierBadge tier={tip.r.tier} />
         </div>
       )}
 
@@ -4235,19 +4238,25 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
 // project with no combos (Ashford) or a different vocabulary entirely
 // (Bellcrest) gets a tooltip built from its own comboExample instead of a
 // borrowed one, or a plain description when it has no combo to cite at all.
+// Each column's `width` (in px) drives the <colgroup> below, not just a
+// hint - table-layout: fixed treats these as literal column widths, so
+// they are the single source of truth for both the header row and the
+// body's cells. role/siteArchetype carry no width and split whatever's
+// left equally between them, since role names and site scopes are the
+// two fields most likely to run long across the three example projects.
 function columnsFor(comboExample) {
   return [
     { key: 'role', label: 'Role' },
     { key: 'siteArchetype', label: 'Sites', title: comboExample
         ? `The site archetype (or combination) this row scopes to, e.g. "${comboExample}"`
         : 'The site archetype this row scopes to. Every role in this project sits at a single archetype, none span more than one.' },
-    { key: 'headcount', label: 'People', n: true },
-    { key: 'siteCount', label: 'Site count', n: true,
+    { key: 'headcount', label: 'People', n: true, width: 100 },
+    { key: 'siteCount', label: 'Site count', n: true, width: 116,
       title: 'How many individual sites are in this row\'s scope. Not the same as the Sites column, which names the '
            + 'archetype, not how many of it there are.' },
-    { key: 'impact', label: 'Impact', n: true, title: 'Impact severity: hover a value to see its weighted breakdown' },
-    { key: 'risk', label: 'Risk', n: true, title: 'Adoption risk: hover a value to see its weighted breakdown' },
-    { key: 'tier', label: 'Tier' },
+    { key: 'impact', label: 'Impact', n: true, width: 96, title: 'Impact severity: hover a value to see its weighted breakdown' },
+    { key: 'risk', label: 'Risk', n: true, width: 96, title: 'Adoption risk: hover a value to see its weighted breakdown' },
+    { key: 'tier', label: 'Tier', width: 132 },
   ];
 }
 
@@ -4290,7 +4299,10 @@ const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId,
 
   return (
     <div className="table-scroll" ref={tableWrapRef}>
-      <table className="data">
+      <table className="data role-site-table">
+        <colgroup>
+          {columns.map((c) => <col key={c.key} style={c.width ? { width: c.width } : undefined} />)}
+        </colgroup>
         <thead>
           <tr>
             {columns.map((c) => (
@@ -4364,7 +4376,7 @@ function WeightTuner({ weights, onChange, onReset, citeDeck }) {
     <details className="tuner no-print">
       <summary>
         <span className="lbl">Weighting</span>
-        <span className="state">{isDefault ? 'our default: 0.45 / 0.25 / 0.30 and 0.40 / 0.35 / 0.25' : 'changed from our default'}</span>
+        <span className="state">{isDefault ? 'default: 0.45 / 0.25 / 0.30 and 0.40 / 0.35 / 0.25' : 'changed from default'}</span>
       </summary>
       <div className="tuner-body">
         <p className="sub">{NOTE.weights(citeDeck)} Weights are normalized per axis, so every score stays on the 1–5 scale, and the tiering moves in front of the room.</p>
@@ -4373,7 +4385,7 @@ function WeightTuner({ weights, onChange, onReset, citeDeck }) {
           {axis('Adoption risk', RISK_FACTORS)}
         </div>
         <div className="btn-row" style={{ marginTop: 'var(--space-12)' }}>
-          <button className="btn" type="button" onClick={onReset} disabled={isDefault}>Reset to our defaults</button>
+          <button className="btn" type="button" onClick={onReset} disabled={isDefault}>Reset to defaults</button>
           <span className="sub">Effective weight shown to the right of each slider; each axis always sums to 1.00.</span>
         </div>
       </div>
@@ -4405,17 +4417,61 @@ function concentrationFinding(agg) {
     : reb.popShare <= 0.25 ? 'concentrated' : reb.popShare >= 0.5 ? 'broad' : 'between';
   return {
     mode, reb, en,
-    ratio: reb.popShare > 0 ? reb.budgetShare / reb.popShare : null,
+    ratio: reb.popShare > 0 ? reb.effortShare / reb.popShare : null,
     highRoles: reb.roles + en.roles,
     highPeople: reb.people + en.people,
     highPopShare: reb.popShare + en.popShare,
-    highBudgetShare: reb.budgetShare + en.budgetShare,
+    highEffortShare: reb.effortShare + en.effortShare,
   };
+}
+
+/* The headline finding, as three scannable stat chips instead of a
+   paragraph - nobody reads a two-sentence banner during a demo. The full
+   arithmetic behind whichever chip needs defending sits one hover away, on
+   its own info affordance; the cross-reference to the effort-weighting
+   panel is a single link underneath, not a sentence woven into the chips. */
+function headlineChips(finding, agg) {
+  const reb = finding.reb;
+  if (finding.mode === 'none') {
+    return {
+      chips: [
+        { value: '0', label: 'Rebuild roles', zero: true,
+          rule: 'At the current weights and threshold, nothing here needs a full role redesign — the heaviest intervention present is Enable or lighter.' },
+      ],
+      showEffortLink: false,
+    };
+  }
+  if (finding.mode === 'broad') {
+    return {
+      chips: [
+        { value: finding.highRoles.toLocaleString(), label: finding.highRoles === 1 ? 'role' : 'roles', suffix: ' across Rebuild and Enable' },
+        { value: `${finding.highPeople.toLocaleString()} of ${agg.totalPeople.toLocaleString()}`, label: 'people' },
+        { value: pct(finding.highEffortShare), label: 'of the effort',
+          rule: `${pluralize(finding.highRoles, 'role')} across Rebuild and Enable, ${finding.highPeople.toLocaleString()} of ${agg.totalPeople.toLocaleString()} people, carry ${pct(finding.highEffortShare)} of the effort — a whole-organization change, not a targeted one.` },
+      ],
+      showEffortLink: true,
+    };
+  }
+  // concentrated and between share the same three chips; only "between"
+  // drops the ratio's implied "this is the deliverable" framing, per
+  // concentrationFinding's own comment on why the two modes are distinct.
+  const chips = [
+    { value: reb.roles.toLocaleString(), label: reb.roles === 1 ? 'Rebuild role' : 'Rebuild roles' },
+    { value: `${reb.people.toLocaleString()} of ${agg.totalPeople.toLocaleString()}`, label: 'people' },
+  ];
+  if (finding.mode === 'concentrated' && finding.ratio != null) {
+    chips.push({ value: `${finding.ratio.toFixed(1)}×`, label: 'effort share',
+      rule: `${pct(reb.popShare)} of the population carries ${pct(reb.effortShare)} of the effort — a ${finding.ratio.toFixed(1)}× concentration versus a flat headcount split.` });
+  } else {
+    chips.push({ value: pct(reb.effortShare), label: 'of the effort',
+      rule: `${pct(reb.popShare)} of the population carries ${pct(reb.effortShare)} of the effort.` });
+  }
+  return { chips, showEffortLink: true };
 }
 
 function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights, weightDeltas,
                           siteArchetypeBase, siteArchetypeCombos, comboExample, citeDeck,
-                          onOpenBudgetWeights, sa, setSa, projectName }) {
+                          onOpenEffortWeights, sa, setSa, projectName }) {
   // A filter with one real choice is not a filter: Ashford has one site
   // archetype and no combos, so the control is hidden rather than showing
   // "All site archetypes" next to a single, redundant second option.
@@ -4433,22 +4489,30 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
 
   const agg = useMemo(() => aggregate(filtered), [filtered]);
   const finding = useMemo(() => concentrationFinding(agg), [agg]);
-  // One real cross-reference, reused by all three banner variants below, so
-  // the link destination and its wording can never drift out of sync.
-  const budgetLinkNote = (
-    <>{' '}Budget share is headcount weighted by{' '}
-      <button type="button" className="link-btn" onClick={onOpenBudgetWeights}>the per-tier cost weights on the Adoption tab</button>,
-      not a flat headcount split.</>
+  const { chips, showEffortLink } = useMemo(() => headlineChips(finding, agg), [finding, agg]);
+
+  const siteFilterControl = siteScopeOptionCount > 1 && (
+    <select id="f-sa" className="card-head-select no-print" aria-label="Filter by site archetype"
+            value={sa} onChange={(e) => setSa(e.target.value)}>
+      <option value="All">All site archetypes</option>
+      <optgroup label="Archetype (includes roles that span it)">
+        {siteArchetypeBase.map((v) => <option key={v} value={v}>{v}</option>)}
+      </optgroup>
+      {siteArchetypeCombos.length > 0 && (
+        <optgroup label="Spans more than one archetype">
+          {siteArchetypeCombos.map((v) => <option key={v} value={v}>{v}</option>)}
+        </optgroup>
+      )}
+    </select>
   );
-  const reb = finding.reb;
 
   return (
     <>
-      {/* 1. THE HEADLINE FINDING: first thing on the page, largest thing on
-          the page. Everything that used to sit above it (two lede
-          paragraphs, a methodological aside about deck slide numbers) now
-          lives in the "Method and provenance" disclosure at the bottom -
-          same words, just not the first thing a reader meets. */}
+      {/* 1. THE HEADLINE FINDING, then 2. THE FOUR TIER CARDS: together, the
+          first thing a viewer sees, with no site-archetype filter or
+          multi-line prose above them pushing the cards below the fold. The
+          filter still scopes the cards, the chart and the table alike - it
+          just lives with the chart now, not above the cards. */}
       <div className="view-head">
         <h2>Impact heat map</h2>
       </div>
@@ -4462,66 +4526,18 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         </div>
       )}
 
-      <div className="banner headline" style={{ marginBottom: 20 }}>
-        {finding.mode === 'concentrated' && (
-          <>
-            <b>{pct(reb.popShare)} of the population absorbs {pct(reb.budgetShare)} of the effort.</b>
-            <span className="src">
-              {pluralize(reb.roles, 'Rebuild role')} · {reb.people.toLocaleString()} of {agg.totalPeople.toLocaleString()} people
-              {finding.ratio != null ? `, carrying ${finding.ratio.toFixed(1)}× its population share of the effort.` : '.'}
-              {budgetLinkNote}
-            </span>
-          </>
-        )}
-        {finding.mode === 'broad' && (
-          <>
-            <b>{pct(finding.highPopShare)} of the population sits in the two highest-intervention tiers.</b> This is a whole-organization
-            change, not a targeted one: plan for capacity, not triage.
-            <span className="src">
-              {pluralize(finding.highRoles, 'role')} across Rebuild and Enable · {finding.highPeople.toLocaleString()} of {agg.totalPeople.toLocaleString()} people,
-              {' '}carrying {pct(finding.highBudgetShare)} of the effort.
-              {budgetLinkNote}
-            </span>
-          </>
-        )}
-        {finding.mode === 'between' && (
-          <>
-            <b>{pct(reb.popShare)} of the population absorbs {pct(reb.budgetShare)} of the effort.</b> Not a small targeted group, and not the whole organization either.
-            <span className="src">
-              {pluralize(reb.roles, 'Rebuild role')} · {reb.people.toLocaleString()} of {agg.totalPeople.toLocaleString()} people.
-              {budgetLinkNote}
-            </span>
-          </>
-        )}
-        {finding.mode === 'none' && (
-          <>
-            <b>No role in this population sits in Rebuild.</b> At the current weights and threshold, nothing here needs a
-            full role redesign - the heaviest intervention present is Enable or lighter.
-            <span className="src">{budgetLinkNote}</span>
-          </>
-        )}
+      <div className="stat-chips" style={{ marginBottom: showEffortLink ? 6 : 'var(--space-16)' }}>
+        {chips.map((c, i) => (
+          <span className={'chip' + (c.zero ? ' chip-zero' : '')} key={i}>
+            <b>{c.value}</b> {c.label}{c.suffix || ''}
+            {c.rule && <i className="info-ico" tabIndex={0} title={c.rule} aria-label={`How this is derived: ${c.rule}`}>ⓘ</i>}
+          </span>
+        ))}
       </div>
-
-      {/* 2. THE FOUR TIER CARDS. The site-archetype filter sits right above
-          them: it's the control that scopes every number below it, on the
-          cards, the chart and the table alike. */}
-      {siteScopeOptionCount > 1 && (
-        <div className="filters no-print">
-          <div className="field">
-            <label htmlFor="f-sa">Site archetype</label>
-            <select id="f-sa" value={sa} onChange={(e) => setSa(e.target.value)}>
-              <option value="All">All site archetypes</option>
-              <optgroup label="Archetype (includes roles that span it)">
-                {siteArchetypeBase.map((v) => <option key={v} value={v}>{v}</option>)}
-              </optgroup>
-              {siteArchetypeCombos.length > 0 && (
-                <optgroup label="Spans more than one archetype">
-                  {siteArchetypeCombos.map((v) => <option key={v} value={v}>{v}</option>)}
-                </optgroup>
-              )}
-            </select>
-          </div>
-        </div>
+      {showEffortLink && (
+        <p className="stat-chips-link no-print" style={{ marginBottom: 'var(--space-16)' }}>
+          <button type="button" className="link-btn" onClick={onOpenEffortWeights}>See the effort weighting on the Adoption tab →</button>
+        </p>
       )}
 
       <div className="grid cols-4" style={{ marginBottom: 'var(--space-16)' }}>
@@ -4530,12 +4546,14 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         ))}
       </div>
 
-      {/* 3. THE QUADRANT CHART. The weighting panel sits right after it: it's
-          the control that moves what the chart plots and how roles tier. */}
+      {/* 3. THE QUADRANT CHART, with the site-archetype filter in its own
+          card-head. The weighting panel sits right after it: it's the
+          control that moves what the chart plots and how roles tier. */}
       <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Impact severity × adoption risk</h3>
           <span className="hint">{filtered.length} of {pluralize(scored.length, 'role')} · threshold {THRESHOLD.toFixed(1)} on both axes, inclusive · every point is listed as text in the table below</span>
+          {siteFilterControl}
         </div>
         <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
       </div>
@@ -4575,7 +4593,7 @@ function AxisBreakdown({ name, factors, values, score, newRole, citeDeck }) {
       <div className="subfactors">
         {factors.map((f) => {
           const hit = anchorFor(f.key, values[f.key], citeDeck);
-          const ours = /^OURS/.test(resolveAnchorField(ANCHORS[f.key].origin, citeDeck));
+          const ours = resolveAnchorField(ANCHORS[f.key].origin, citeDeck) === 'Aberdeen judgment';
           // taskShare is forced to 5 for a net-new role by scoreRole/withDerivedTaskShare,
           // not read from data entry - say so on this row instead of citing the anchor's
           // usual provenance, since the real "origin" of this 5 is the isNewRole flag.
@@ -4641,7 +4659,7 @@ function onePagerText(role, citeDeck) {
   modifiersFor(role).forEach((m) => { L.push(`  ${m.title} [${m.trigger}]`); m.items.forEach((i) => L.push(`    - ${i}`)); });
   const td = trainingDesign(role);
   L.push('');
-  L.push('DELIVERY DETAIL (Aberdeen OCM delivery material; the tier -> tactic mapping is ours)');
+  L.push('DELIVERY DETAIL (Aberdeen OCM delivery material; the tier -> tactic mapping is Aberdeen judgment)');
   L.push(`  Training: ${pluralize(td.hours, 'hour')} required for ${role.tier} (by tier alone, not deskless status)`);
   L.push(`  Delivered as: ${td.primary.method}, ${td.primary.duration}, selected for ${td.why}`);
   L.push(`  Job aids: ${td.aids.count} (${td.aids.band} band, ${td.aids.range}), ${td.jobAidMethod.duration} each`);
@@ -4916,12 +4934,12 @@ function Slider({ factor, weightFactors, value, onChange, citeDeck }) {
   const origin = resolveAnchorField(a.origin, citeDeck);
   const note = resolveAnchorField(a.note, citeDeck);
   const hit = anchorFor(factor.key, value, citeDeck);
-  const ours = /^OURS/.test(origin);
+  const ours = origin === 'Aberdeen judgment';
   return (
     <div className={'slider' + (unset ? ' unset' : '')}>
       <div className="top">
         <span className="name">{factor.label}</span>
-        <span className="w">weight {effWeight(weightFactors || IMPACT_FACTORS, factor).toFixed(2)} · ours</span>
+        <span className="w">weight {effWeight(weightFactors || IMPACT_FACTORS, factor).toFixed(2)}</span>
         <span className="v num">{unset ? 'not set' : value.toFixed(1)}</span>
       </div>
       <div className="desc">{factor.hint}</div>
@@ -5506,28 +5524,28 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
   );
 }
 
-/* The panel the Stakeholder Impact tab's budget-share note links to. Turns
-   BUDGET_WEIGHTS + headcount into the same byTier[t].budgetShare numbers the
+/* The panel the Stakeholder Impact tab's effort-share note links to. Turns
+   EFFORT_WEIGHTS + headcount into the same byTier[t].effortShare numbers the
    tier cards show, with every intermediate step printed, so a reader can
    reproduce any one of those percentages by hand from this page alone. */
-function BudgetWeightingPanel({ agg }) {
+function EffortWeightingPanel({ agg }) {
   const totalWeighted = TIER_ORDER.reduce((s, t) => s + agg.byTier[t].weight, 0) || 1;
   const rebuild = agg.byTier.Rebuild;
-  const rebuildWeight = BUDGET_WEIGHT_PER_TIER.Rebuild;
+  const rebuildWeight = EFFORT_WEIGHT_PER_TIER.Rebuild;
   return (
     <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
       <div className="card-head">
-        <h3>Change budget weighting</h3>
-        <span className="hint">What "Share of change budget" on the Stakeholder Impact tab is computed from</span>
+        <h3>Change effort weighting</h3>
+        <span className="hint">What "Share of change effort" on the Stakeholder Impact tab is computed from</span>
       </div>
       <div className="card-body">
         <p className="sub" style={{ marginBottom: 'var(--space-12)' }}>
-          Share of budget is headcount × cost weight, not headcount alone — a Rebuild role costs far more per head to support than an Inform role.
+          Share of effort is headcount × effort weight, not headcount alone — a Rebuild role takes far more effort per head to support than an Inform role.
         </p>
         <div className="table-scroll" style={{ marginBottom: 10 }}>
           <table className="mini">
             <thead>
-              <tr><th>Tier</th><th className="num">Cost weight</th><th className="num">People</th><th className="num">People × weight</th><th className="num">Share of budget</th></tr>
+              <tr><th>Tier</th><th className="num">Effort weight</th><th className="num">People</th><th className="num">People × weight</th><th className="num">Share of effort</th></tr>
             </thead>
             <tbody>
               {TIER_ORDER.map((t) => {
@@ -5535,10 +5553,10 @@ function BudgetWeightingPanel({ agg }) {
                 return (
                   <tr key={t}>
                     <th scope="row"><i className="dot" style={{ '--dot': TIERS[t].hex, marginRight: 6 }} />{t}</th>
-                    <td className="num">{BUDGET_WEIGHT_PER_TIER[t]}</td>
+                    <td className="num">{EFFORT_WEIGHT_PER_TIER[t]}</td>
                     <td className="num">{b.people.toLocaleString()}</td>
                     <td className="num">{b.weight.toFixed(1)}</td>
-                    <td className="num">{pct(b.budgetShare)}</td>
+                    <td className="num">{pct(b.effortShare)}</td>
                   </tr>
                 );
               })}
@@ -5554,8 +5572,8 @@ function BudgetWeightingPanel({ agg }) {
         </div>
         <p className="formula" style={{ marginBottom: 'var(--space-4)' }}>
           Worked example, Rebuild: {rebuild.people.toLocaleString()} × {rebuildWeight} = {rebuild.weight.toFixed(1)},
-          {' '}over a total of {TIER_ORDER.map((t) => `${agg.byTier[t].people.toLocaleString()}×${BUDGET_WEIGHT_PER_TIER[t]}`).join(' + ')} = {totalWeighted.toFixed(1)}.
-          {' '}{rebuild.weight.toFixed(1)} ÷ {totalWeighted.toFixed(1)} = {pct(rebuild.budgetShare)} of change budget.
+          {' '}over a total of {TIER_ORDER.map((t) => `${agg.byTier[t].people.toLocaleString()}×${EFFORT_WEIGHT_PER_TIER[t]}`).join(' + ')} = {totalWeighted.toFixed(1)}.
+          {' '}{rebuild.weight.toFixed(1)} ÷ {totalWeighted.toFixed(1)} = {pct(rebuild.effortShare)} of change effort.
         </p>
       </div>
     </div>
@@ -5602,7 +5620,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
-      <BudgetWeightingPanel agg={agg} />
+      <EffortWeightingPanel agg={agg} />
 
       <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
@@ -6564,9 +6582,9 @@ function App() {
     syncRoute({ tab: tabId }, 'push');
   }, [syncRoute]);
 
-  // The Stakeholder Impact tab's budget-share note is a real cross-reference,
+  // The Stakeholder Impact tab's effort-share note is a real cross-reference,
   // not prose: clicking it has to actually land on the panel that backs it.
-  const openBudgetWeights = useCallback(() => switchTab('plan'), [switchTab]);
+  const openEffortWeights = useCallback(() => switchTab('plan'), [switchTab]);
 
   const createRole = useCallback((role) => {
     setRaw((rs) => [...rs, role]);
@@ -6659,7 +6677,7 @@ function App() {
                          weights={weights} onWeight={setWeight} onResetWeights={resetWeights} weightDeltas={weightDeltas}
                          siteArchetypeBase={project.siteArchetypeBase} siteArchetypeCombos={project.siteArchetypeCombos}
                          comboExample={comboExample} citeDeck={project.hasDeckReproduction}
-                         onOpenBudgetWeights={openBudgetWeights}
+                         onOpenEffortWeights={openEffortWeights}
                          sa={filters.sa} setSa={setFilterSa} projectName={project.name} />
         )}
         {tab === 'redesign' && (
