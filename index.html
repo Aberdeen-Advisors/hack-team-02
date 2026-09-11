@@ -5873,6 +5873,30 @@ function findRoleMatches(q, roles) {
 
 const bySeverity = (a, b) => (b.scores.impact + b.scores.risk) - (a.scores.impact + a.scores.risk);
 
+/* The plain-English meaning of each tier, for a reader who has never heard
+   the word "tier": why the work landed here (the "meaning" half) and what
+   that actually calls for (the "support" half). TIERS[tier].package still
+   drives what the rest of the app prescribes; this is the human-language
+   restatement of the same fact, not a second, independent claim. */
+const TIER_PLAIN = {
+  Rebuild: {
+    meaning: 'the job changes the most and people are most likely to struggle with it',
+    support: "Training on its own won't be enough: the role itself has to be redesigned, and people need hands-on practice plus a manager who stays close to them through it.",
+  },
+  Enable: {
+    meaning: 'the job changes a lot, but people are likely to adapt without much difficulty',
+    support: 'They need real training and job aids to do the new job well, but not the hands-on hand-holding the toughest roles get.',
+  },
+  Reassure: {
+    meaning: 'the day-to-day work barely changes, but people are nervous about it anyway',
+    support: "They mostly need their manager to address the worry directly - there's very little new skill to actually teach.",
+  },
+  Inform: {
+    meaning: 'the job barely changes and people will adjust on their own',
+    support: "They just need to be told what's changing and when.",
+  },
+};
+
 function askWhichRolesMatter({ project, scored }) {
   const agg = aggregate(scored);
   const rebuild = agg.byTier.Rebuild;
@@ -5880,15 +5904,16 @@ function askWhichRolesMatter({ project, scored }) {
     const heaviest = heaviestTierBelowRebuild(agg);
     if (!heaviest) {
       return {
-        text: [`No role in ${project.name} sits above Inform right now - nothing here needs more than broadcast communications.`],
+        text: [`Nothing here needs heavy, hands-on support - every role at ${project.name} can get by on simply being told what's changing.`],
         chips: ['how-scored', 'where-start'],
       };
     }
     const roles = scored.filter((r) => r.tier === heaviest).sort(bySeverity);
+    const b = agg.byTier[heaviest];
     return {
       text: [
-        `No role in ${project.name} sits in Rebuild right now. The heaviest intervention actually present is ${heaviest}: `
-          + `${pluralize(agg.byTier[heaviest].roles, 'role')}, ${agg.byTier[heaviest].people.toLocaleString()} people.`,
+        `None of ${project.name}'s roles need a full redesign right now.`,
+        `The roles that need the most support: ${pluralize(b.roles, 'role')}, ${b.people.toLocaleString()} people.`,
       ],
       roleLinks: roles.slice(0, 5),
       chips: [{ label: `What does ${heaviest} mean?`, question: `What does ${heaviest} mean?` }, 'how-scored'],
@@ -5897,9 +5922,9 @@ function askWhichRolesMatter({ project, scored }) {
   const roles = scored.filter((r) => r.tier === 'Rebuild').sort(bySeverity);
   return {
     text: [
-      `${pluralize(rebuild.roles, 'role')} in ${project.name} sit in Rebuild - impact severity and adoption risk both at or `
-        + `above the ${THRESHOLD.toFixed(1)} threshold, the tier needing full role redesign.`,
-      `That's ${rebuild.people.toLocaleString()} of ${agg.totalPeople.toLocaleString()} people (${pct(rebuild.popShare)}).`,
+      `${pluralize(rebuild.roles, 'role')} of the ${agg.totalRoles} at ${project.name} need this kind of support.`,
+      `That's ${rebuild.people.toLocaleString()} people, about ${pct(rebuild.popShare)} of the company - but they'll absorb about ${pct(rebuild.effortShare)} of the effort of the whole change.`,
+      `These are the ones to get right first.`,
     ],
     roleLinks: roles.slice(0, 5),
     chips: ['what-rebuild', 'where-start'],
@@ -5909,14 +5934,21 @@ function askWhichRolesMatter({ project, scored }) {
 function askWhatTierMeans({ project, scored }, raw) {
   const named = TIER_ORDER.find((t) => new RegExp(t, 'i').test(raw || ''));
   const tier = named || 'Rebuild';
-  const info = TIERS[tier];
+  const plain = TIER_PLAIN[tier];
   const agg = aggregate(scored);
   const b = agg.byTier[tier];
+  if (b.roles === 0) {
+    return {
+      text: [`No role at ${project.name} falls into this group right now - it's where ${plain.meaning}.`],
+      chips: ['which-matter', 'how-scored'],
+    };
+  }
   const roles = scored.filter((r) => r.tier === tier).sort(bySeverity);
   return {
     text: [
-      `${tier} sits in the ${info.quadrant} quadrant of the model. Its package: ${info.package.join(', ')}.`,
-      `In ${project.name}: ${pluralize(b.roles, 'role')}, ${b.people.toLocaleString()} people.`,
+      `These are the roles where ${plain.meaning}.`,
+      plain.support,
+      `At ${project.name} that's ${pluralize(b.roles, 'role')}, around ${b.people.toLocaleString()} people.`,
     ],
     roleLinks: roles.slice(0, 5),
     chips: ['which-matter', 'how-scored'],
@@ -5927,9 +5959,9 @@ function askHowScored({ weights }) {
   const isDefault = weightsAreDefault(weights);
   return {
     text: [
-      `Every role is scored on two axes - impact severity and adoption risk - each an average of three weighted sub-factors, 1 to 5.`,
-      `A role tiers into Rebuild when both axes are at or above ${THRESHOLD.toFixed(1)}, inclusive; Enable, Reassure and Inform cover the other three combinations.`,
-      `The six sub-factor weights are Aberdeen judgment, tunable from their default split${isDefault ? '' : ' - this project currently has them adjusted from that default'}.`,
+      `Every role gets two scores out of 5: one for how much the work actually changes, one for how likely people are to struggle with it.`,
+      `Each score comes from three things we assess - how much of the day-to-day changes, how often the task happens, and what goes wrong if someone gets it wrong.`,
+      `Score 3.5 or higher on both and the role gets the most support. That weighting is a judgment call${isDefault ? '' : ' - this project already has it adjusted from the default'}, and you can move it yourself and watch the roles move.`,
     ],
     chips: ['which-matter', 'what-rebuild'],
   };
@@ -5939,15 +5971,15 @@ function askDeskless({ project, scored }) {
   const deskless = scored.filter((r) => r.deskless);
   if (!deskless.length) {
     return {
-      text: [`No role in ${project.name} is marked deskless, so every role here gets the same training format - only the required hours, set by tier, differ.`],
+      text: [`Every role at ${project.name} sits at a desk or a screen for work, so there's nothing to handle differently here. Everyone gets the same training format - only the number of hours, driven by how much the job's changing, differs.`],
       chips: ['which-matter', 'how-scored'],
     };
   }
   return {
     text: [
-      `Deskless roles get the same required hours as any other role in their tier, delivered on shift at the point of work instead of a classroom, with laminated local-language job aids.`,
-      `Their comms channel drops email entirely for a QR code on the shift huddle board.`,
-      `${pluralize(deskless.length, 'role')} in ${project.name} ${deskless.length === 1 ? 'is' : 'are'} deskless.`,
+      "Some roles don't work at a desk or a computer - think the shop floor, a warehouse, a bedside. A classroom course or an e-learning module doesn't reach them, so they get the same amount of training as everyone else in their group, just delivered on shift and hands-on, with printed instructions at the workstation instead of a slide deck.",
+      "Their updates come through a board at the worksite instead of email, since many of them don't check email at work.",
+      `${pluralize(deskless.length, 'role')} at ${project.name} ${deskless.length === 1 ? 'works' : 'work'} this way.`,
     ],
     roleLinks: deskless.slice(0, 5),
     chips: ['which-matter', 'where-start'],
@@ -5961,13 +5993,14 @@ function askWhereStart({ project, scored }) {
     const heaviest = heaviestTierBelowRebuild(agg);
     if (!heaviest) {
       return {
-        text: [`Nothing in ${project.name} sits above Inform, so there's no forced sequencing - broadcast comms cover the whole population.`],
+        text: [`There's no obvious starting point - nothing at ${project.name} needs more than being told what's changing.`],
         chips: ['which-matter', 'how-scored'],
       };
     }
     const roles = scored.filter((r) => r.tier === heaviest).sort(bySeverity);
+    const b = agg.byTier[heaviest];
     return {
-      text: [`Start with ${heaviest}, the heaviest intervention actually present in ${project.name}: ${pluralize(agg.byTier[heaviest].roles, 'role')}, ${agg.byTier[heaviest].people.toLocaleString()} people.`],
+      text: [`Start with the roles that need the most support: ${pluralize(b.roles, 'role')}, ${b.people.toLocaleString()} people at ${project.name}.`],
       roleLinks: roles.slice(0, 3),
       chips: [{ label: `What does ${heaviest} mean?`, question: `What does ${heaviest} mean?` }, 'how-scored'],
     };
@@ -5975,8 +6008,8 @@ function askWhereStart({ project, scored }) {
   const roles = scored.filter((r) => r.tier === 'Rebuild').sort(bySeverity);
   return {
     text: [
-      `Start with Rebuild: ${pluralize(rebuild.roles, 'role')}, ${rebuild.people.toLocaleString()} people, the only tier needing full role redesign, sandbox training and an on-site super-user.`,
-      `Rebuild also re-scores every ${pluralize(DOSES.Rebuild.rescoreDays, 'day')} - the shortest cycle of any tier - so standing up its support first gives the earliest read on whether it's landing.`,
+      `Start with the roles where the job is changing most and people are most likely to struggle: ${pluralize(rebuild.roles, 'role')}, ${rebuild.people.toLocaleString()} people.`,
+      `We'll also check back in on them every ${pluralize(DOSES.Rebuild.rescoreDays, 'day')} - more often than any other group - so you get an early read on whether it's actually working.`,
     ],
     roleLinks: roles.slice(0, 3),
     chips: ['which-matter', 'what-rebuild'],
@@ -5986,25 +6019,25 @@ function askWhereStart({ project, scored }) {
 function askAboutRole(role) {
   if (!role.complete) {
     return {
-      text: [`${role.role} is in the data set but incomplete - ${role.missing.join(', ')} missing - so it isn't scored or tiered yet.`],
+      text: [`We don't have complete information on ${role.role} yet - missing ${role.missing.join(', ')} - so it hasn't been scored.`],
       chips: ['which-matter', 'how-scored'],
     };
   }
-  const info = TIERS[role.tier];
+  const plain = TIER_PLAIN[role.tier];
   return {
     text: [
-      `${role.role} tiers into ${role.tier} (${info.quadrant}): impact ${role.scores.impact.toFixed(1)}, risk ${role.scores.risk.toFixed(1)}, `
-        + `threshold ${THRESHOLD.toFixed(1)} inclusive on both axes.`,
-      `${role.siteArchetype} · ${pluralize(role.headcount, 'person', 'people')}${role.deskless ? ' · deskless' : ''}.`,
+      `${role.role} is one of the roles where ${plain.meaning}.`,
+      `Impact ${role.scores.impact.toFixed(1)} out of 5, risk ${role.scores.risk.toFixed(1)} out of 5 - 3.5 or higher on both gets the most support.`,
+      `${role.siteArchetype} · ${pluralize(role.headcount, 'person', 'people')}.`,
     ],
     roleLinks: [role],
     chips: [{ label: `What does ${role.tier} mean?`, question: `What does ${role.tier} mean?` }, 'how-scored'],
   };
 }
 
-function askAboutRoleMatches(project, matches) {
+function askAboutRoleMatches(matches) {
   return {
-    text: [`${pluralize(matches.length, 'role')} in ${project.name} match that:`],
+    text: [`A few roles match that. Pick one:`],
     roleLinks: matches,
     chips: ['which-matter', 'how-scored'],
   };
@@ -6039,7 +6072,7 @@ function answerQuestion(raw, ctx) {
   const allRoles = [...ctx.scored, ...ctx.incomplete];
   const roleMatches = findRoleMatches(q, allRoles);
   if (roleMatches.length === 1) return askAboutRole(roleMatches[0]);
-  if (roleMatches.length > 1 && roleMatches.length <= 6) return askAboutRoleMatches(ctx.project, roleMatches);
+  if (roleMatches.length > 1 && roleMatches.length <= 6) return askAboutRoleMatches(roleMatches);
   const hit = ASK_QUESTIONS.find((qq) => qq.keywords.test(q));
   if (hit) return hit.run(ctx, q);
   return null;
@@ -6100,7 +6133,7 @@ function AskAssistant({ project, tab, scored, incomplete, weights, onOpenRole })
     setOpen((o) => {
       const next = !o;
       if (next && messages.length === 0) {
-        setOpeningLine(`You're looking at ${project.name}'s ${TAB_LABELS[tab] || 'Stakeholder Impact'} tab. Ask me anything about this assessment.`);
+        setOpeningLine(`You're looking at the ${TAB_LABELS[tab] || 'Stakeholder Impact'} tab for ${project.name}. Ask me anything about this assessment.`);
       }
       return next;
     });
