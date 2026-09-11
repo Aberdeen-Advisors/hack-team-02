@@ -62,6 +62,16 @@
   --hairline-strong: #C9C9C9;
   --aberdeen-blue-wash: color-mix(in srgb, var(--aberdeen-blue) 8%, white);
   --aberdeen-blue-line: color-mix(in srgb, var(--aberdeen-blue) 16%, white);
+  /* Verdigris interaction-state family: focus rings, active-tab indicator,
+     selected row/point - kept separate from --flag-wash (Verdigris used
+     as a "review this" content flag) because these are UI-state washes,
+     not content-provenance ones, and must not compete with tier hues. */
+  --verdigris-wash: color-mix(in srgb, var(--verdigris) 10%, white);
+  --verdigris-line: color-mix(in srgb, var(--verdigris) 32%, white);
+  /* Onyx at reduced opacity (~5:1 against white, still clears AA at this
+     size): metric captions and table column headers ONLY, per the type
+     scale - not a general secondary-text color, --ink-3 still covers that. */
+  --caption: rgba(64, 64, 64, .75);
 
   /* "Ours / review this" accent family: Verdigris background+border, Onyx
      text (Verdigris itself is never text). Used for provenance flags, near
@@ -88,7 +98,16 @@
 
   --radius:   10px;
   --radius-s: 6px;
-  --shadow:   0 1px 2px rgba(64, 64, 64, .05), 0 8px 24px -16px rgba(64, 64, 64, .18);
+
+  /* Four-level elevation system. Every shadow is a TWO-shadow stack (a
+     tight ambient shadow + a wider directional one) - a single blurred
+     shadow is what makes an interface read as templated - and every
+     shadow is tinted with Aberdeen Blue, never neutral black, which
+     would look muddy against this blue-branded palette. */
+  --elev-1: 0 1px 2px rgba(9,55,95,.06), 0 2px 8px rgba(9,55,95,.06);
+  --elev-2: 0 1px 2px rgba(9,55,95,.08), 0 8px 24px rgba(9,55,95,.10);
+  --elev-3: 0 2px 4px rgba(9,55,95,.10), 0 16px 40px rgba(9,55,95,.14);
+  --elev-4: 0 4px 8px rgba(9,55,95,.12), 0 24px 56px rgba(9,55,95,.20);
 
   /* 8px base spacing scale. Layout values (margin, padding, gap) reference
      these where they already land on one of the eight steps; a value that
@@ -113,7 +132,12 @@
 
 body {
   margin: 0;
-  background: var(--page);
+  /* A barely-perceptible blue-tinted wash behind the hero region, so cards
+     visibly sit above a surface instead of floating on flat gray. A few
+     percent of luminance, not a visible gradient edge. */
+  background:
+    radial-gradient(1100px 460px at 50% 0, rgba(9,55,95,.05), transparent 62%),
+    var(--page);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 15px;
@@ -146,22 +170,51 @@ a { color: var(--aberdeen-blue); }
 .app { min-height: 100vh; display: flex; flex-direction: column; }
 
 .topbar {
-  background: var(--aberdeen-blue);
+  /* Subtle depth, not a flat slab: a gradient toward a deeper navy, a
+     Verdigris rule at the very bottom edge, and elevation so the header
+     visibly sits above the page. Sticky so it can go frosted on scroll
+     (see .topbar.scrolled below); background/shadow are transitioned so
+     that state change reads as a soft cross-fade, not a hard cut. */
+  background: linear-gradient(165deg, var(--aberdeen-blue) 0%, #062440 100%);
   color: #fff;
   padding: 14px 28px 0;
+  border-bottom: 3px solid var(--verdigris);
+  position: sticky; top: 0; z-index: 50;
+  transition: background-color .25s ease, box-shadow .25s ease, backdrop-filter .25s ease;
+}
+.topbar.scrolled {
+  box-shadow: var(--elev-3);
+  background-color: color-mix(in srgb, var(--aberdeen-blue) 88%, transparent);
+  background-image: linear-gradient(165deg, var(--aberdeen-blue) 0%, #062440 100%);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+/* Solid fallback where backdrop-filter is unsupported: full-strength
+   background instead of the semi-transparent one above. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .topbar.scrolled { background-color: var(--aberdeen-blue); }
 }
 .topbar-row {
-  display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   max-width: 1560px; margin: 0 auto; width: 100%;
 }
+/* Deliberately spaced groups, not items scattered along the bar: brand,
+   then project context (visually separated by a hairline-on-dark rule),
+   then actions - pushed right as their own group. */
+.tb-brand { display: flex; align-items: center; gap: 10px; }
+.tb-context {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding-left: 16px; margin-left: 2px; border-left: 1px solid rgba(255,255,255,.2);
+}
+.tb-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .brand-logo { height: 22px; width: auto; align-self: center; display: block; }
-.topbar h1 { font-size: 17px; letter-spacing: -.01em; }
+.topbar h1 { font-size: 17px; letter-spacing: -.01em; font-weight: 200; }
 .project-tag {
   font-size: 12px; font-weight: 500; color: #fff; white-space: nowrap;
   background: rgba(255,255,255,.14); border-radius: 999px; padding: 3px 11px;
 }
 .topbar .sub {
-  font-size: 13px; color: rgba(255,255,255,.66); margin-left: auto;
+  font-size: 13px; color: rgba(255,255,255,.66);
 }
 .topbar .btn { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.22); color: #fff; }
 .topbar .btn:hover { background: rgba(255,255,255,.18); }
@@ -204,11 +257,15 @@ a { color: var(--aberdeen-blue); }
   padding: 9px var(--space-16) 11px; border-radius: 8px 8px 0 0;
   color: rgba(255,255,255,.7); font-size: 13.5px; font-weight: 500;
   white-space: nowrap; border-bottom: 2px solid transparent;
+  border-top: 2px solid transparent;
 }
-.tab:hover { color: #fff; background: rgba(255,255,255,.08); }
+.tab:hover { color: #fff; background: rgba(255,255,255,.08); border-top-color: rgba(68,176,177,.45); }
+/* The active-tab indicator: a Verdigris rule along the top edge. The
+   bottom edge keeps its own job - matching --page so the selected tab
+   visually flows into the content below it. */
 .tab[aria-selected="true"] {
   background: var(--page); color: var(--ink); font-weight: 500;
-  border-bottom-color: var(--page);
+  border-bottom-color: var(--page); border-top-color: var(--verdigris);
 }
 
 .main { flex: 1; max-width: 1560px; margin: 0 auto; width: 100%; padding: var(--space-24) 28px var(--space-64); }
@@ -230,10 +287,10 @@ a { color: var(--aberdeen-blue); }
   appearance: none; cursor: pointer; text-align: left; width: 100%;
   display: flex; flex-direction: column; gap: 5px;
   background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius);
-  box-shadow: var(--shadow); padding: 18px 20px; font: inherit; color: inherit;
-  transition: transform .12s ease, border-color .12s ease;
+  box-shadow: var(--elev-1); padding: 18px 20px; font: inherit; color: inherit;
+  transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
 }
-.project-card:hover { border-color: var(--aberdeen-blue); transform: translateY(-1px); }
+.project-card:hover { border-color: var(--aberdeen-blue); transform: translateY(-1px); box-shadow: var(--elev-2); }
 
 .example-badge {
   align-self: flex-start; text-transform: uppercase; letter-spacing: .08em; font-weight: 500;
@@ -321,8 +378,18 @@ a { color: var(--aberdeen-blue); }
 .ai-rationale { font-size: 12px; color: var(--ink-2); margin-top: 5px; line-height: 1.4; }
 
 .view-head { margin-bottom: 18px; }
-.view-head h2 { font-size: 22px; }
-.view-head .lede { color: var(--ink-2); font-size: 14.5px; max-width: 78ch; margin-top: var(--space-4); }
+/* Section heading: ExtraLight per the type scale, Aberdeen Blue, with a
+   short Verdigris rule underneath - the one recurring "section heading"
+   role in the app is each tab's own h2, nothing else matches this selector. */
+.view-head h2 {
+  font-size: 24px; color: var(--aberdeen-blue); font-weight: 200;
+  padding-bottom: 13px; position: relative;
+}
+.view-head h2::after {
+  content: ''; position: absolute; left: 0; bottom: 0;
+  width: 36px; height: 3px; border-radius: 2px; background: var(--verdigris);
+}
+.view-head .lede { color: var(--ink-2); font-size: 14.5px; max-width: 78ch; margin-top: var(--space-8); }
 .weight-note { color: var(--ink-3); font-size: 12.5px; margin-top: 6px; }
 
 .footnote { color: var(--ink-3); font-size: 12px; margin-top: 10px; }
@@ -334,7 +401,7 @@ a { color: var(--aberdeen-blue); }
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-2);
 }
 .card-head {
   padding: 14px 18px; border-bottom: 1px solid var(--hairline);
@@ -359,18 +426,28 @@ a { color: var(--aberdeen-blue); }
 
 .tile {
   background: var(--surface); border: 1px solid var(--hairline);
-  border-radius: var(--radius); padding: 14px var(--space-16);
+  border-radius: var(--radius); padding: 16px var(--space-16);
+  box-shadow: var(--elev-1);
   height: auto; overflow: visible; /* never clip: the card grows to fit its content, always */
 }
-.tile .label { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
+/* Metric caption: small, uppercase, letter-spaced, Onyx at reduced
+   opacity - deliberately quieter than the number it labels. */
+.tile .label { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--caption); font-weight: 500; }
 /* The derivation rule behind a tile's number, one hover/focus away instead
    of printed under it competing with it. */
 .tile .label .info-ico {
   display: inline-block; margin-left: 5px; font-style: normal; letter-spacing: 0;
   text-transform: none; cursor: help; color: var(--ink-3);
 }
-.tile .label .info-ico:hover, .tile .label .info-ico:focus-visible { color: var(--aberdeen-blue); outline: none; }
-.tile .value { font-size: 27px; font-weight: 500; letter-spacing: -.02em; margin-top: 6px; line-height: 1.1; }
+.tile .label .info-ico:hover, .tile .label .info-ico:focus-visible { color: var(--verdigris); outline: none; }
+/* Hero metric: the number is unmistakably the loudest thing on the card -
+   large, ExtraLight, Aberdeen Blue, tabular so a re-count-up never jitters
+   in width. */
+.tile .value {
+  font-size: 34px; font-weight: 200; color: var(--aberdeen-blue);
+  letter-spacing: -.01em; margin-top: 7px; line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
 .tile .meta { font-size: 12.5px; color: var(--ink-2); margin-top: var(--space-4); }
 .tile.accent { border-left: 3px solid var(--aberdeen-blue); }
 /* A structural zero (e.g. no deskless roles in this population): a dash
@@ -393,7 +470,27 @@ a { color: var(--aberdeen-blue); }
 .tile-simulated .value { font-size: 22px; }
 .tile-simulated .sim-tag { vertical-align: 4px; }
 
-.tier-tile { border-top: 3px solid var(--tier-color, var(--ink-3)); }
+/* A substantial colored edge plus a soft tint/glow in the tier's own
+   color, so the card reads as belonging to its tier at a glance - not
+   just a hairline top border shared by every card on the page. */
+.tier-tile {
+  border-top: none; border-left: 4px solid var(--tier-color, var(--ink-3));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tier-color, var(--ink-3)) 7%, var(--surface)) 0%, var(--surface) 55%);
+  box-shadow: var(--elev-1), 0 0 0 1px color-mix(in srgb, var(--tier-color, var(--ink-3)) 12%, transparent);
+  position: relative; overflow: hidden;
+  transition: box-shadow .2s ease;
+}
+.tier-tile:hover {
+  box-shadow: var(--elev-3), 0 0 0 1px color-mix(in srgb, var(--tier-color, var(--ink-3)) 12%, transparent);
+}
+/* Specular highlight tracking the cursor, driven by --spot-* custom
+   properties from useTiltHover - a plain CSS reaction to a JS-updated
+   position, no extra DOM node. */
+.tier-tile::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle at var(--spot-x, 50%) var(--spot-y, 50%), rgba(255,255,255,.5), transparent 55%);
+  opacity: var(--spot-o, 0); transition: opacity .2s ease;
+}
 /* A brief, one-shot pulse when this tier's role count just moved because a
    weight changed - the header's "Just moved" line carries the actual
    before/after numbers for the rest of its few seconds on screen. */
@@ -427,13 +524,19 @@ a { color: var(--aberdeen-blue); }
 .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--dot, var(--ink-3)); }
 
 .tier-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 3px 9px 3px var(--space-8); border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-width: 96px; padding: 3px 9px 3px var(--space-8); border-radius: 999px;
   font-size: 12px; font-weight: 500; letter-spacing: .01em;
-  background: var(--wash); color: var(--ink); border: 1px solid rgba(64,64,64,.09);
+  /* Tinted fill from the tier palette, Onyx text - correct per the brand's
+     own ADA rule (secondary-palette fills take Aberdeen Blue/Onyx/Black
+     text only, never white). Border picks up the tier hue too, at low
+     opacity, so the badge reads as one designed component, not a dot
+     glued to a generic pill. */
+  background: var(--wash); color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--edge, var(--hairline-strong)) 40%, transparent);
   white-space: nowrap;
 }
-.tier-badge.lg { font-size: 13.5px; padding: 5px 13px 5px 11px; }
+.tier-badge.lg { font-size: 13.5px; min-width: 112px; padding: 5px 13px 5px 11px; }
 
 /* ----------------------------------------------------------------- filters */
 
@@ -447,7 +550,7 @@ select, input[type="text"], input[type="number"], textarea {
 }
 textarea { min-height: 84px; resize: vertical; width: 100%; }
 select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-visible {
-  outline: 2px solid var(--aberdeen-blue); outline-offset: 1px;
+  outline: 2px solid var(--verdigris); outline-offset: 1px;
 }
 .btn {
   appearance: none; cursor: pointer; border-radius: var(--radius-s);
@@ -463,7 +566,12 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 
 /* ---------------------------------------------------------------- heat map */
 
-.map-wrap { position: relative; }
+/* Faint inset shadow so the points read as sitting inside a surface,
+   not floating on a flat white rectangle. */
+.map-wrap {
+  position: relative; border-radius: var(--radius-s);
+  box-shadow: inset 0 1px 3px rgba(9,55,95,.06), inset 0 0 0 1px var(--hairline);
+}
 .map-wrap svg { display: block; width: 100%; height: auto; }
 .map-legend {
   display: flex; gap: var(--space-16); flex-wrap: wrap; align-items: center;
@@ -473,17 +581,31 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 .map-legend .sizes { display: flex; align-items: center; gap: 7px; margin-left: auto; }
 .map-legend .sizes svg { width: auto; }
 
-.pt { cursor: pointer; }
+.pt { cursor: pointer; opacity: 1; transition: opacity .15s ease; }
 /* .mark, not circle.mark: a tier's marker is a circle, a square, a
    triangle or a diamond now (WCAG 1.4.1, shape carries tier identity too,
    not just hue), and every shape needs the same stroke treatment. */
-.pt .mark { stroke: #fff; stroke-width: 2; }
-.pt:hover .mark { stroke: var(--aberdeen-blue); }
-.pt.sel .mark { stroke: var(--aberdeen-blue); stroke-width: 2.5; }
+.pt .mark {
+  stroke: #fff; stroke-width: 2;
+  transform-box: fill-box; transform-origin: center; transition: transform .15s ease;
+}
+/* The hovered point grows and reveals its tooltip (already wired via
+   onMouseMove); every sibling drops to low opacity so density elsewhere on
+   the plot doesn't compete with it. :has() keeps this a pure CSS reaction -
+   the <g> itself is GSAP's element for the position/reveal tweens above,
+   so the hover effect lives on the child .mark (scale) and the .pt group's
+   own opacity (dim), never fighting the same transform GSAP owns. */
+.map-wrap svg:has(.pt:hover) .pt:not(:hover) { opacity: 0.3; }
+.pt:hover .mark { transform: scale(1.18); }
+/* Verdigris marks an interaction state (hover/select/focus), distinct from
+   the tier hue the fill itself encodes - so "this point is highlighted"
+   never gets confused with "this point is this tier". */
+.pt:hover .mark { stroke: var(--verdigris); }
+.pt.sel .mark { stroke: var(--verdigris); stroke-width: 2.5; }
 /* Keyboard focus had no visible indicator at all before this - a :hover
    and a .sel style existed, but tabbing to a point (each is its own
    role="button" tabindex="0") showed nothing. */
-.pt:focus-visible .mark { stroke: var(--aberdeen-blue); stroke-width: 3; }
+.pt:focus-visible .mark { stroke: var(--verdigris); stroke-width: 3; }
 .pt:focus-visible { outline: none; } /* the thicker stroke above is the indicator; an SVG outline box looks broken */
 
 /* Fixed, AA-passing color, not the raw tier hue: gold and sky measure
@@ -498,7 +620,7 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
   position: absolute; pointer-events: none; z-index: 20;
   background: var(--aberdeen-blue); color: #fff; border-radius: 7px;
   padding: var(--space-8) 11px; font-size: 12.5px; line-height: 1.45;
-  box-shadow: 0 6px 20px -6px rgba(0,0,0,.5); max-width: 300px;
+  box-shadow: var(--elev-3); max-width: 300px;
 }
 .tip b { font-weight: 500; }
 .tip .r { color: rgba(255,255,255,.72); }
@@ -506,10 +628,12 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 /* ------------------------------------------------------------------ tables */
 
 table.data { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-table.data th, table.data td { padding: 9px var(--space-12); text-align: left; border-bottom: 1px solid var(--hairline); }
+table.data th, table.data td { padding: 12px var(--space-12); text-align: left; border-bottom: 1px solid var(--hairline); }
 table.data th {
+  /* Column headers: small, uppercase, letter-spaced, Onyx at reduced
+     opacity - not the same weight as the data they label. */
   font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--ink-3); font-weight: 500; white-space: nowrap;
+  color: var(--caption); font-weight: 500; white-space: nowrap;
   position: sticky; top: 0; background: var(--surface); z-index: 1;
 }
 table.data th.sortable { cursor: pointer; user-select: none; }
@@ -518,11 +642,24 @@ table.data th .arrow { color: var(--aberdeen-blue); }
 table.data td.n { text-align: right; font-variant-numeric: tabular-nums; }
 table.data th.n { text-align: right; }
 table.data tbody tr { cursor: pointer; }
-table.data tbody tr:hover { background: var(--surface-sunk); }
-table.data tbody tr.sel { background: var(--aberdeen-blue-wash); }
+/* An accent bar in the row's own tier color, sliding in from the left on
+   hover - layered on top of the neutral hover/select wash below, which
+   stays as the interaction-state color; this bar is what ties a row back
+   to its tier at a glance. Transform-only (translateX), never a width or
+   left animation, and under 2px of its own vertical displacement (none,
+   in fact - it only moves horizontally). */
+tr.tr-tier { position: relative; }
+tr.tr-tier::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--row-tier, transparent);
+  transform: translateX(-100%); transition: transform .18s ease;
+}
+tr.tr-tier:hover::before, tr.tr-tier.sel::before { transform: translateX(0); }
+table.data tbody tr:hover { background: var(--verdigris-wash); }
+table.data tbody tr.sel { background: var(--verdigris-wash); box-shadow: inset 3px 0 0 var(--verdigris); }
 /* Rows are the only path to the one-pagers, so a keyboard user needs the
    same visible affordance a mouse user gets from :hover. */
-table.data tbody tr:focus-visible { outline: 2px solid var(--aberdeen-blue); outline-offset: -2px; background: var(--surface-sunk); }
+table.data tbody tr:focus-visible { outline: 2px solid var(--verdigris); outline-offset: -2px; background: var(--verdigris-wash); }
 table.data td .rolename { font-weight: 500; }
 table.data td .newflag {
   font-size: 10.5px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase;
@@ -559,7 +696,7 @@ table.data td .newflag {
 .score-block + .score-block { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--hairline); }
 .score-head { display: flex; align-items: baseline; gap: 10px; }
 .score-head .name { font-weight: 500; font-size: 14px; }
-.score-head .val { font-size: 26px; font-weight: 500; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin-left: auto; }
+.score-head .val { font-size: 30px; font-weight: 200; color: var(--aberdeen-blue); letter-spacing: -.01em; font-variant-numeric: tabular-nums; margin-left: auto; }
 .score-head .thr { font-size: 12px; color: var(--ink-3); }
 .subfactors { margin-top: 10px; display: grid; gap: 7px; }
 .sf { display: grid; grid-template-columns: 1fr 42px 52px; gap: 10px; align-items: center; font-size: 13px; }
@@ -637,7 +774,7 @@ table.mini.milestones tr.today-marker td {
 /* weight tuner */
 .tuner {
   background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius);
-  margin-bottom: var(--space-16); box-shadow: var(--shadow);
+  margin-bottom: var(--space-16); box-shadow: var(--elev-2);
 }
 .tuner > summary {
   cursor: pointer; padding: 11px var(--space-16); font-size: 13.5px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
@@ -755,11 +892,14 @@ table.data td .incflag {
 .live-score {
   background: var(--aberdeen-blue); color: #fff; border-radius: var(--radius);
   padding: var(--space-16) 18px; display: grid; gap: var(--space-12);
+  box-shadow: var(--elev-2);
 }
 .live-score .lab { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: rgba(255,255,255,.6); font-weight: 500; }
 .live-score .pair { display: flex; gap: 18px; }
 .live-score .pair > div { flex: 1; }
-.live-score .big { font-size: 32px; font-weight: 500; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.05; }
+/* Hero metric on a dark surface: white is one of the two text colors the
+   brand's own rule allows on Aberdeen Blue (the other is Verdigris). */
+.live-score .big { font-size: 38px; font-weight: 200; letter-spacing: -.01em; font-variant-numeric: tabular-nums; line-height: 1.05; }
 .live-score .thr { font-size: 12px; color: rgba(255,255,255,.6); }
 .live-score .tierline { display: flex; align-items: center; gap: 9px; padding-top: var(--space-12); border-top: 1px solid rgba(255,255,255,.18); }
 .live-score .tierline .t { font-size: 18px; font-weight: 500; }
@@ -790,9 +930,22 @@ table.data td .incflag {
   .topbar .sub { display: none; }
 }
 
+/* GSAP-driven motion (scroll reveal, count-up, quadrant tweening, tilt,
+   tab transitions, bar fills) already checks REDUCE_MOTION in JS and skips
+   straight to final values/positions. This is the belt-and-suspenders catch
+   for the plain CSS transitions elsewhere (hover lifts, focus rings, the
+   tab indicator) so every last one collapses to instant under the OS
+   setting, not just the JS-driven pass. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+  }
+}
+
 /* ------------------------------------------------------------------- print */
 @media print {
-  :root { --page: #fff; --shadow: none; }
+  :root { --page: #fff; --elev-1: none; --elev-2: none; --elev-3: none; --elev-4: none; }
   body { background: #fff; font-size: 11pt; }
   .topbar, .tabs, .no-print, .filters, .btn { display: none !important; }
   .main { padding: 0; max-width: none; }
@@ -801,7 +954,9 @@ table.data td .incflag {
   .cols-2 { display: block; }
   /* keep the metric tiles four-across on paper, they are small */
   .cols-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6pt; }
-  .tile .value { font-size: 18pt; }
+  .tile { box-shadow: none; }
+  .tile .value { font-size: 18pt; font-weight: 500; color: var(--ink); }
+  .tier-tile { background: var(--surface); box-shadow: none; }
   .ba { display: grid; grid-template-columns: 1fr 1fr; }
   .tile { break-inside: avoid; margin-bottom: 10pt; }
   .view-head .lede { display: none; }

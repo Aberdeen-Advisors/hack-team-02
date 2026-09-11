@@ -38,12 +38,134 @@
 <script>window.Chart || document.write('<script src="vendor/chart.umd.js"><\/script>');</script>
 <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
 <script>window.Babel || document.write('<script src="vendor/babel.min.js"><\/script>');</script>
+<!-- GSAP + ScrollTrigger: the motion layer (scroll reveal, count-up,
+     quadrant tweening). Both are 100% free (ScrollTrigger included) since
+     GSAP dropped its Club GreenSock paywall, so no license gate here. Same
+     CDN-with-vendored-fallback pattern as everything else above. -->
+<script src="https://unpkg.com/gsap@3.12.5/dist/gsap.min.js"></script>
+<script>window.gsap || document.write('<script src="vendor/gsap.min.js"><\/script>');</script>
+<script src="https://unpkg.com/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script>window.ScrollTrigger || document.write('<script src="vendor/ScrollTrigger.min.js"><\/script>');</script>
 </head>
 <body>
 <div id="root"></div>
 
 <script type="text/babel" data-presets="react">
-const { useState, useMemo, useEffect, useRef, useCallback } = React;
+const { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } = React;
+
+/* ===========================================================================
+   0. MOTION: GSAP + ScrollTrigger, chosen because the count-up and quadrant
+   tweening below are substantially easier with GSAP's tweening engine and
+   ScrollTrigger's viewport observation than hand-rolled requestAnimationFrame
+   loops or IntersectionObserver bookkeeping - no other animation approach
+   existed in this codebase before this pass (plain CSS keyframes only, for
+   the weight-flash and tile-flash transients). ScrollTrigger is included
+   free of the old Club GreenSock paywall as of GSAP 3.12, so there is no
+   license gate to work around.
+
+   Every animation in this app funnels through the two hooks below so the
+   hard constraints apply in exactly one place each, not once per call site:
+   - REDUCE_MOTION is read once (matches the OS setting at load) and both
+     hooks short-circuit to the final state immediately when it's true.
+   - Both hooks kill their own tweens/ScrollTriggers on unmount and on every
+     re-run, so switching projects or tabs repeatedly cannot leak GSAP
+     instances or leave a listener pointed at a removed DOM node.
+   =========================================================================== */
+
+if (window.gsap && window.ScrollTrigger) { gsap.registerPlugin(ScrollTrigger); }
+const REDUCE_MOTION = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+// Thousands-grouped, fixed-decimal formatting shared by the count-up hook
+// and by Tile's own React-committed text, so the two never disagree about
+// what the "same" number looks like (e.g. "5,000" not "5000").
+function formatCount(v, decimals) {
+  return v.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+/* Animates a number from its last displayed value to `target` - never from a
+   hardcoded 0 on a re-trigger, so a weight-slider change visibly travels
+   from where the number currently sits, not a jarring reset-then-count.
+   Only `transform`/opacity-free text content changes here - no layout
+   properties are tweened. Interruptible: a new `target` kills whatever
+   tween is in flight and starts the next one from the exact value that was
+   on screen at the moment of interruption, so rapid slider drags never
+   produce a visible "snap back" before continuing. */
+function useCountUp(ref, target, { decimals = 0, prefix = '', suffix = '', duration = 1.2 } = {}) {
+  const currentRef = useRef(0);
+  const everRenderedRef = useRef(false);
+  const tweenRef = useRef(null);
+  // Layout effect, not a plain effect: React has already committed the exact
+  // final text (see the Tile usage below) by the time this runs, and this
+  // fires before the browser paints that commit - so the very first thing
+  // ever shown on screen is the start of the tween, never a flash of the
+  // final value snapping in ahead of the animation.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || target == null || !isFinite(target)) return undefined;
+    const render = (v) => { currentRef.current = v; el.textContent = prefix + formatCount(v, decimals) + suffix; };
+    if (REDUCE_MOTION || !window.gsap) { render(target); everRenderedRef.current = true; return undefined; }
+    if (tweenRef.current) tweenRef.current.kill();
+    const from = everRenderedRef.current ? currentRef.current : 0;
+    const obj = { v: from };
+    tweenRef.current = gsap.to(obj, {
+      v: target, duration, ease: 'power2.out',
+      onUpdate: () => render(obj.v),
+      onComplete: () => { render(target); everRenderedRef.current = true; },
+    });
+    return () => { if (tweenRef.current) tweenRef.current.kill(); };
+  }, [target, decimals, prefix, suffix, duration]);
+}
+
+/* Reveals up to `max` direct children of `containerRef` matching `selector`
+   with a fade + small rise, staggered, the first time the container crosses
+   `start` in the viewport - once, never reversed on scroll-up, and inert
+   (no-op) under reduced motion or before GSAP has loaded, in which case the
+   children simply render at their normal opacity/position: this effect only
+   ever ADDS a temporary entrance on top of content that is already present
+   and readable in the DOM without JavaScript. */
+function useRevealGroup(containerRef, selector, { max = 8, start = 'top 85%' } = {}) {
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el || REDUCE_MOTION || !window.gsap || !window.ScrollTrigger) return undefined;
+    const items = Array.from(el.querySelectorAll(selector)).slice(0, max);
+    if (!items.length) return undefined;
+    gsap.set(items, { opacity: 0, y: 20 });
+    const reveal = () => gsap.to(items, { opacity: 1, y: 0, duration: 0.2, ease: 'power2.out', stagger: 0.06, clearProps: 'opacity,transform', overwrite: true });
+    const st = ScrollTrigger.create({ trigger: el, start, once: true, onEnter: reveal });
+    // Dead-man's switch: this is a live-presentation tool, so content that
+    // never reveals (a ScrollTrigger mismeasurement, a trigger point that
+    // never gets crossed on an unusual viewport) is worse than content that
+    // reveals a beat early. If nothing has fired within a few seconds,
+    // force the final visible state directly.
+    const failsafe = setTimeout(reveal, 4000);
+    return () => { clearTimeout(failsafe); st.kill(); gsap.set(items, { clearProps: 'opacity,transform' }); };
+  }, [containerRef, selector, max, start]);
+}
+
+// A count-up number outside a Tile card (e.g. a figure inline in a
+// sentence or a tier-card row): same exact-final-value/interruptible
+// contract as Tile's own count-up, just not wrapped in the tile chrome.
+function CountUpText({ value, decimals = 0, prefix = '', suffix = '', duration = 1.2 }) {
+  const ref = useRef(null);
+  const ok = value != null && isFinite(value);
+  useCountUp(ref, ok ? value : null, { decimals, prefix, suffix, duration });
+  return <span ref={ref}>{ok ? `${prefix}${formatCount(value, decimals)}${suffix}` : value}</span>;
+}
+
+// Tab content cross-fades in with a slight vertical offset on every switch.
+// `key={tab}` on the <main> element (see App()) forces React to fully
+// remount it per tab, which both re-triggers this entrance and means the
+// exit of the outgoing tab's content is instantaneous (unmount), so the
+// asymmetry the spec calls for - exit faster than entrance - falls out
+// naturally rather than needing a hand-timed two-phase animation.
+function useTabTransitionIn(ref, depKey) {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || REDUCE_MOTION || !window.gsap) return undefined;
+    const tween = gsap.fromTo(el, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.28, ease: 'power2.out', clearProps: 'opacity,transform' });
+    return () => tween.kill();
+  }, [depKey]);
+}
 
 /* ===========================================================================
    1. SCORING ENGINE: deterministic JavaScript. Never an LLM call.
@@ -3749,7 +3871,7 @@ function downloadCSV(filename, csv) {
    parent row re-renders for an unrelated reason. */
 const TierBadge = React.memo(function TierBadge({ tier, large }) {
   return (
-    <span className={'tier-badge' + (large ? ' lg' : '')} style={{ '--wash': TIERS[tier].wash }}>
+    <span className={'tier-badge' + (large ? ' lg' : '')} style={{ '--wash': TIERS[tier].wash, '--edge': TIERS[tier].hex }}>
       <i className="dot" style={{ '--dot': TIERS[tier].hex }} />{tier}
     </span>
   );
@@ -3767,7 +3889,20 @@ const TierBadge = React.memo(function TierBadge({ tier, large }) {
 // short unit/qualifier with no formula in it ("of admin, per site"),
 // which stays visible since it's what the number is IN, not how it was
 // derived.
-const Tile = React.memo(function Tile({ label, value, meta, rule, accent, emptyNote, simulated }) {
+// `countTo`/`countFormat` opt a tile into the count-up hero treatment: pass
+// the raw number and how to render it ({decimals, prefix, suffix}), and
+// Tile both renders the exact final text (so it's correct with no JS, or
+// under reduced motion) and, when motion is allowed, animates the visible
+// digits up to it - and re-animates from wherever they currently sit
+// whenever `countTo` changes, e.g. a weight slider recomputing this number.
+// A tile with no `countTo` (most tiles: strings, "N/A", role names) renders
+// exactly as it always did.
+const Tile = React.memo(function Tile({ label, value, meta, rule, accent, emptyNote, simulated, countTo, countFormat }) {
+  const valueRef = useRef(null);
+  const animated = countTo != null && isFinite(countTo);
+  const fmt = countFormat || {};
+  useCountUp(valueRef, animated ? countTo : null, fmt);
+  const formattedValue = animated ? `${fmt.prefix || ''}${formatCount(countTo, fmt.decimals || 0)}${fmt.suffix || ''}` : value;
   if (emptyNote) {
     return (
       <div className="tile tile-empty">
@@ -3783,8 +3918,66 @@ const Tile = React.memo(function Tile({ label, value, meta, rule, accent, emptyN
         {label}
         {rule && <i className="info-ico" tabIndex={0} title={rule} aria-label={`How this is derived: ${rule}`}>ⓘ</i>}
       </div>
-      <div className="value">{value}{simulated && <span className="sim-tag">Simulated</span>}</div>
+      <div className="value">
+        {animated ? <span ref={valueRef}>{formattedValue}</span> : formattedValue}
+        {simulated && <span className="sim-tag">Simulated</span>}
+      </div>
       {meta && <div className="meta">{meta}</div>}
+    </div>
+  );
+});
+
+// A soft 3D tilt toward the cursor, capped at +-5deg with a matching
+// specular highlight that tracks the pointer - the highlight is what
+// keeps the tilt reading as depth instead of a cheap gimmick. Always
+// re-attaches its own reverse transition on mouseleave so a fast pointer
+// exit can never leave the card stuck tilted. transform + opacity/CSS
+// custom-property only; inert under reduced motion.
+function useTiltHover(ref) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || REDUCE_MOTION || !window.gsap) return undefined;
+    gsap.set(el, { transformPerspective: 1000, transformStyle: 'preserve-3d' });
+    const rotX = gsap.quickTo(el, 'rotationX', { duration: 0.3, ease: 'power2.out' });
+    const rotY = gsap.quickTo(el, 'rotationY', { duration: 0.3, ease: 'power2.out' });
+    const MAX_DEG = 5;
+    const onMove = (e) => {
+      const rect = el.getBoundingClientRect();
+      const px = (e.clientX - rect.left) / rect.width;
+      const py = (e.clientY - rect.top) / rect.height;
+      rotY(Math.max(-MAX_DEG, Math.min(MAX_DEG, (px - 0.5) * MAX_DEG * 2)));
+      rotX(Math.max(-MAX_DEG, Math.min(MAX_DEG, (0.5 - py) * MAX_DEG * 2)));
+      el.style.setProperty('--spot-x', `${px * 100}%`);
+      el.style.setProperty('--spot-y', `${py * 100}%`);
+      el.style.setProperty('--spot-o', '1');
+    };
+    const onLeave = () => {
+      rotX(0); rotY(0);
+      el.style.setProperty('--spot-o', '0');
+    };
+    el.addEventListener('mousemove', onMove);
+    el.addEventListener('mouseleave', onLeave);
+    return () => {
+      el.removeEventListener('mousemove', onMove);
+      el.removeEventListener('mouseleave', onLeave);
+      gsap.killTweensOf(el);
+    };
+  }, [ref]);
+}
+
+const TierSummaryTile = React.memo(function TierSummaryTile({ tier: t, b, flash }) {
+  const ref = useRef(null);
+  useTiltHover(ref);
+  return (
+    <div ref={ref} className={'tile tier-tile' + (flash ? ' tile-flash' : '')} style={{ '--tier-color': TIERS[t].hex }}>
+      <div className="tier-name"><i className="dot" style={{ '--dot': TIERS[t].hex }} />{t}</div>
+      <div className="tier-desc">{TIERS[t].package.join(', ')}.</div>
+      <div className="rows">
+        <div className="row"><span>Roles</span><b><CountUpText value={b.roles} /></b></div>
+        <div className="row"><span>People</span><b><CountUpText value={b.people} /></b></div>
+        <div className="row"><span>% of population</span><b>{pct(b.popShare)}</b></div>
+        <div className="row"><span>Share of change budget</span><b>{pct(b.budgetShare)}</b></div>
+      </div>
     </div>
   );
 });
@@ -3850,6 +4043,17 @@ function tierMark(tier, cx, cy, r, extraProps) {
 const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
   const [tip, setTip] = useState(null);
   const wrap = useRef(null);
+  // Motion bookkeeping: the <g> DOM node per role id, and the last screen
+  // position this effect actually animated to. React always renders every
+  // mark's true cx/cy/fill correctly and immediately - none of this ever
+  // touches those attributes. It only overlays a transform on the <g> that
+  // starts a moved point back at its old screen position and eases it to
+  // zero offset (i.e. its new, already-correct position), and a matching
+  // opacity dip so a tier (and therefore shape/color) change doesn't read
+  // as a hard cut. Transform + opacity only, per the motion hard constraint.
+  const pointElsRef = useRef({});
+  const prevPosRef = useRef({});
+  const mountedRef = useRef(false);
 
   const px = (v) => MAP.l + ((v - 1) / 4) * (MAP.w - MAP.l - MAP.r);
   const py = (v) => (MAP.h - MAP.b) - ((v - 1) / 4) * (MAP.h - MAP.t - MAP.b);
@@ -3875,10 +4079,100 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
     { tier: 'Enable',   x: xm, y: ym, w: x1 - xm, h: y0 - ym, tx: x1 - 12, ty: y0 - 12, anchor: 'end' },
   ];
 
+  useLayoutEffect(() => {
+    if (REDUCE_MOTION || !window.gsap) return undefined;
+    const nodes = pointElsRef.current;
+    const positions = {};
+    ordered.forEach((r) => { positions[r.id] = { x: px(r.scores.impact), y: py(r.scores.risk) }; });
+
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      // First reveal: scale in from 0, stagger ordered by impact descending -
+      // draws the eye across the plot from the heaviest interventions down.
+      const byImpact = [...ordered].sort((a, b) => b.scores.impact - a.scores.impact);
+      const els = byImpact.map((r) => nodes[r.id]).filter(Boolean);
+      if (els.length) {
+        gsap.set(els, { opacity: 0, scale: 0, transformOrigin: '50% 50%' });
+        gsap.to(els, {
+          opacity: 1, scale: 1, duration: 0.4, ease: 'back.out(1.6)',
+          stagger: Math.min(0.025, 0.9 / els.length), clearProps: 'opacity,transform',
+        });
+      }
+      // Direct labels (quadrant names, axis ticks/titles) fade in after the
+      // points have settled, not simultaneously.
+      const labels = wrap.current ? wrap.current.querySelectorAll('.quad-label, .axis-t, .axis-title') : [];
+      if (labels.length) {
+        gsap.set(labels, { opacity: 0 });
+        gsap.to(labels, { opacity: 1, duration: 0.4, delay: 0.35, ease: 'power1.out' });
+      }
+      prevPosRef.current = positions;
+      return undefined;
+    }
+
+    // Recompute: a weight change moved some points. Ease each one from
+    // wherever it currently sits (composing with any tween already in
+    // flight, so a rapid slider drag stays smooth) to its new position -
+    // React has already rendered the true, correct cx/cy/fill; this only
+    // eases the visual transition to it. A tier crossing the threshold
+    // line shows as movement plus a brief opacity dip standing in for the
+    // shape/color change, rather than a hard cut.
+    const prev = prevPosRef.current;
+    ordered.forEach((r) => {
+      const el = nodes[r.id];
+      const now = positions[r.id];
+      const was = prev[r.id];
+      if (!el || !now) return;
+      if (!was) {
+        gsap.fromTo(el, { opacity: 0, scale: 0, transformOrigin: '50% 50%' },
+          { opacity: 1, scale: 1, duration: 0.3, ease: 'back.out(1.6)', clearProps: 'opacity,transform' });
+        return;
+      }
+      const movedX = was.x - now.x, movedY = was.y - now.y;
+      if (Math.abs(movedX) > 0.4 || Math.abs(movedY) > 0.4) {
+        const curX = gsap.getProperty(el, 'x') || 0;
+        const curY = gsap.getProperty(el, 'y') || 0;
+        gsap.set(el, { x: curX + movedX, y: curY + movedY });
+        gsap.to(el, { x: 0, y: 0, duration: 0.7, ease: 'power2.inOut', overwrite: 'auto' });
+        // The opacity dip stands in for the shape/color swap React already
+        // made instantly; clearProps hands opacity back to CSS afterward so
+        // the plain :hover dim/highlight interaction (see styles.css) still
+        // works on a point that has settled from a recompute.
+        gsap.timeline({ overwrite: 'auto' })
+          .to(el, { opacity: 0.35, duration: 0.2, ease: 'power1.inOut' }, 0)
+          .to(el, { opacity: 1, duration: 0.5, ease: 'power1.inOut', clearProps: 'opacity' }, 0.2);
+      }
+    });
+    // Prune roles no longer rendered (a filter change), so refs don't leak.
+    Object.keys(nodes).forEach((id) => { if (!positions[id]) delete nodes[id]; });
+    prevPosRef.current = positions;
+  }, [ordered]);
+
+  // Kill every in-flight point tween on unmount (switching projects/tabs) -
+  // ScrollTrigger instances are killed by their own hook's cleanup, but
+  // these ad hoc gsap.to/timeline calls have no other owner.
+  useEffect(() => () => {
+    if (window.gsap) Object.values(pointElsRef.current).forEach((el) => gsap.killTweensOf(el));
+  }, []);
+
   return (
     <div className="map-wrap" ref={wrap}>
       <svg viewBox={`0 0 ${MAP.w} ${MAP.h}`} role="img"
            aria-label="Impact severity against adoption risk, one point per role, colored by intervention tier. The sortable table below carries the same values.">
+        <defs>
+          {/* One gradient per tier (not per point): a soft radial highlight
+              offset toward the top-left, consistently, on every mark shape -
+              objectBoundingBox units make the offset proportional whether
+              the mark is a circle, square, triangle or diamond. */}
+          {TIER_ORDER.map((t) => (
+            <radialGradient key={t} id={`sphere-${t}`} cx="32%" cy="26%" r="78%">
+              <stop offset="0%" stopColor={`color-mix(in srgb, ${TIERS[t].hex} 45%, white)`} />
+              <stop offset="100%" stopColor={TIERS[t].hex} />
+            </radialGradient>
+          ))}
+          <filter id="pt-shadow" x="-60%" y="-60%" width="220%" height="220%">
+            <feDropShadow dx="0" dy="1.5" stdDeviation="1.6" floodColor="#09375F" floodOpacity="0.35" />
+          </filter>
+        </defs>
         {quads.map((q) => (
           <g key={q.tier}>
             <rect x={q.x} y={q.y} width={q.w} height={q.h} fill={TIERS[q.tier].hex} opacity="0.045" />
@@ -3908,12 +4202,15 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
         <text className="axis-title" transform={`rotate(-90 16 ${(y0 + y1) / 2})`} x="16" y={(y0 + y1) / 2} textAnchor="middle">Adoption risk: how likely it is to fail</text>
 
         {ordered.map((r) => (
-          <g key={r.id} className={'pt' + (selectedId === r.id ? ' sel' : '')}
+          <g key={r.id} ref={(el) => { if (el) pointElsRef.current[r.id] = el; }}
+             className={'pt' + (selectedId === r.id ? ' sel' : '')}
              onMouseMove={(e) => move(e, r)} onMouseLeave={() => setTip(null)}
              onClick={() => onSelect(r.id)} tabIndex="0"
              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(r.id); } }}
              role="button" aria-label={`${r.role}. Impact ${r.scores.impact}, risk ${r.scores.risk}, tier ${r.tier}, ${pluralize(r.headcount, 'person', 'people')}.`}>
-            {tierMark(r.tier, px(r.scores.impact), py(r.scores.risk), rad(r.headcount), { className: 'mark' })}
+            {tierMark(r.tier, px(r.scores.impact), py(r.scores.risk), rad(r.headcount), {
+              className: 'mark', fill: `url(#sphere-${r.tier})`, filter: 'url(#pt-shadow)',
+            })}
           </g>
         ))}
       </svg>
@@ -4000,8 +4297,13 @@ const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId,
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(id); }
   };
 
+  // The first dozen rows stagger in on reveal; a 38-row table never staggers
+  // all 38 - past the cap, the rest of the table is simply already there.
+  const tableWrapRef = useRef(null);
+  useRevealGroup(tableWrapRef, 'tbody tr', { max: 12 });
+
   return (
-    <div className="table-scroll">
+    <div className="table-scroll" ref={tableWrapRef}>
       <table className="data">
         <thead>
           <tr>
@@ -4015,7 +4317,8 @@ const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId,
         </thead>
         <tbody>
           {sorted.map((r) => (
-            <tr key={r.id} className={selectedId === r.id ? 'sel' : ''} onClick={() => onSelect(r.id)}
+            <tr key={r.id} className={'tr-tier' + (selectedId === r.id ? ' sel' : '')} style={{ '--row-tier': TIERS[r.tier].hex }}
+                onClick={() => onSelect(r.id)}
                 role="button" tabIndex={0} aria-label={`Open one-pager for ${r.role}`} onKeyDown={rowKeyHandler(r.id)}>
               <td><span className="rolename">{r.role}</span>{r.isNewRole && <span className="newflag">new role</span>}</td>
               <td>{r.siteArchetype}{r.deskless ? ' · deskless' : ''}</td>
@@ -4234,21 +4537,9 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       )}
 
       <div className="grid cols-4" style={{ marginBottom: 'var(--space-16)' }}>
-        {TIER_ORDER.map((t) => {
-          const b = agg.byTier[t];
-          return (
-            <div className={'tile tier-tile' + (changedTiers.has(t) ? ' tile-flash' : '')} key={t} style={{ '--tier-color': TIERS[t].hex }}>
-              <div className="tier-name"><i className="dot" style={{ '--dot': TIERS[t].hex }} />{t}</div>
-              <div className="tier-desc">{TIERS[t].package.join(', ')}.</div>
-              <div className="rows">
-                <div className="row"><span>Roles</span><b>{b.roles}</b></div>
-                <div className="row"><span>People</span><b>{b.people.toLocaleString()}</b></div>
-                <div className="row"><span>% of population</span><b>{pct(b.popShare)}</b></div>
-                <div className="row"><span>Share of change budget</span><b>{pct(b.budgetShare)}</b></div>
-              </div>
-            </div>
-          );
-        })}
+        {TIER_ORDER.map((t) => (
+          <TierSummaryTile key={t} tier={t} b={agg.byTier[t]} flash={changedTiers.has(t)} />
+        ))}
       </div>
 
       {/* 3. THE QUADRANT CHART. The weighting panel sits right after it: it's
@@ -4291,7 +4582,7 @@ function AxisBreakdown({ name, factors, values, score, newRole, citeDeck }) {
       <div className="score-head">
         <span className="name">{name}</span>
         <span className="thr">threshold {THRESHOLD.toFixed(1)}, inclusive</span>
-        <span className="val" style={{ color: score >= THRESHOLD ? 'var(--ink)' : 'var(--ink-2)' }}>{score.toFixed(1)}</span>
+        <span className="val" style={{ color: score >= THRESHOLD ? 'var(--ink)' : 'var(--ink-2)' }}><CountUpText value={score} decimals={1} /></span>
       </div>
       <div className="subfactors">
         {factors.map((f) => {
@@ -4529,9 +4820,9 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
         <h3 style={{ margin: 0, fontSize: 17 }}>What's changing</h3>
       </div>
       <div className="grid cols-4" style={{ marginBottom: 'var(--space-12)' }}>
-        <Tile label="Tasks removed" value={role.tasksRemoved} />
-        <Tile label="Tasks changed" value={role.tasksChanged} />
-        <Tile label="Tasks new" value={role.tasksNew} />
+        <Tile label="Tasks removed" value={role.tasksRemoved} countTo={role.tasksRemoved} />
+        <Tile label="Tasks changed" value={role.tasksChanged} countTo={role.tasksChanged} />
+        <Tile label="Tasks new" value={role.tasksNew} countTo={role.tasksNew} />
         <Tile label="FTE delta" value={signed(role.fteDelta)} meta="of admin, per site" />
       </div>
       {fteConsequenceLine(role.fteDelta) && (
@@ -4806,11 +5097,11 @@ function AddRoleView({ onCreate, project, comboExample }) {
                 <div className="lab">{complete ? 'Computed live' : `Incomplete: ${6 - missing.length} of 6 sub-factors set`}</div>
                 <div className="pair" style={{ marginTop: 'var(--space-8)' }}>
                   <div>
-                    <div className="big num">{complete ? impact.toFixed(1) : 'N/A'}</div>
+                    <div className="big num">{complete ? <CountUpText value={impact} decimals={1} /> : 'N/A'}</div>
                     <div className="thr">Impact severity · threshold {THRESHOLD.toFixed(1)}, inclusive</div>
                   </div>
                   <div>
-                    <div className="big num">{complete ? risk.toFixed(1) : 'N/A'}</div>
+                    <div className="big num">{complete ? <CountUpText value={risk} decimals={1} /> : 'N/A'}</div>
                     <div className="thr">Adoption risk · threshold {THRESHOLD.toFixed(1)}, inclusive</div>
                   </div>
                 </div>
@@ -4953,9 +5244,9 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
       </div>
 
       <div className="grid cols-4" style={{ marginBottom: 'var(--space-12)' }}>
-        <Tile label="Tasks removed" value={totals.removed} />
-        <Tile label="Tasks changed" value={totals.changed} />
-        <Tile label="Tasks new" value={totals.added} />
+        <Tile label="Tasks removed" value={totals.removed} countTo={totals.removed} />
+        <Tile label="Tasks changed" value={totals.changed} countTo={totals.changed} />
+        <Tile label="Tasks new" value={totals.added} countTo={totals.added} />
         <Tile label="Net FTE delta" value={signed(fte.net)} accent rule={fteDriver} />
       </div>
       <p className="footnote" style={{ marginBottom: 'var(--space-16)' }}>
@@ -5014,7 +5305,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
 
       {trainingGroup && (
         <div className="grid cols-4" style={{ marginBottom: 'var(--space-16)' }}>
-          {trainingGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} rule={r.rule} emptyNote={r.n === 0 ? r.emptyNote : null} />)}
+          {trainingGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} countTo={r.n} rule={r.rule} emptyNote={r.n === 0 ? r.emptyNote : null} />)}
         </div>
       )}
 
@@ -5150,7 +5441,7 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
 
       {commsGroup && (
         <div className="grid cols-4" style={{ marginBottom: 'var(--space-16)' }}>
-          {commsGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} rule={r.rule} emptyNote={r.n === 0 ? r.emptyNote : null} />)}
+          {commsGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} countTo={r.n} rule={r.rule} emptyNote={r.n === 0 ? r.emptyNote : null} />)}
         </div>
       )}
 
@@ -5304,6 +5595,20 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
   const metrics = useMemo(() => simulatedAdoptionMetrics(agg, daysLive), [agg, daysLive]);
   const boundary = useMemo(() => nearestBoundaryRoles(scored, 3), [scored]);
 
+  // Training-completion bars grow from zero on reveal, staggered by tier -
+  // scaleX from the left edge, never the width itself (that inline style
+  // still carries the real, correct final percentage throughout).
+  const barsRef = useRef(null);
+  useLayoutEffect(() => {
+    const el = barsRef.current;
+    if (!el || REDUCE_MOTION || !window.gsap) return undefined;
+    const fills = Array.from(el.querySelectorAll('.bar > i'));
+    if (!fills.length) return undefined;
+    gsap.set(fills, { scaleX: 0, transformOrigin: 'left center' });
+    const tween = gsap.to(fills, { scaleX: 1, duration: 0.7, ease: 'power2.out', stagger: 0.12, clearProps: 'transform' });
+    return () => tween.kill();
+  }, []);
+
   const liveLede = daysLive === null
     ? 'No target go-live date is set for this project yet, so tracking has not started. Set one on the engagement profile.'
     : daysLive < 0
@@ -5366,7 +5671,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         </div>
       </div>
 
-      <div className="card simulated" style={{ marginBottom: 'var(--space-16)' }}>
+      <div className="card simulated" style={{ marginBottom: 'var(--space-16)' }} ref={barsRef}>
         <div className="card-head">
           <h3>Training completion by tier <span className="sim-tag">Simulated</span></h3>
           <span className="hint">Ramps toward a tier-specific ceiling with days live. Editable for this demo.</span>
@@ -5400,11 +5705,11 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
       </div>
 
       <div className="grid cols-4" style={{ marginBottom: 'var(--space-12)' }}>
-        <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} meta="of in-scope headcount, at least once" />
-        <Tile simulated label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} rule="3.2 per person over the adoption window" />
-        <Tile simulated label="Job-aid access rate" value={`${metrics.jobAidAccessRate}%`} meta="of issued job aids opened at least once" />
-        <Tile simulated label="Comms click rate" value={`${metrics.commsClickRate}%`} meta="go-live communication click-through" />
-        <Tile simulated label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} meta="Rebuild + Enable population, tapering as adoption matures" />
+        <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} countTo={metrics.signOnRate} countFormat={{ suffix: '%' }} meta="of in-scope headcount, at least once" />
+        <Tile simulated label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} countTo={metrics.processesCompleted} rule="3.2 per person over the adoption window" />
+        <Tile simulated label="Job-aid access rate" value={`${metrics.jobAidAccessRate}%`} countTo={metrics.jobAidAccessRate} countFormat={{ suffix: '%' }} meta="of issued job aids opened at least once" />
+        <Tile simulated label="Comms click rate" value={`${metrics.commsClickRate}%`} countTo={metrics.commsClickRate} countFormat={{ suffix: '%' }} meta="go-live communication click-through" />
+        <Tile simulated label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} countTo={metrics.hrCaseVolume} meta="Rebuild + Enable population, tapering as adoption matures" />
       </div>
 
       <div className="card simulated">
@@ -6088,6 +6393,22 @@ function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [weights, setWeights] = useState(() => ({ ...DEFAULT_WEIGHTS }));
   const [filters, setFilters] = useState({ sa: 'All', tier: 'All' }); // site-archetype and tier filters, URL-encoded
+  // Frosted-header state: true once the page has scrolled away from the
+  // very top, so the sticky topbar can switch from solid to translucent-blur.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+  const mainRef = useRef(null);
+  useTabTransitionIn(mainRef, tab);
+  // Section-level reveal: the current tab's own cards/KPI grids fade + rise
+  // in, staggered, the first time they're on screen - on top of (not
+  // instead of) the whole-tab cross-fade above. Re-runs per tab (key={tab}
+  // remounts <main>, so this is a fresh container and a fresh reveal each
+  // time, never a replay of the same DOM on scroll-up).
+  useRevealGroup(mainRef, '.card, .grid.cols-4, .grid.cols-2, .tuner', { max: 8 });
   // A stale/mistyped tab slug in the URL (e.g. a link built against an old
   // tab id) - shown once, briefly, and the address bar is corrected to
   // match what's actually on screen, rather than the two silently
@@ -6300,22 +6621,28 @@ function App() {
 
   return (
     <div className="app">
-      <header className="topbar no-print">
+      <header className={'topbar no-print' + (scrolled ? ' scrolled' : '')}>
         <div className="topbar-row">
-          <img src="assets/brand/logo-white.svg" alt="Aberdeen Advisors" className="brand-logo" />
-          <h1>Change Impact Assessment Tool</h1>
-          <span className="project-tag">{project.name}{project.industry ? ` · ${project.industry}` : ''}</span>
-          <span className="sub">
-            {pluralize(all.length, 'role')} · {pluralize(all.reduce((s, r) => s + (r.headcount || 0), 0), 'person', 'people')}
-            {incomplete.length ? ` · ${pluralize(incomplete.length, 'incomplete role')}` : ''}
-          </span>
-          {!weightsAreDefault(weights) && (
-            <span className="weight-alert">
-              Custom weighting active
-              <button type="button" className="link-btn" onClick={resetWeights}>Reset</button>
+          <div className="tb-brand">
+            <img src="assets/brand/logo-white.svg" alt="Aberdeen Advisors" className="brand-logo" />
+            <h1>Change Impact Assessment Tool</h1>
+          </div>
+          <div className="tb-context">
+            <span className="project-tag">{project.name}{project.industry ? ` · ${project.industry}` : ''}</span>
+            <span className="sub">
+              {pluralize(all.length, 'role')} · {pluralize(all.reduce((s, r) => s + (r.headcount || 0), 0), 'person', 'people')}
+              {incomplete.length ? ` · ${pluralize(incomplete.length, 'incomplete role')}` : ''}
             </span>
-          )}
-          <button className="btn" onClick={backToProjects}>← All projects</button>
+          </div>
+          <div className="tb-actions">
+            {!weightsAreDefault(weights) && (
+              <span className="weight-alert">
+                Custom weighting active
+                <button type="button" className="link-btn" onClick={resetWeights}>Reset</button>
+              </span>
+            )}
+            <button className="btn" onClick={backToProjects}>← All projects</button>
+          </div>
         </div>
         {routeNotice && (
           <div className="weight-flash route-notice">{routeNotice}</div>
@@ -6340,7 +6667,7 @@ function App() {
         </div>
       </div>
 
-      <main className="main">
+      <main className="main" key={tab} ref={mainRef}>
         {tab === 'portfolio' && (
           <PortfolioView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
                          weights={weights} onWeight={setWeight} onResetWeights={resetWeights} weightDeltas={weightDeltas}
