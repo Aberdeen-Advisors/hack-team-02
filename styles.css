@@ -615,17 +615,11 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 .pt:focus-visible .mark { stroke: var(--verdigris); stroke-width: 3; }
 .pt:focus-visible { outline: none; } /* the thicker stroke above is the indicator; an SVG outline box looks broken */
 
-/* Direct labels for the highest-impact roles: a white halo (paint-order)
-   keeps the name legible over a point, a gridline or a quadrant tint alike,
-   without needing its own background chip. The leader line is deliberately
-   quiet - a hint the label moved to avoid a collision, not a data series. */
-.role-label { font-size: 10.5px; font-weight: 500; fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
-.role-leader { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 2 2; }
-
 /* Fixed, AA-passing color, not the raw tier hue: gold and sky measure
    1.5:1 and 1.9:1 against white, nowhere near the 4.5:1 an 11px label
-   needs. Tier identity here comes from quadrant position, the direct
-   role labels and the table below, not this label's color. */
+   needs. Tier identity here comes from quadrant position and the table
+   below, not this label's color - a role's name itself only ever shows
+   on hover/focus (the tooltip), never sitting permanently on the plot. */
 .quad-label { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; fill: var(--ink-2); }
 .axis-t { font-size: 10.5px; fill: var(--ink-3); }
 .axis-title { font-size: 11px; fill: var(--ink-2); font-weight: 500; }

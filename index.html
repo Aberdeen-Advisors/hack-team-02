@@ -4001,31 +4001,6 @@ function WeightNote({ weights, onReset }) {
    =========================================================================== */
 
 const MAP = { w: 940, h: 500, l: 62, r: 26, t: 24, b: 54 };
-const ROLE_LABEL_COUNT = 6;
-
-/* Direct labels for the highest-impact roles - outlier identification is
-   the whole point of a scatter chart, and labeling the handful that
-   matter beats a legend no one cross-references. Simple greedy vertical
-   collision avoidance: process labels in priority order (highest impact
-   first) and nudge a new one upward until it clears every label already
-   placed. Good enough for the handful of labels this ever renders (six) -
-   not a general-purpose layout engine. */
-function layoutRoleLabels(candidates, bounds) {
-  const placed = [];
-  return candidates.map((c) => {
-    const halfW = Math.max(16, c.name.length * 3.15 + 4);
-    const h = 8;
-    const lx = Math.min(bounds.x1 - halfW, Math.max(bounds.x0 + halfW, c.x));
-    let ly = c.y - c.r - 9;
-    let tries = 0;
-    const overlaps = () => placed.some((p) => Math.abs(lx - p.lx) < halfW + p.halfW + 3 && Math.abs(ly - p.ly) < h + p.h + 3);
-    while (tries < 12 && overlaps()) { ly -= 13; tries += 1; }
-    if (ly < bounds.top + 8) ly = bounds.top + 8;
-    placed.push({ lx, ly, halfW, h });
-    const dy = ly - (c.y - c.r - 9);
-    return { ...c, lx, ly, needsLeader: Math.abs(lx - c.x) > 3 || Math.abs(dy) > 12 };
-  });
-}
 
 /* Memoized: an SVG scatter plus tooltip logic over the full role set,
    sitting inside PortfolioView next to the weight tuner, which lives in the
@@ -4033,15 +4008,15 @@ function layoutRoleLabels(candidates, bounds) {
    doesn't change `roles`, `selectedId` or `onSelect` would still force a
    full re-render of the chart. Its own hover state stays local (`tip`), so
    memoizing the outer shell doesn't touch that. */
-/* Every point is a circle; tier is carried by fill color plus two other
-   channels, neither of which depends on shape or hue: the highest-impact
-   roles are labeled directly on the plot (see roleLabels below), and the
-   Role x site table immediately beneath states every point's tier as text
-   for every role, not just the labeled handful - the recognized accessible
-   fallback for a scatter plot, made explicit via the chart's own
-   aria-describedby. Area still encodes headcount, at 0.6-0.8 fill opacity
-   so a dense project's near-coincident points still read as overlapping
-   density instead of hiding each other. */
+/* Every point is a circle; tier is carried by fill color plus quadrant
+   position, neither of which depends on hue alone, and a role's name
+   surfaces only on hover/focus (the tooltip) - never sitting permanently
+   on the plot. The Role x site table immediately beneath states every
+   point's identity, scores and tier as text, for every role, which is the
+   recognized accessible fallback for a scatter plot, made explicit via the
+   chart's own aria-describedby. Area still encodes headcount, at 0.6-0.8
+   fill opacity so a dense project's near-coincident points still read as
+   overlapping density instead of hiding each other. */
 function pointMark(tier, cx, cy, r, extraProps) {
   return <circle cx={cx} cy={cy} r={r} fill={TIERS[tier].hex} fillOpacity="0.78" {...extraProps} />;
 }
@@ -4085,17 +4060,6 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
     { tier: 'Enable',   x: xm, y: ym, w: x1 - xm, h: y0 - ym, tx: x1 - 12, ty: y0 - 12, anchor: 'end' },
   ];
 
-  // The handful of roles worth labeling directly, not all of them - see
-  // layoutRoleLabels above for the placement/collision-avoidance rule.
-  const roleLabels = useMemo(() => {
-    const top = [...roles].sort((a, b) => b.scores.impact - a.scores.impact).slice(0, Math.min(ROLE_LABEL_COUNT, roles.length));
-    const candidates = top.map((r) => ({
-      id: r.id, name: r.role, x: px(r.scores.impact), y: py(r.scores.risk), r: rad(r.headcount),
-    }));
-    return layoutRoleLabels(candidates, { x0, x1, top: MAP.t });
-    // eslint-disable-next-line
-  }, [roles]);
-
   useLayoutEffect(() => {
     if (REDUCE_MOTION || !window.gsap) return undefined;
     const nodes = pointElsRef.current;
@@ -4117,9 +4081,9 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
           stagger: Math.min(0.025, 0.9 / els.length), clearProps: 'opacity,transform',
         });
       }
-      // Chart furniture and the per-role direct labels fade in after the
-      // points have settled, not simultaneously.
-      const labels = wrap.current ? wrap.current.querySelectorAll('.quad-label, .axis-t, .axis-title, .role-label, .role-leader') : [];
+      // Chart furniture (quadrant names, axis ticks/titles) fades in after
+      // the points have settled, not simultaneously.
+      const labels = wrap.current ? wrap.current.querySelectorAll('.quad-label, .axis-t, .axis-title') : [];
       if (labels.length) {
         gsap.set(labels, { opacity: 0 });
         gsap.to(labels, { opacity: 1, duration: 0.4, delay: 0.35, ease: 'power1.out' });
@@ -4229,19 +4193,6 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
             {pointMark(r.tier, px(r.scores.impact), py(r.scores.risk), rad(r.headcount), {
               className: 'mark', fill: `url(#sphere-${r.tier})`, filter: 'url(#pt-shadow)',
             })}
-          </g>
-        ))}
-
-        {/* Direct labels for the highest-impact roles - the accessible
-            identification of every other point is the table below (see
-            the sr-only description after this svg), not a shape or a
-            second color channel on the plot itself. */}
-        {roleLabels.map((l) => (
-          <g key={l.id} aria-hidden="true">
-            {l.needsLeader && (
-              <line className="role-leader" x1={l.x} y1={l.y - l.r - 2} x2={l.lx} y2={l.ly + 3} />
-            )}
-            <text className="role-label" x={l.lx} y={l.ly} textAnchor="middle">{l.name}</text>
           </g>
         ))}
       </svg>
