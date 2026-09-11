@@ -584,7 +584,7 @@ const TRAINING_METHODS = {
   webBased:      { method: 'Web-based',                        duration: '15-90 min',   fits: 'low complexity, large audience',                                delivery: 'self-driven' },
   onShift:       { method: 'On shift',                         duration: 'same as tier’s required hours',  fits: 'roles with no desk, any tier except Inform', delivery: 'train-the-trainer' },
   nano:          { method: 'Short refreshers in the flow of work', duration: '1-5 min',  fits: 'reinforcement in the flow of work',                             delivery: 'self-driven' },
-  jobAids:       { method: 'Quick reference cards',            duration: '1-30 min',    fits: 'point-of-work reference',                                       delivery: 'self-driven' },
+  jobAids:       { method: 'How-to guides',            duration: '1-30 min',    fits: 'point-of-work reference',                                       delivery: 'self-driven' },
 };
 const METHOD_ORDER = ['instructorLed', 'virtual', 'webBased', 'onShift', 'nano', 'jobAids'];
 
@@ -609,7 +609,7 @@ const OBJECTIVE_LADDER = ['awareness', 'understanding', 'acceptance', 'commitmen
 
 /* Support after go-live: four-layer escalation, in order. */
 const SUPPORT_LAYERS = [
-  'Quick reference cards at the point of work',
+  'How-to guides at the point of work',
   'Project team',
   'Trainers and implementation leads',
   'Leadership: final escalation',
@@ -619,7 +619,7 @@ const SUPPORT_LAYERS = [
 const ADOPTION_METRICS = [
   'unique sign-ons',
   'business processes opened and completed',
-  'quick reference card access rates',
+  'how-to guide access rates',
   'go-live communication click rates',
   'HR case volume',
   'qualitative feedback',
@@ -705,9 +705,13 @@ function trainingDesign(role) {
   } else {
     primary = core;
   }
+  // Which TRAINING_METHODS key actually applies, after the on-shift
+  // override - what sessionsForRole looks up in ASSUMPTIONS.sessionSize,
+  // so the session math always matches the method actually shown.
+  const methodKey = (deskless && role.tier !== 'Inform') ? 'onShift' : key;
 
   return {
-    complexity, hours, deskless, primary, why, largeAudience: large,
+    complexity, hours, deskless, primary, why, largeAudience: large, methodKey,
     aids: jobAidPlan(impact),
     jobAidMethod: TRAINING_METHODS.jobAids,
     trainTheTrainer: primary.delivery === 'train-the-trainer',
@@ -715,6 +719,91 @@ function trainingDesign(role) {
     // the data doesn't carry. Names the constraint that shaped format.
     deliveryConstraint: deskless ? `On the floor · ${pluralize(role.siteCount, 'site')}` : null,
   };
+}
+
+/* How many live sessions a role needs to reach everyone, given how many
+   people fit in one session for its delivery method. Self-paced methods
+   (web-based, short refreshers) aren't in ASSUMPTIONS.sessionSize at all -
+   there's no room to staff, so they need none. On-shift multiplies by
+   sites and by how many shifts a site runs: a role spread across eight
+   sites on three shifts each cannot be trained in one session, or even in
+   eight - it's a session per site per shift. */
+function sessionsForRole(role, design) {
+  const size = ASSUMPTIONS.sessionSize[design.methodKey];
+  if (!size) return 0;
+  const base = Math.ceil(role.headcount / size);
+  if (design.methodKey === 'onShift') return base * Math.max(1, role.siteCount || 1) * ASSUMPTIONS.shiftsPerOnShiftRole;
+  return base;
+}
+
+/* One role's contribution to the delivery plan: the sessions it needs, and
+   the trainer-delivered hours those sessions cost (each session-run
+   delivers the full required-hours curriculum to one cohort - sessions is
+   how many cohorts, not how many hours each one runs). */
+function trainingLoadForRole(role) {
+  const design = trainingDesign(role);
+  const sessions = sessionsForRole(role, design);
+  return { design, sessions, deliveryHours: sessions * design.hours };
+}
+
+/* The delivery plan for a set of roles: total training hours (the
+   workload figure - every person's own required hours, summed), and the
+   trainer-days it actually takes to staff (a different, much smaller
+   number, built from sessions - how many trainers are needed, not how
+   much training happens). */
+function aggregateTrainingLoad(roles) {
+  let totalHours = 0, deliveryHours = 0, sessions = 0, headcount = 0;
+  roles.forEach((r) => {
+    const load = trainingLoadForRole(r);
+    totalHours += r.headcount * (DOSES[r.tier] ? DOSES[r.tier].curriculumHours : 0);
+    deliveryHours += load.deliveryHours;
+    sessions += load.sessions;
+    headcount += r.headcount;
+  });
+  const prepHours = sessions * ASSUMPTIONS.trainerPrepHoursPerSession;
+  const trainerDays = Math.ceil((deliveryHours + prepHours) / ASSUMPTIONS.trainerHoursPerDay);
+  return { totalHours, sessions, trainerDays, headcount };
+}
+
+/* The headline finding for the Training tab, in the same treatment as the
+   other tabs' heroes: Rebuild's population share against its share of
+   total training hours, not effort or headcount - the training-specific
+   version of the same "small group, large share" finding. */
+function trainingHero(scored) {
+  const totalPeople = scored.reduce((s, r) => s + r.headcount, 0);
+  const totalHours = scored.reduce((s, r) => s + r.headcount * (DOSES[r.tier] ? DOSES[r.tier].curriculumHours : 0), 0);
+  const rebuild = scored.filter((r) => r.tier === 'Rebuild');
+  if (!rebuild.length || !totalPeople) {
+    return { sentence: 'No role needs Rebuild-level training right now.', totalHours };
+  }
+  const rebuildPeople = rebuild.reduce((s, r) => s + r.headcount, 0);
+  const rebuildHours = rebuildPeople * DOSES.Rebuild.curriculumHours;
+  const popShare = rebuildPeople / totalPeople;
+  const hourShare = totalHours > 0 ? rebuildHours / totalHours : 0;
+  return {
+    sentence: `${pct(popShare)} of the people need ${pct(hourShare)} of the training hours.`,
+    totalHours,
+  };
+}
+
+/* The wave schedule: one wave per tier present, each starting however far
+   ahead of go-live that tier's own extra-support floor runs
+   (DOSES[tier].hypercareWeeks - the same lead-time rule Communication's
+   own timeline already uses, so a tier's training and its communications
+   start the same distance out), ending at go-live. */
+function trainingWaveSchedule(scored, goLiveDate) {
+  return TIER_ORDER.map((tier) => {
+    const roles = scored.filter((r) => r.tier === tier);
+    if (!roles.length) return null;
+    const leadWeeks = DOSES[tier].hypercareWeeks || 1;
+    const load = aggregateTrainingLoad(roles);
+    return {
+      tier, leadWeeks,
+      startDate: dateFromGoLive(goLiveDate, -leadWeeks),
+      endDate: dateFromGoLive(goLiveDate, 0),
+      ...load,
+    };
+  }).filter(Boolean);
 }
 
 /* The channel each of the five milestones actually reaches a role on, split by
@@ -806,6 +895,14 @@ function timelineWithToday(timeline, daysLive) {
 const ASSUMPTIONS = {
   supervisorSpanOfControl: 10,       // 1 supervisor briefed per 10 people in R/E/R roles
   sandboxSeatRatio: 10,              // 1 sandbox seat per 10 Rebuild people
+  // How many people fit in one live session, by delivery method - self-paced
+  // methods (web-based, short refreshers) aren't here at all: they need no
+  // session to staff. Ours, stated once and shown on hover wherever trainer
+  // days appear (see the info affordance on the Training tab), not buried.
+  sessionSize: { instructorLed: 20, virtual: 50, onShift: 12 },
+  shiftsPerOnShiftRole: 3,            // on-shift roles run this many shifts to cover the day
+  trainerHoursPerDay: 6,              // hours of delivery one trainer can actually run in a day
+  trainerPrepHoursPerSession: 1,      // prep time added per session before converting to trainer-days
 };
 
 const TIER_ORDER = ['Rebuild', 'Enable', 'Reassure', 'Inform'];
@@ -843,7 +940,7 @@ const TIERS = {
   Rebuild:  { hex: '#DB504A', wash: 'var(--t-rebuild-wash)',  quadrant: 'High impact · High risk',
               package: ['Role redesign', 'Practice in a safe copy of the system', 'A trained colleague on site', 'Manager coaching'] },
   Enable:   { hex: '#F7D002', wash: 'var(--t-enable-wash)',   quadrant: 'High impact · Low risk',
-              package: ['Role-based training', 'Quick reference cards', 'Recruit as champions'] },
+              package: ['Role-based training', 'How-to guides', 'Recruit as champions'] },
   Reassure: { hex: '#5CC8FF', wash: 'var(--t-reassure-wash)', quadrant: 'Low impact · High risk',
               package: ['Manager briefings', 'Address the fear, not the skill'] },
   Inform:   { hex: '#00A676', wash: 'var(--t-inform-wash)',   quadrant: 'Low impact · Low risk',
@@ -857,33 +954,33 @@ function packageFor(role) {
   const d = DOSES[role.tier];
   const t = trainingDesign(role);
   const sites = Math.max(1, role.siteCount || 1);
-  const aids = `${pluralize(t.aids.count, 'quick reference card')} (${t.aids.band}: ${t.aids.range}) · ${t.jobAidMethod.duration} each`;
+  const aids = `${pluralize(t.aids.count, 'how-to guide')} (${t.aids.band}: ${t.aids.range}) · ${t.jobAidMethod.duration} each`;
   const method = `${t.primary.method} · ${t.primary.duration}`;
   switch (role.tier) {
     case 'Rebuild': return [
       { text: 'Role redesign',       dose: `${pluralize(role.tasksRemoved + role.tasksChanged + role.tasksNew, 'task')} re-mapped · 1 workshop per site` },
       { text: 'Practice in a safe copy of the system', dose: `${d.sandboxDays}-day practice session${role.deskless ? ', rotated into shift time' : ''} · ${pluralize(Math.max(1, Math.ceil(role.headcount * d.sandboxSeatsPerHead)), 'seat')}` },
-      { text: 'Role-based training', dose: `${method} · ${t.complexity} complexity` },
-      { text: 'Quick reference cards', dose: aids },
+      { text: 'Role-based training', dose: `${method}` },
+      { text: 'How-to guides', dose: aids },
       { text: 'A trained colleague on site',  dose: `${d.superUsersPerSite} per site (${sites})${role.deskless ? ', shadowing on the floor' : ''} · 1:${d.superUserRatio}` },
       { text: 'Manager coaching',    dose: `${pluralize(d.managerCoachingSessions, 'session')} · ${pluralize(d.floorCoachingWeeks, 'week')} floor presence` },
       { text: 'Extra support after go-live', dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
     case 'Enable': return [
-      { text: 'Role-based training',   dose: `${method} · ${t.complexity} complexity` },
-      { text: 'Quick reference cards', dose: aids },
+      { text: 'Role-based training',   dose: `${method}` },
+      { text: 'How-to guides', dose: aids },
       { text: 'Recruit as champions',  dose: `${pluralize(Math.max(1, Math.ceil(role.headcount / d.superUserRatio)), 'champion')}${role.deskless ? ', coaching on shift' : ''} · 1:${d.superUserRatio}` },
       { text: 'Extra support after go-live', dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
     case 'Reassure': return [
       { text: 'Manager briefings',                dose: `${pluralize(d.cascadeScripts, 'script')} · ${pluralize(d.managerCoachingSessions, 'briefing')}` },
       { text: 'Address the fear, not the skill',  dose: `${method} awareness` },
-      { text: 'Quick reference cards',            dose: aids },
+      { text: 'How-to guides',            dose: aids },
       { text: 'Extra support after go-live',      dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
     default: return [
       { text: 'Broadcast updates only', dose: `${pluralize(d.broadcasts, 'broadcast')} · ${method}` },
-      { text: 'Quick reference cards',  dose: aids },
+      { text: 'How-to guides',  dose: aids },
       { text: 'Extra support after go-live', dose: `${pluralize(d.hypercareWeeks, 'week')} · 4-layer escalation · re-score every ${pluralize(d.rescoreDays, 'day')}` },
     ];
   }
@@ -898,7 +995,7 @@ function modifiersFor(role) {
       title: 'Different delivery format (same hours, reformatted)',
       items: [
         'All required hours delivered on shift at the line, not in a classroom or online course - see Required hours in the delivery detail below',
-        'Printed quick reference cards in local language, kept at the point of work',
+        'Printed how-to guides in local language, kept at the point of work',
         'Email dropped from this role’s updates entirely',
         'A QR code on the shift board carries every update instead',
       ],
@@ -1096,7 +1193,7 @@ function simulatedAdoptionMetrics(agg, daysLive) {
     : liveFrac < 0.34
       ? 'Early and mixed: exception-handling volume is the most common complaint.'
       : liveFrac < 0.7
-        ? 'Improving: initial friction easing, quick reference cards cited as the most-used support.'
+        ? 'Improving: initial friction easing, how-to guides cited as the most-used support.'
         : 'Mostly positive: the new system is now the default way of working for most of the affected population.';
   return { liveFrac, signOnRate, processesCompleted, jobAidAccessRate, commsClickRate, hrCaseVolume, qualitative };
 }
@@ -1130,13 +1227,13 @@ function resourcedPlan(scored) {
     {
       group: 'Training',
       rows: [
-        { n: rebuild.length + enableArchetypes.size, txt: 'role-based curricula',
-          rule: `1 per Rebuild role (${rebuild.length}) + 1 shared per site archetype in Enable (${enableArchetypes.size})`,
-          emptyNote: 'No Rebuild or Enable roles in this population: no curriculum to build.' },
+        { n: rebuild.length + enableArchetypes.size, txt: 'training courses to build',
+          rule: `1 per Rebuild role (${rebuild.length}) + 1 shared per site type in Enable (${enableArchetypes.size})`,
+          emptyNote: 'No Rebuild or Enable roles in this population: no training course to build.' },
         { n: Math.ceil(rebuildHeads / ASSUMPTIONS.sandboxSeatRatio), txt: 'practice seats',
           rule: `1 seat per ${ASSUMPTIONS.sandboxSeatRatio} people in Rebuild roles (${rebuildHeads.toLocaleString()})`,
           emptyNote: 'No Rebuild roles in this population: nothing to seat.' },
-        { n: desklessFormats, txt: 'on-shift training formats',
+        { n: desklessFormats, txt: 'roles trained on shift',
           rule: 'one per role with no desk or email: no inbox, so no channel that assumes one',
           emptyNote: 'No on-the-floor roles in this population.' },
       ],
@@ -4836,7 +4933,7 @@ function onePagerText(role, citeDeck) {
   L.push('DELIVERY DETAIL (Aberdeen OCM delivery material; the tier -> tactic mapping is Aberdeen judgment)');
   L.push(`  Training: ${pluralize(td.hours, 'hour')} required for ${role.tier} (by tier alone, not by whether this role works at a desk)`);
   L.push(`  Delivered as: ${td.primary.method}, ${td.primary.duration}, selected for ${td.why}`);
-  L.push(`  Quick reference cards: ${td.aids.count} (${td.aids.band} band, ${td.aids.range}), ${td.jobAidMethod.duration} each`);
+  L.push(`  How-to guides: ${td.aids.count} (${td.aids.band} band, ${td.aids.range}), ${td.jobAidMethod.duration} each`);
   L.push('  Communications milestones:');
   commsPlan(role).forEach((m) => L.push(`    - ${m.name}: ${m.objective} · ${m.channel}`));
   L.push('  Support escalation: ' + SUPPORT_LAYERS.join(' -> '));
@@ -4869,7 +4966,7 @@ function DeliveryDetail({ role }) {
           {' '}Fits {t.primary.fits}. Delivered {t.trainTheTrainer ? 'by trained in-house trainers' : 'self-driven'}.
         </p>
         <p style={{ marginBottom: 0 }}>
-          <b>{pluralize(t.aids.count, 'quick reference card')}</b> at the point of work: {t.aids.band} band, {t.aids.range} cards,
+          <b>{pluralize(t.aids.count, 'how-to guide')}</b> at the point of work: {t.aids.band} band, {t.aids.range} guides,
           {' '}{t.jobAidMethod.duration} each.
         </p>
       </div>
@@ -5209,7 +5306,7 @@ function AddRoleView({ onCreate, project, comboExample }) {
         <p className="lede unit">
           One row is one role at <b>one site scope</b>: role × site, where a site scope is either a
           single site type{comboExample ? <> or a named combination of them, like <b>{comboExample}</b></> : null}. That scope is
-          what a curriculum, a comms message and a named accountable manager attach to.
+          what a training course, a comms message and a named accountable manager attach to.
           All six sub-factors are required: until they are set the row reads <b>incomplete</b>, with no score and no tier.
           {' '}{noteThreshold()} {NOTE.weights(project.hasDeckReproduction)}
         </p>
@@ -5268,14 +5365,14 @@ function AddRoleView({ onCreate, project, comboExample }) {
                     <input type="checkbox" checked={f.deskless} onChange={(e) => set({ deskless: e.target.checked })} />
                     <span>
                       <span className="h">Works on the floor (no desk)</span>
-                      <span className="d">Switches training to short on-shift sessions at the line, printed quick
-                        reference cards in local language, and updates by QR code / shift board instead of email.</span>
+                      <span className="d">Switches training to short on-shift sessions at the line, printed
+                        how-to guides in local language, and updates by QR code / shift board instead of email.</span>
                     </span>
                   </label>
                 </div>
                 <div className="field full">
                   <label htmlFor="a-sum">What the role does, and what changes</label>
-                  <textarea id="a-sum" value={f.summary} placeholder="Free text. This grounds the generated narrative, curriculum, comms and adoption actions."
+                  <textarea id="a-sum" value={f.summary} placeholder="Free text. This grounds the generated narrative, training, comms and adoption actions."
                             onChange={(e) => set({ summary: e.target.value })} />
                 </div>
               </div>
@@ -5461,10 +5558,29 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
    use, this view just presents them across the whole portfolio.
    =========================================================================== */
 
-function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weights, onResetWeights, tierFilter, setTierFilter }) {
+/* Every assumption behind the trainer-days figure, in one sentence - the
+   info affordance on that tile, not a panel. Session sizes and the
+   trainer's own hours/day and prep time are the only numbers session math
+   and trainer-days math actually use (see sessionsForRole,
+   aggregateTrainingLoad); stating them here keeps them reachable without
+   giving them a section of their own. */
+const TRAINER_DAYS_ASSUMPTION =
+  `Assumes ${ASSUMPTIONS.sessionSize.instructorLed} people per in-person session, ${ASSUMPTIONS.sessionSize.virtual} per online session, `
+  + `${ASSUMPTIONS.sessionSize.onShift} per on-shift session (that one also multiplied by sites and by ${ASSUMPTIONS.shiftsPerOnShiftRole} shifts); `
+  + `${pluralize(ASSUMPTIONS.trainerHoursPerDay, 'hour')} of delivery per trainer per day, plus ${pluralize(ASSUMPTIONS.trainerPrepHoursPerSession, 'hour')} of prep per session.`;
+
+function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, goLiveDate, weights, onResetWeights, tierFilter, setTierFilter }) {
   const [search, setSearch] = useState('');
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const trainingGroup = plan.find((g) => g.group === 'Training');
+  const hero = useMemo(() => trainingHero(scored), [scored]);
+  const waves = useMemo(() => trainingWaveSchedule(scored, goLiveDate), [scored, goLiveDate]);
+  const overallLoad = useMemo(() => aggregateTrainingLoad(scored), [scored]);
+  const totalGuides = useMemo(() => scored.reduce((s, r) => s + trainingDesign(r).aids.count, 0), [scored]);
+  const heaviestWaveTier = useMemo(() => (
+    waves.reduce((max, w) => (!max || w.trainerDays > max.trainerDays ? w : max), null)
+  ), [waves]);
+
   const tierRows = useMemo(() => scored
     .filter((r) => tierFilter === 'All' || r.tier === tierFilter), [scored, tierFilter]);
   const rows = useMemo(() => tierRows
@@ -5474,16 +5590,59 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
   return (
     <>
       <div className="view-head">
-        <TabHeadline tab="training" text="Training: total required hours, delivery format and quick reference cards, by role" />
+        <TabHeadline tab="training" text="Training: what it takes to deliver, and when" />
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
-      {trainingGroup && (
-        <div className="grid cols-3" style={{ marginBottom: 'var(--space-16)' }}>
-          {trainingGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} countTo={r.n} rule={r.rule} emptyNote={r.n === 0 ? r.emptyNote : null} />)}
-        </div>
-      )}
+      <div className="hero-headline">
+        <h2 className="hero-sentence">{hero.sentence}</h2>
+        <div className="hero-rule" aria-hidden="true" />
+        <p className="hero-support">{hero.totalHours.toLocaleString()} training hours in total.</p>
+      </div>
 
+      <div className="grid cols-5" style={{ marginBottom: 'var(--space-16)' }}>
+        {trainingGroup && trainingGroup.rows.map((r) => (
+          <Tile key={r.txt} label={r.txt} value={r.n} countTo={r.n} rule={r.rule} emptyNote={r.n === 0 ? r.emptyNote : null} />
+        ))}
+        <Tile label="How-to guides to produce" value={totalGuides} countTo={totalGuides} />
+        <Tile label="Trainer days" value={overallLoad.trainerDays} countTo={overallLoad.trainerDays} rule={TRAINER_DAYS_ASSUMPTION} />
+      </div>
+
+      {/* THE WAVE SCHEDULE: the tab's centerpiece. One wave per tier present,
+          left to right in the order training actually starts - Rebuild's
+          own longer runway puts it first, not last. */}
+      <div className="card wave-card" style={{ marginBottom: 'var(--space-16)' }}>
+        <div className="card-head">
+          <h3>Delivery waves</h3>
+          <span className="hint">{goLiveDate ? `Anchored to the ${fmtShortDate(new Date(goLiveDate + 'T00:00:00'))} go-live` : 'No go-live date set - shown relative to go-live'}</span>
+        </div>
+        <div className="card-body">
+          {waves.length === 0 ? (
+            <p className="sub" style={{ margin: 0 }}>No scored roles yet.</p>
+          ) : (
+            <div className="wave-row">
+              {waves.map((w) => (
+                <div key={w.tier} className={'wave' + (heaviestWaveTier && w.tier === heaviestWaveTier.tier ? ' wave-heavy' : '')}>
+                  <div className="wave-tier"><i className="dot" style={{ '--dot': TIERS[w.tier].hex }} />{w.tier}</div>
+                  <div className="wave-dates">
+                    {goLiveDate
+                      ? `${fmtShortDate(w.startDate)} – ${fmtShortDate(w.endDate)}`
+                      : `${fmtWeeksFromGoLive(-w.leadWeeks)} – ${fmtWeeksFromGoLive(0)}`}
+                  </div>
+                  <div className="wave-stats">
+                    <span>{pluralize(w.headcount, 'person', 'people')}</span>
+                    <span>{pluralize(w.sessions, 'session')}</span>
+                    <span>{pluralize(w.trainerDays, 'trainer day')}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* THE ROLE TABLE: demoted, secondary, supporting detail now - the
+          plan above is the tab's actual purpose. */}
       <div className="filters no-print">
         <div className="field">
           <label htmlFor="tr-tier">Tier</label>
@@ -5503,10 +5662,10 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
               <th className="n">
                 Total required hours
                 <i className="info-ico" tabIndex={0}
-                   title="Required hours come from tier alone (DOSES[tier].curriculumHours), never from complexity or whether the role works at a desk. Working on the floor changes the delivery format - on shift, hands-on - not the number of hours. Not the same as a session's typical length, shown in the delivery standards below."
+                   title="Required hours come from tier alone (DOSES[tier].curriculumHours), never from complexity or whether the role works at a desk. Working on the floor changes the delivery format - on shift, hands-on - not the number of hours."
                    aria-label="How required hours are set: from tier alone, never complexity or whether the role works at a desk; working on the floor changes the delivery format, not the number of hours.">ⓘ</i>
               </th>
-              <th>Method</th><th>Complexity</th><th className="n">Quick reference cards</th>
+              <th>How it's delivered</th>
               <th title="What shaped the delivery format, not the volume">Delivery constraint</th>
             </tr>
           </thead>
@@ -5519,13 +5678,11 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
                 <td><TierBadge tier={role.tier} /></td>
                 <td className="n">{pluralize(design.hours, 'hour')}</td>
                 <td>{design.primary.method}</td>
-                <td>{design.complexity}</td>
-                <td className="n">{design.aids.count} ({design.aids.band})</td>
                 <td>{design.deliveryConstraint || '—'}</td>
               </tr>
             ))}
             {!rows.length && (
-              <tr><td colSpan={7} style={{ color: 'var(--ink-3)' }}>{roleSearchEmptyNote(search, () => setSearch(''))}</td></tr>
+              <tr><td colSpan={5} style={{ color: 'var(--ink-3)' }}>{roleSearchEmptyNote(search, () => setSearch(''))}</td></tr>
             )}
           </tbody>
         </table>
@@ -5559,11 +5716,11 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
               </table>
             </div>
             <div className="assume">
-              <h4>Quick reference cards scale with impact</h4>
+              <h4>How-to guides scale with impact</h4>
               <table className="mini">
                 <tbody>
                   {JOB_AID_BANDS.map((b) => (
-                    <tr key={b.band}><th scope="row">{b.band}</th><td className="num">{b.range} cards</td>
+                    <tr key={b.band}><th scope="row">{b.band}</th><td className="num">{b.range} guides</td>
                       <td className="ch">impact severity {b.min ? `≥ ${b.min.toFixed(1)}` : `< 3.0`}</td></tr>
                   ))}
                 </tbody>
@@ -5903,7 +6060,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
       <div className="grid cols-5" style={{ marginBottom: 'var(--space-16)', marginTop: 'var(--space-16)' }}>
         <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} countTo={metrics.signOnRate} countFormat={{ suffix: '%' }} meta="of in-scope headcount, at least once" />
         <Tile simulated label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} countTo={metrics.processesCompleted} />
-        <Tile simulated label="Quick reference card access rate" value={`${metrics.jobAidAccessRate}%`} countTo={metrics.jobAidAccessRate} countFormat={{ suffix: '%' }} meta="of issued cards opened at least once" />
+        <Tile simulated label="How-to guide access rate" value={`${metrics.jobAidAccessRate}%`} countTo={metrics.jobAidAccessRate} countFormat={{ suffix: '%' }} meta="of issued guides opened at least once" />
         <Tile simulated label="Comms click rate" value={`${metrics.commsClickRate}%`} countTo={metrics.commsClickRate} countFormat={{ suffix: '%' }} meta="go-live communication click-through" />
         <Tile simulated label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} countTo={metrics.hrCaseVolume} meta="Rebuild + Enable population, tapering as adoption matures" />
       </div>
@@ -5920,7 +6077,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-8)' }}>
                     <i className="dot" style={{ '--dot': TIERS[t].hex }} /><b>{t}</b>
-                    <span className="hint">{pluralize(presc.hours, 'hour')} curriculum · {pluralize(presc.roleCount, 'role')} prescribed</span>
+                    <span className="hint">{pluralize(presc.hours, 'hour')} of training · {pluralize(presc.roleCount, 'role')} prescribed</span>
                   </span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <input type="number" min="0" max="100" value={completion[t]}
@@ -6000,7 +6157,7 @@ const TIER_PLAIN = {
   },
   Enable: {
     meaning: 'the job changes a lot, but people are likely to adapt without much difficulty',
-    support: 'They need real training and quick reference cards to do the new job well, but not the hands-on hand-holding the toughest roles get.',
+    support: 'They need real training and how-to guides to do the new job well, but not the hands-on hand-holding the toughest roles get.',
   },
   Reassure: {
     meaning: 'the day-to-day work barely changes, but people are nervous about it anyway',
@@ -7673,7 +7830,8 @@ function App() {
         )}
         {tab === 'training' && (
           <TrainingView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
-                        citeDeck={project.hasDeckReproduction} weights={weights} onResetWeights={resetWeights}
+                        citeDeck={project.hasDeckReproduction} goLiveDate={project.goLiveDate}
+                        weights={weights} onResetWeights={resetWeights}
                         tierFilter={filters.tier} setTierFilter={setFilterTier} />
         )}
         {tab === 'comms' && (
