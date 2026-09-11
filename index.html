@@ -5075,6 +5075,16 @@ function OnePager({ role, onBack, backLabel, citeDeck }) {
               <div className="constraint-list">{role.constraints.map((c, i) => <span key={i}>{c}</span>)}</div>
             </div>
           )}
+          {(role.sourceRefs || []).length > 0 && (
+            <div style={{ marginTop: 'var(--space-16)' }}>
+              <h5 style={{ margin: '0 0 7px', fontSize: 12, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>Mentioned in the uploaded documents</h5>
+              <ul className="source-ref-list">
+                {role.sourceRefs.map((ref, i) => (
+                  <li key={i}><b>{ref.fileName}</b>: “{ref.snippet}”</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <DeliveryDetail role={role} />
         </div>
       </div>
@@ -6490,6 +6500,226 @@ function rolesFromCSV(text) {
   return { roles, warnings };
 }
 
+/* ===========================================================================
+   12b. INPUT AUDIT: client-side document parsing (no backend, no API keys)
+   run against whatever is uploaded during project creation, checked against
+   the roles being scored - coverage, mentions, completeness, source
+   citations. The documents inform this audit; they never write a role's
+   change description themselves. That stays with the practitioner - stated
+   once, plainly, on screen (see RoleDataStep), not implied.
+   =========================================================================== */
+
+// The five source documents an assessment like this is normally built from,
+// and who actually hands each one over - shown up front (see
+// WhatYoullNeedPanel) so gathering them reads as the known, ordinary cost of
+// this work, and reused here as the five named upload slots.
+const UPLOAD_SLOTS = [
+  { key: 'solutionDesign',   label: 'Solution design / to-be process maps',      source: 'the implementation partner' },
+  { key: 'currentStateSops', label: 'Current-state SOPs or job descriptions',    source: 'process owners' },
+  { key: 'roleHeadcount',    label: 'Role and headcount extract',                source: 'HR' },
+  { key: 'siteList',         label: 'Site list with shift patterns',             source: 'operations' },
+  { key: 'programPlan',      label: 'Program plan with the go-live date',        source: 'the PMO' },
+];
+const UPLOAD_ACCEPT = '.pdf,.docx,.xlsx,.csv';
+
+/* Loads a CDN script at most once, however many callers ask for it while the
+   first load is still in flight. Rejects, never throws synchronously - the
+   one thing that can go wrong here, with no backend and no vendored
+   fallback for these three parser libraries, is no network reaching the
+   CDN, and that has to degrade to a plain per-file message, not a broken
+   wizard (see extractUploadedFile). */
+const _scriptLoads = {};
+function loadScriptOnce(src) {
+  if (!_scriptLoads[src]) {
+    _scriptLoads[src] = new Promise((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = src; el.async = true;
+      el.onload = () => resolve();
+      el.onerror = () => reject(new Error('the file reader for this format could not be loaded (check your connection)'));
+      document.head.appendChild(el);
+    });
+  }
+  return _scriptLoads[src];
+}
+let _pdfjsReady = null;
+function ensurePdfJs() {
+  if (!_pdfjsReady) {
+    _pdfjsReady = loadScriptOnce('https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js').then(() => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    });
+  }
+  return _pdfjsReady;
+}
+let _mammothReady = null;
+function ensureMammoth() {
+  if (!_mammothReady) _mammothReady = loadScriptOnce('https://unpkg.com/mammoth@1.7.2/mammoth.browser.min.js');
+  return _mammothReady;
+}
+let _xlsxReady = null;
+function ensureXlsx() {
+  if (!_xlsxReady) _xlsxReady = loadScriptOnce('https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js');
+  return _xlsxReady;
+}
+
+async function extractPdfText(file) {
+  await ensurePdfJs();
+  const buf = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    pages.push(content.items.map((it) => it.str).join(' '));
+  }
+  return { text: pages.join('\n'), rows: null };
+}
+async function extractDocxText(file) {
+  await ensureMammoth();
+  const buf = await file.arrayBuffer();
+  const result = await window.mammoth.extractRawText({ arrayBuffer: buf });
+  return { text: result.value, rows: null };
+}
+async function extractXlsxContent(file) {
+  await ensureXlsx();
+  const buf = await file.arrayBuffer();
+  const wb = window.XLSX.read(buf, { type: 'array' });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rows = window.XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1 });
+  const text = window.XLSX.utils.sheet_to_csv(sheet);
+  return { text, rows };
+}
+async function extractCsvContent(file) {
+  const text = await file.text();
+  return { text, rows: parseCSV(text) };
+}
+/* Dispatches by extension to the right client-side extractor. Never throws
+   past the caller uncaught - a file that can't be read is reported against
+   that one file, on screen, and the rest of the wizard carries on. */
+async function extractUploadedFile(file) {
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (ext === 'pdf') return extractPdfText(file);
+  if (ext === 'docx') return extractDocxText(file);
+  if (ext === 'xlsx') return extractXlsxContent(file);
+  if (ext === 'csv') return extractCsvContent(file);
+  throw new Error(`".${ext}" isn't one of the supported formats (pdf, docx, xlsx, csv)`);
+}
+
+/* Coverage: the one upload slot that's genuinely structured data (a role and
+   headcount extract) diffed against the roles actually being scored, both
+   directions. A column-to-column comparison, not a text search - the one
+   finding in this audit reliable enough to state as definite. */
+function auditCoverage(rows, namedRoles) {
+  if (!rows || rows.length < 1) return null;
+  const header = rows[0].map(matchCsvHeader);
+  const roleColIdx = header.indexOf('role');
+  const hasHeader = roleColIdx !== -1;
+  const colIdx = hasHeader ? roleColIdx : 0;
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+  const hrNamesRaw = dataRows.map((r) => String((r || [])[colIdx] || '').trim()).filter(Boolean);
+  if (!hrNamesRaw.length) return null;
+
+  const norm = (s) => s.trim().toLowerCase();
+  const hrByNorm = new Map(hrNamesRaw.map((n) => [norm(n), n]));
+  const scoredByNorm = new Map(namedRoles.map((d) => [norm(d.role), d.role]));
+
+  const inHrNotScored = [...hrByNorm.entries()].filter(([n]) => !scoredByNorm.has(n)).map(([, name]) => name);
+  const scoredNotInHr = [...scoredByNorm.entries()].filter(([n]) => !hrByNorm.has(n)).map(([, name]) => name);
+  return { hrCount: hrByNorm.size, scoredCount: scoredByNorm.size, inHrNotScored, scoredNotInHr };
+}
+
+/* Whether each scored role's name turns up anywhere in the uploaded
+   documents, and where - a plain case-insensitive substring search per
+   document. Reliable enough to flag "never mentioned" as worth a look,
+   without pretending the tool has read and understood the documents. Also
+   the source of the citations shown on that role's own page (see
+   OnePager) - one scan answers both the audit's "mentions" finding and the
+   provenance the one-pager surfaces. */
+function auditMentions(namedRoles, uploads) {
+  const docs = UPLOAD_SLOTS
+    .map((slot) => uploads[slot.key])
+    .filter((u) => u && u.status === 'done' && u.text);
+  const byDraftId = {};
+  namedRoles.forEach((d) => {
+    const needle = d.role.trim().toLowerCase();
+    const refs = [];
+    if (needle) {
+      docs.forEach((u) => {
+        const hay = u.text.toLowerCase();
+        const idx = hay.indexOf(needle);
+        if (idx === -1) return;
+        const start = Math.max(0, idx - 60);
+        const end = Math.min(u.text.length, idx + needle.length + 60);
+        const snippet = (start > 0 ? '…' : '') + u.text.slice(start, end).replace(/\s+/g, ' ').trim() + (end < u.text.length ? '…' : '');
+        refs.push({ fileName: u.name, snippet });
+      });
+    }
+    byDraftId[d.draftId] = refs;
+  });
+  return byDraftId;
+}
+
+/* How much real change detail a role actually carries: a narrative, and how
+   fully it is scored. Not the same six-factor score itself - this rates the
+   INPUT, not the finding. */
+function completenessScore(draft) {
+  const narrative = (draft.summary || '').trim();
+  const narrativeScore = narrative.length > 60 ? 1 : narrative.length > 0 ? 0.4 : 0;
+  const scoreCompleteness = 1 - missingFactors(draft).length / 6;
+  const basics = (draft.site ? 0.5 : 0) + (draft.headcount ? 0.5 : 0);
+  return (narrativeScore * 0.5) + (scoreCompleteness * 0.35) + (basics * 0.15);
+}
+
+/* Crosses each role's completeness against its tier and effort share, so
+   the finding names which tier is carrying both the least input detail and
+   the most consequence - the audit auditing its own inputs, not just
+   counting blanks. Always available, with or without any document
+   uploaded: it reads the roles being scored, not the documents. */
+function auditCompleteness(namedRoles) {
+  if (!namedRoles.length) return null;
+  const rated = namedRoles.map((d) => {
+    const missing = missingFactors(d);
+    const tier = missing.length === 0 ? assignTier(impactSeverity(d.impact), adoptionRisk(d.risk)) : null;
+    return { draftId: d.draftId, role: d.role.trim(), headcount: Math.max(0, parseInt(d.headcount, 10) || 0), tier, score: completenessScore(d) };
+  });
+  const sorted = [...rated].sort((a, b) => a.score - b.score);
+  const thinCount = Math.max(1, Math.ceil(rated.length / 3));
+  const thinIds = new Set(sorted.slice(0, thinCount).map((r) => r.draftId));
+
+  const thinPerTier = {};
+  rated.forEach((r) => { if (r.tier && thinIds.has(r.draftId)) thinPerTier[r.tier] = (thinPerTier[r.tier] || 0) + 1; });
+  const worstTier = Object.keys(thinPerTier).sort((a, b) => thinPerTier[b] - thinPerTier[a])[0] || null;
+
+  let headline = null;
+  if (worstTier) {
+    const tierRoles = rated.filter((r) => r.tier === worstTier);
+    const thinInTier = thinPerTier[worstTier];
+    const totalWeight = rated.reduce((s, r) => s + (r.tier ? r.headcount * (EFFORT_WEIGHT_PER_TIER[r.tier] || 0) : 0), 0) || 1;
+    const shareByTier = {};
+    TIER_ORDER.forEach((t) => {
+      shareByTier[t] = rated.filter((r) => r.tier === t).reduce((s, r) => s + r.headcount * (EFFORT_WEIGHT_PER_TIER[t] || 0), 0) / totalWeight;
+    });
+    const worstTierShare = shareByTier[worstTier];
+    const isLargest = TIER_ORDER.every((t) => shareByTier[t] <= worstTierShare);
+    headline = `${thinInTier} of your ${tierRoles.length} ${worstTier} role${tierRoles.length === 1 ? '' : 's'} `
+      + `${thinInTier === 1 ? 'has' : 'have'} the least change detail, and ${isLargest ? 'they carry the largest share of the effort' : `${worstTier} carries ${pct(worstTierShare)} of the effort`}.`;
+  }
+  return { rated: sorted, thinIds, worstTier, headline };
+}
+
+/* The one place all four parts of the audit come together, degrading
+   cleanly with no roles and no documents - every piece is null/empty
+   rather than a false claim when there's nothing yet to check. */
+function auditInputs(draftRoles, uploads) {
+  const namedRoles = draftRoles.filter((d) => d.role.trim());
+  const hrUpload = uploads.roleHeadcount;
+  const coverage = (hrUpload && hrUpload.status === 'done' && hrUpload.rows) ? auditCoverage(hrUpload.rows, namedRoles) : null;
+  const anyDocDone = UPLOAD_SLOTS.some((s) => uploads[s.key] && uploads[s.key].status === 'done');
+  const mentionsByDraftId = anyDocDone ? auditMentions(namedRoles, uploads) : null;
+  const unmentioned = mentionsByDraftId ? namedRoles.filter((d) => (mentionsByDraftId[d.draftId] || []).length === 0) : [];
+  const completeness = auditCompleteness(namedRoles);
+  return { roleCount: namedRoles.length, coverage, anyDocDone, mentionsByDraftId, unmentioned, completeness };
+}
+
 function ProjectPicker({ projects, onSelect, onStartNew }) {
   return (
     <div className="picker-page">
@@ -6560,6 +6790,25 @@ const BLANK_DRAFT_SCORES = () => ({
   risk: { decisionRights: null, capabilityDelta: null, localReadiness: null },
 });
 
+/* Shown once, at the very start of project creation, so gathering these
+   five documents reads as the known, ordinary cost of this work - not a
+   surprise sprung on the practitioner partway through. Matter-of-fact: one
+   line per document, who it comes from, no explanatory paragraph. */
+function WhatYoullNeedPanel() {
+  return (
+    <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
+      <div className="card-head"><h3>What you'll need</h3></div>
+      <div className="card-body">
+        <ul className="need-list">
+          {UPLOAD_SLOTS.map((s) => (
+            <li key={s.key}><b>{s.label}</b> — from {s.source}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 function EngagementProfileStep({ profile, onChange, onNext, onCancel }) {
   const set = (patch) => onChange({ ...profile, ...patch });
   const setSite = (key, patch) => onChange({ ...profile, sites: profile.sites.map((s) => (s.key === key ? { ...s, ...patch } : s)) });
@@ -6576,6 +6825,8 @@ function EngagementProfileStep({ profile, onChange, onNext, onCancel }) {
           everything else sharpens the picture and can be filled in later.
         </p>
       </div>
+
+      <WhatYoullNeedPanel />
 
       <div className="card">
         <div className="card-head"><h3>About the engagement</h3></div>
@@ -6718,12 +6969,106 @@ function DraftRoleRow({ draft, onUpdate, onRemove }) {
   );
 }
 
-function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemoveDraft, files, onFilesChange, onBack, onFinish }) {
+/* One named document slot: label, who it comes from, and once a file is
+   picked, its own parse status - reading, done, or a plain per-file error
+   that never blocks the rest of the wizard. Nothing here is mandatory. */
+function UploadSlot({ slot, upload, onFile, onRemove }) {
+  const inputRef = useRef(null);
+  return (
+    <div className="upload-slot">
+      <div className="upload-slot-head">
+        <span className="upload-slot-label">{slot.label}</span>
+        <span className="upload-slot-source">from {slot.source}</span>
+      </div>
+      {!upload && (
+        <button type="button" className="btn" onClick={() => inputRef.current && inputRef.current.click()}>Choose file…</button>
+      )}
+      {upload && upload.status === 'reading' && <span className="hint">Reading {upload.name}…</span>}
+      {upload && upload.status === 'done' && (
+        <div className="upload-slot-file">
+          <span className="fn">{upload.name}</span>
+          <span className="fs">{Math.max(1, Math.round(upload.size / 1024))} KB</span>
+          <button type="button" className="btn" onClick={onRemove} aria-label={`Remove ${upload.name}`}>✕</button>
+        </div>
+      )}
+      {upload && upload.status === 'error' && (
+        <div className="upload-slot-file">
+          <span className="fn">{upload.name}</span>
+          <span className="upload-slot-err">{upload.error}</span>
+          <button type="button" className="btn" onClick={onRemove} aria-label={`Remove ${upload.name}`}>✕</button>
+        </div>
+      )}
+      <input ref={inputRef} type="file" accept={UPLOAD_ACCEPT} style={{ display: 'none' }}
+             aria-label={`Upload: ${slot.label}`}
+             onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) onFile(f); }} />
+    </div>
+  );
+}
+
+/* The audit itself - coverage, mentions, completeness - degrading cleanly
+   with no roles and no documents rather than asserting a false finding. The
+   completeness cross-tab gets top billing (see the "primary" finding): it's
+   the one part of this that doesn't need a single document uploaded to be
+   useful, and it's the most useful thing on the screen. */
+function InputAuditPanel({ audit }) {
+  if (!audit || audit.roleCount === 0) {
+    return (
+      <div className="card audit-panel" style={{ marginTop: 'var(--space-16)' }}>
+        <div className="card-head"><h3>Input audit</h3></div>
+        <div className="card-body"><p className="sub" style={{ margin: 0 }}>Add at least one role above to run the audit.</p></div>
+      </div>
+    );
+  }
+  return (
+    <div className="card audit-panel" style={{ marginTop: 'var(--space-16)' }}>
+      <div className="card-head"><h3>Input audit</h3></div>
+      <div className="card-body">
+        {audit.completeness && audit.completeness.headline && (
+          <div className="audit-finding">
+            <b>{audit.completeness.headline}</b>
+          </div>
+        )}
+
+        <div className="audit-section">
+          <h4>Coverage against HR</h4>
+          {!audit.coverage ? (
+            <p className="sub">Upload a role and headcount extract to check coverage against HR.</p>
+          ) : audit.coverage.inHrNotScored.length === 0 && audit.coverage.scoredNotInHr.length === 0 ? (
+            <p className="sub">Every role in the HR extract is scored here, and every role scored here is in the HR extract.</p>
+          ) : (
+            <>
+              {audit.coverage.inHrNotScored.length > 0 && (
+                <p className="sub">In HR, not scored here: {audit.coverage.inHrNotScored.join(', ')}.</p>
+              )}
+              {audit.coverage.scoredNotInHr.length > 0 && (
+                <p className="sub">Scored here, not in HR: {audit.coverage.scoredNotInHr.join(', ')}.</p>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="audit-section">
+          <h4>Mentioned in the uploaded documents</h4>
+          {!audit.anyDocDone ? (
+            <p className="sub">No documents uploaded yet, so this can't be checked.</p>
+          ) : audit.unmentioned.length === 0 ? (
+            <p className="sub">Every role is mentioned somewhere in the uploaded documents.</p>
+          ) : (
+            <p className="sub">
+              Not mentioned anywhere: {audit.unmentioned.map((d) => d.role).join(', ')}. Their change description may be unsupported.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemoveDraft, uploads, onUploadFile, onRemoveUpload, onBack, onFinish }) {
   const [manual, setManual] = useState({ role: '', site: '', headcount: '', summary: '' });
   const [csvWarnings, setCsvWarnings] = useState([]);
   const [csvFileName, setCsvFileName] = useState('');
   const fileInputRef = useRef(null);
-  const attachInputRef = useRef(null);
 
   const handleCsvChange = async (e) => {
     const file = e.target.files && e.target.files[0];
@@ -6743,13 +7088,19 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
     setManual({ role: '', site: manual.site, headcount: '', summary: '' });
   };
 
-  const handleAttach = (e) => {
-    const picked = [...(e.target.files || [])];
-    e.target.value = '';
-    if (!picked.length) return;
-    onFilesChange((fs) => [...fs, ...picked.map((f) => ({ name: f.name, size: f.size, type: f.type }))]);
+  // Every slot's file is read client-side the moment it's picked - no
+  // backend, no API key - and a file that can't be parsed says so against
+  // that one slot without blocking anything else in the wizard.
+  const handleSlotFile = (key, file) => {
+    onUploadFile(key, { name: file.name, size: file.size, status: 'reading', text: '', rows: null, error: null });
+    extractUploadedFile(file).then(({ text, rows }) => {
+      onUploadFile(key, { name: file.name, size: file.size, status: 'done', text, rows, error: null });
+    }).catch((err) => {
+      onUploadFile(key, { name: file.name, size: file.size, status: 'error', text: '', rows: null, error: (err && err.message) || 'could not be read' });
+    });
   };
-  const removeFile = (idx) => onFilesChange((fs) => fs.filter((_, i) => i !== idx));
+
+  const audit = useMemo(() => auditInputs(draftRoles, uploads), [draftRoles, uploads]);
 
   const pendingCount = draftRoles.filter((d) => d.scoreStatus === 'loading').length;
   const incompleteCount = draftRoles.filter((d) => missingFactors(d).length > 0).length;
@@ -6825,26 +7176,22 @@ function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemov
       </div>
 
       <div className="card" style={{ marginTop: 'var(--space-16)' }}>
-        <div className="card-head">
-          <h3>Supporting files</h3>
-          <span className="hint">To-be process docs, HRIS extracts, readiness survey results: stored as reference material, not parsed</span>
-        </div>
+        <div className="card-head"><h3>Source documents</h3></div>
         <div className="card-body">
-          <button type="button" className="btn" onClick={() => attachInputRef.current && attachInputRef.current.click()}>Attach files…</button>
-          <input ref={attachInputRef} type="file" multiple aria-label="Attach files" style={{ display: 'none' }} onChange={handleAttach} />
-          {files.length > 0 && (
-            <ul className="file-list">
-              {files.map((f, i) => (
-                <li key={i}>
-                  <span className="fn">{f.name}</span>
-                  <span className="fs">{Math.max(1, Math.round(f.size / 1024))} KB</span>
-                  <button type="button" className="btn" onClick={() => removeFile(i)} aria-label={`Remove ${f.name}`}>✕</button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="upload-slot-grid">
+            {UPLOAD_SLOTS.map((slot) => (
+              <UploadSlot key={slot.key} slot={slot} upload={uploads[slot.key]}
+                          onFile={(file) => handleSlotFile(slot.key, file)}
+                          onRemove={() => onRemoveUpload(slot.key)} />
+            ))}
+          </div>
+          <p className="footnote" style={{ marginTop: 'var(--space-12)' }}>
+            Uploaded documents are used to check coverage and completeness, not to write role change descriptions - those stay with you.
+          </p>
         </div>
       </div>
+
+      <InputAuditPanel audit={audit} />
 
       <div className="card" style={{ marginTop: 'var(--space-16)' }}>
         <div className="card-head">
@@ -6885,8 +7232,15 @@ function NewProjectWizard({ onFinish, onCancel }) {
   const [step, setStep] = useState('profile');
   const [profile, setProfile] = useState(BLANK_PROFILE);
   const [draftRoles, setDraftRoles] = useState([]);
-  const [files, setFiles] = useState([]);
+  const [uploads, setUploads] = useState(() => Object.fromEntries(UPLOAD_SLOTS.map((s) => [s.key, null])));
   const draftSeqRef = useRef(0);
+
+  const setUpload = useCallback((key, value) => {
+    setUploads((u) => ({ ...u, [key]: value }));
+  }, []);
+  const removeUpload = useCallback((key) => {
+    setUploads((u) => ({ ...u, [key]: null }));
+  }, []);
 
   const runSuggest = useCallback((draft) => {
     setDraftRoles((ds) => ds.map((d) => (d.draftId === draft.draftId ? { ...d, scoreStatus: 'loading' } : d)));
@@ -6926,10 +7280,16 @@ function NewProjectWizard({ onFinish, onCancel }) {
   }, []);
 
   const finish = useCallback(() => {
-    const roles = draftRoles.filter((d) => d.role.trim()).map((d, i) => {
+    const named = draftRoles.filter((d) => d.role.trim());
+    // Same scan the audit's "mentioned in documents" finding reads - reused
+    // here so a role's citations (which file, what it says nearby) travel
+    // with it into the real project, not just the wizard session.
+    const mentionsByDraftId = auditMentions(named, uploads);
+    const roles = named.map((d, i) => {
       const archetype = d.siteArchetype || d.site || '(unspecified)';
       const deskless = ['Plant', 'Distribution Center', 'Field-Commercial'].includes(archetype);
       const headcount = Math.max(1, parseInt(d.headcount, 10) || 1);
+      const sourceRefs = mentionsByDraftId[d.draftId] || [];
       return {
         id: 'wizard-' + slugify(d.role) + '-' + i + '-' + Date.now().toString(36),
         role: d.role.trim(),
@@ -6945,6 +7305,7 @@ function NewProjectWizard({ onFinish, onCancel }) {
         tasksRemoved: 0, tasksChanged: 0, tasksNew: 0, fteDelta: 0,
         constraints: deskless ? ['Works on the floor, not at a desk'] : [],
         addedLive: true,
+        sourceRefs,
       };
     });
 
@@ -6967,9 +7328,9 @@ function NewProjectWizard({ onFinish, onCancel }) {
       // roles - every one of them is captured live in this wizard.
       seedMeta: { sourceNamedRoleCount: 0 },
       engagementProfile: profile,
-      referenceFiles: files.map((f) => ({ name: f.name, size: f.size, type: f.type })),
+      referenceFiles: UPLOAD_SLOTS.filter((s) => uploads[s.key]).map((s) => ({ slot: s.label, name: uploads[s.key].name })),
     });
-  }, [draftRoles, profile, files, onFinish]);
+  }, [draftRoles, profile, uploads, onFinish]);
 
   return (
     <div className="picker-page wizard-page">
@@ -6987,7 +7348,7 @@ function NewProjectWizard({ onFinish, onCancel }) {
       {step === 'roles' && (
         <RoleDataStep profile={profile} draftRoles={draftRoles} onAddDrafts={addDrafts}
                       onUpdateDraft={updateDraft} onRemoveDraft={removeDraft}
-                      files={files} onFilesChange={setFiles}
+                      uploads={uploads} onUploadFile={setUpload} onRemoveUpload={removeUpload}
                       onBack={() => setStep('profile')} onFinish={finish} />
       )}
     </div>

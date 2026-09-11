@@ -432,6 +432,49 @@ a { color: var(--aberdeen-blue); }
 .file-list .fn { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-list .fs { color: var(--ink-3); font-size: 12px; }
 
+/* "What you'll need": one line per document, no explanatory paragraph -
+   matter-of-fact, so gathering these reads as the known, ordinary cost of
+   the work rather than a surprise. */
+.need-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13.5px; }
+.need-list li { color: var(--ink-2); }
+.need-list b { color: var(--ink); font-weight: 500; }
+
+/* Five named upload slots, each its own small card - a file that failed to
+   parse gets the same slot and the same remove control as one that
+   succeeded, just its own quiet error line instead of a size. */
+.upload-slot-grid { display: grid; gap: var(--space-12); grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.upload-slot {
+  border: 1px solid var(--hairline); border-radius: var(--radius-s); background: var(--surface-sunk);
+  padding: 12px; display: grid; gap: 8px; align-content: start;
+}
+.upload-slot-head { display: grid; gap: 2px; }
+.upload-slot-label { font-size: 13px; font-weight: 500; color: var(--ink); }
+.upload-slot-source { font-size: 12px; color: var(--ink-3); }
+.upload-slot-file {
+  display: flex; align-items: center; gap: 8px; font-size: 12.5px;
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius-s);
+  padding: 6px 9px;
+}
+.upload-slot-file .fn { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.upload-slot-file .fs { color: var(--ink-3); font-size: 11.5px; flex: none; }
+.upload-slot-err { flex: 1; color: var(--flag); font-size: 12px; }
+
+/* The input audit: the completeness cross-tab is the one finding that
+   doesn't need a single document uploaded to be useful, so it gets its own
+   emphasized line above the two document-dependent sections. */
+.audit-panel .audit-finding {
+  font-size: 14.5px; padding: 11px 13px; margin-bottom: var(--space-12);
+  background: var(--aberdeen-blue-wash); border: 1px solid var(--aberdeen-blue-line); border-radius: var(--radius-s);
+}
+.audit-section + .audit-section { margin-top: var(--space-12); }
+.audit-section h4 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); margin-bottom: 5px; }
+
+/* Source citations on a role's own page - same quiet, small-print treatment
+   as the constraint list beside it, extending that same provenance idea
+   from the scoring bands to whatever the uploaded documents say. */
+.source-ref-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.source-ref-list b { color: var(--ink); font-weight: 500; }
+
 .draft-list { display: grid; gap: var(--space-8); }
 .draft-row {
   border: 1px solid var(--hairline); border-radius: var(--radius-s); background: var(--surface); overflow: hidden;
