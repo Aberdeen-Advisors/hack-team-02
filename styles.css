@@ -629,6 +629,22 @@ a { color: var(--aberdeen-blue); }
    the row's far right by its own margin-left: auto. */
 .card-head-select { min-width: 0; font-size: 13px; padding: 6px 9px; margin-left: auto; }
 
+/* The role search shared by every role list (Stakeholder Impact, Redesign,
+   Training, Communication). Placeholder text is the label, so there's no
+   .field/<label> pair here - just the input, its own "x" to clear only the
+   search, and the live count, sitting alongside whatever tier/site filter
+   the list already has. */
+.role-search { display: flex; align-items: center; gap: var(--space-8); position: relative; }
+.role-search input[type="search"] { min-width: 200px; padding-right: 26px; }
+.role-search input[type="search"]::-webkit-search-cancel-button { display: none; }
+.role-search .clear-btn {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  appearance: none; border: none; background: none; cursor: pointer;
+  color: var(--ink-3); font-size: 15px; line-height: 1; padding: 2px;
+}
+.role-search .clear-btn:hover { color: var(--ink); }
+.role-search .count { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
 /* ----------------------------------------------------- dashboard layout */
 
 /* Height-constrained on purpose: this wraps the headline, the two-column
@@ -752,7 +768,7 @@ a { color: var(--aberdeen-blue); }
 .filters { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: var(--space-16); }
 .field { display: grid; gap: 5px; }
 .field > label { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
-select, input[type="text"], input[type="number"], textarea {
+select, input[type="text"], input[type="number"], input[type="search"], textarea {
   font: inherit; color: var(--ink); background: var(--surface);
   border: 1px solid var(--hairline-strong); border-radius: var(--radius-s);
   padding: 7px 10px; min-width: 170px;

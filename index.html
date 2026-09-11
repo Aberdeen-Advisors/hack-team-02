@@ -950,6 +950,18 @@ function archetypeMatches(value, filter) {
   return archetypeParts(value).includes(filter);
 }
 
+/* The one search predicate every role list (Stakeholder Impact, Redesign,
+   Training, Communication) filters on: case-insensitive substring match on
+   the role name OR the site scope text, so "HQ" narrows to HQ roles and
+   "nurse" narrows to nursing roles. Composes with whatever tier/site filter
+   the list already has - this only ever narrows a list that's already been
+   through those. */
+function matchesRoleSearch(role, search) {
+  const q = String(search || '').trim().toLowerCase();
+  if (!q) return true;
+  return role.role.toLowerCase().includes(q) || String(role.siteArchetype || '').toLowerCase().includes(q);
+}
+
 /* A real, concrete example of a combined site scope, pulled from the active
    project's own roles rather than named in copy. Null if no role in this
    project spans more than one archetype (e.g. Ashford, single-site), in
@@ -1095,28 +1107,7 @@ function simulatedAdoptionMetrics(agg, daysLive) {
    DOSES, aids from the same trainingDesign() every role's own plan uses. */
 function tierPrescription(tier, scored) {
   const roles = scored.filter((r) => r.tier === tier);
-  const totalAids = roles.reduce((s, r) => s + trainingDesign(r).aids.count, 0);
-  return { roleCount: roles.length, hours: DOSES[tier].curriculumHours, totalAids };
-}
-
-/* The honest version of "what changed at the last re-score": this app
-   keeps no historical score snapshot, so it cannot truthfully say which
-   roles moved tier in the past - that would be inventing a record that
-   doesn't exist. What it can truthfully say is which roles sit closest to
-   the 3.5 line right now, on whichever axis is closer: real current
-   scores, not a fabricated history, answering the same operational
-   question ("what does the next re-score need to watch") from the
-   direction the data actually supports. */
-function nearestBoundaryRoles(scored, limit) {
-  return scored
-    .map((r) => {
-      const impactMargin = Math.abs(r.scores.impact - THRESHOLD);
-      const riskMargin = Math.abs(r.scores.risk - THRESHOLD);
-      const onImpact = impactMargin <= riskMargin;
-      return { role: r, axis: onImpact ? 'impact' : 'risk', margin: onImpact ? impactMargin : riskMargin };
-    })
-    .sort((a, b) => a.margin - b.margin)
-    .slice(0, limit);
+  return { roleCount: roles.length, hours: DOSES[tier].curriculumHours };
 }
 
 function resourcedPlan(scored) {
@@ -4365,11 +4356,39 @@ function columnsFor(comboExample) {
   ];
 }
 
+/* The one search control every role list shares. Placeholder text is the
+   label - no instructional sentence above or below it - and the live count
+   sits right beside it. The "x" only ever clears the search box; it never
+   touches whatever tier/site filter the list already has. */
+function RoleSearchField({ value, onChange, shown, total }) {
+  return (
+    <div className="role-search no-print">
+      <input type="search" value={value} onChange={(e) => onChange(e.target.value)}
+             placeholder="Search roles or sites" aria-label="Search roles or sites" />
+      {value && (
+        <button type="button" className="clear-btn" onClick={() => onChange('')} aria-label="Clear search">×</button>
+      )}
+      <span className="count">{shown} of {pluralize(total, 'role')}</span>
+    </div>
+  );
+}
+
+/* The shared empty state for a searched-and-filtered role list: name what
+   was searched and give a one-click way out of it, rather than the flat
+   "no roles match this filter" a tier filter alone can get away with. */
+function roleSearchEmptyNote(search, onClearSearch) {
+  return search ? (
+    <>No roles match &quot;{search}&quot;. <button type="button" className="link-btn" onClick={onClearSearch}>Clear search</button></>
+  ) : (
+    <>No roles match this filter.</>
+  );
+}
+
 /* Memoized for the same reason as HeatMap: 38 sortable rows re-diffing on
    every keystroke in the rate card or the scenario name field, none of
    which touch `roles`/`incomplete`/`selectedId`/`onSelect`, was the
    single biggest avoidable render cost on the Stakeholder Impact tab. */
-const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId, onSelect, comboExample }) {
+const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId, onSelect, comboExample, search, onClearSearch }) {
   const [sort, setSort] = useState({ key: 'impact', dir: -1 });
   const sorted = useMemo(() => {
     const val = (r, k) => (k === 'impact' ? r.scores.impact : k === 'risk' ? r.scores.risk
@@ -4442,7 +4461,9 @@ const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId,
               ))}
             </tr>
           ))}
-          {!sorted.length && !(incomplete || []).length && <tr><td colSpan={columns.length} style={{ color: 'var(--ink-3)' }}>No roles match this filter.</td></tr>}
+          {!sorted.length && !(incomplete || []).length && (
+            <tr><td colSpan={columns.length} style={{ color: 'var(--ink-3)' }}>{roleSearchEmptyNote(search, onClearSearch)}</td></tr>
+          )}
         </tbody>
       </table>
     </div>
@@ -4586,6 +4607,12 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
   const [squareW, setSquareW] = useState(null);
   const contentMaxWidth = squareW ? Math.round(CARDS_COL_WIDTH + DASHBOARD_GAP + squareW) : null;
 
+  // The Role x site table's own search, narrowing whatever the site-archetype
+  // filter above already left. It never touches `filtered`/`filteredIncomplete`
+  // themselves - those still drive the tier cards, the chart and the
+  // incomplete-rows banner, none of which should react to a table-only search.
+  const [search, setSearch] = useState('');
+
   // A filter with one real choice is not a filter: Ashford has one site
   // archetype and no combos, so the control is hidden rather than showing
   // "All site archetypes" next to a single, redundant second option.
@@ -4600,6 +4627,8 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
   const match = (r) => archetypeMatches(r.siteArchetype, sa);
   const filtered = useMemo(() => scored.filter(match), [scored, sa]);
   const filteredIncomplete = useMemo(() => incomplete.filter(match), [incomplete, sa]);
+  const searched = useMemo(() => filtered.filter((r) => matchesRoleSearch(r, search)), [filtered, search]);
+  const searchedIncomplete = useMemo(() => filteredIncomplete.filter((r) => matchesRoleSearch(r, search)), [filteredIncomplete, search]);
 
   const agg = useMemo(() => aggregate(filtered), [filtered]);
   const finding = useMemo(() => concentrationFinding(agg), [agg]);
@@ -4693,12 +4722,15 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       <div className="card" style={{ marginTop: 'var(--space-16)', marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Role × site</h3>
+          <RoleSearchField value={search} onChange={setSearch}
+                           shown={searched.length + searchedIncomplete.length} total={filtered.length + filteredIncomplete.length} />
           <button type="button" className="btn no-print" style={{ marginLeft: 'auto' }}
                   onClick={() => downloadCSV(`${(projectName || 'roles').replace(/[^a-z0-9]+/gi, '-')}-role-table.csv`, rolesToCSV(filtered))}>
             Export to CSV
           </button>
         </div>
-        <RoleTable roles={filtered} incomplete={filteredIncomplete} selectedId={selectedId} onSelect={onSelect} comboExample={comboExample} />
+        <RoleTable roles={searched} incomplete={searchedIncomplete} selectedId={selectedId} onSelect={onSelect} comboExample={comboExample}
+                   search={search} onClearSearch={() => setSearch('')} />
       </div>
 
       <p className="footnote">All figures illustrative. All data synthetic.</p>
@@ -5338,10 +5370,12 @@ const RedesignRow = React.memo(function RedesignRow({ role, onSelect }) {
 });
 
 function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tierFilter, setTierFilter }) {
-  const rows = useMemo(
+  const [search, setSearch] = useState('');
+  const tierRows = useMemo(
     () => all.filter((r) => tierFilter === 'All' || r.tier === tierFilter),
     [all, tierFilter]
   );
+  const rows = useMemo(() => tierRows.filter((r) => matchesRoleSearch(r, search)), [tierRows, search]);
   const totals = useMemo(() => all.reduce((acc, r) => {
     acc.removed += r.tasksRemoved || 0;
     acc.changed += r.tasksChanged || 0;
@@ -5387,16 +5421,6 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
         {fte.growing === 1 ? '1 role grows' : `${fte.growing} roles grow`} · {fte.shrinking === 1 ? '1 role shrinks' : `${fte.shrinking} roles shrink`}
         {fte.largest && <> · largest single movement: <b>{fte.largest.role}</b> {signed(fte.largest.fteDelta || 0)}</>}
       </p>
-      {fte.net <= -MATERIAL_FTE_DELTA && (
-        <div className="banner" style={{ marginBottom: 'var(--space-16)' }}>
-          <b>A net reduction of {Math.abs(fte.net).toFixed(1)} FTE is a decision, not a by-product.</b>
-          <span className="src">
-            Consultation, redeployment and timeline implications follow from a reduction this size; they need their own
-            workstream and their own sign-off, not just a line in this table.
-          </span>
-        </div>
-      )}
-
       <div className="filters no-print">
         <div className="field">
           <label htmlFor="rd-tier">Tier</label>
@@ -5405,11 +5429,12 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
             {TIER_ORDER.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
+        <RoleSearchField value={search} onChange={setSearch} shown={rows.length} total={tierRows.length} />
       </div>
 
       <div className="draft-list">
         {rows.map((r) => <RedesignRow key={r.id} role={r} onSelect={onSelect} />)}
-        {!rows.length && <p className="sub">No roles match this filter.</p>}
+        {!rows.length && <p className="sub">{roleSearchEmptyNote(search, () => setSearch(''))}</p>}
       </div>
     </>
   );
@@ -5423,11 +5448,14 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
    =========================================================================== */
 
 function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weights, onResetWeights, tierFilter, setTierFilter }) {
+  const [search, setSearch] = useState('');
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const trainingGroup = plan.find((g) => g.group === 'Training');
-  const rows = useMemo(() => scored
-    .filter((r) => tierFilter === 'All' || r.tier === tierFilter)
-    .map((r) => ({ role: r, design: trainingDesign(r) })), [scored, tierFilter]);
+  const tierRows = useMemo(() => scored
+    .filter((r) => tierFilter === 'All' || r.tier === tierFilter), [scored, tierFilter]);
+  const rows = useMemo(() => tierRows
+    .filter((r) => matchesRoleSearch(r, search))
+    .map((r) => ({ role: r, design: trainingDesign(r) })), [tierRows, search]);
 
   return (
     <>
@@ -5451,6 +5479,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
             {TIER_ORDER.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
+        <RoleSearchField value={search} onChange={setSearch} shown={rows.length} total={tierRows.length} />
       </div>
 
       <div className="table-scroll" style={{ marginBottom: 'var(--space-16)' }}>
@@ -5476,7 +5505,9 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
                 <td>{design.deliveryConstraint || '—'}</td>
               </tr>
             ))}
-            {!rows.length && <tr><td colSpan={7} style={{ color: 'var(--ink-3)' }}>No roles match this filter.</td></tr>}
+            {!rows.length && (
+              <tr><td colSpan={7} style={{ color: 'var(--ink-3)' }}>{roleSearchEmptyNote(search, () => setSearch(''))}</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -5532,12 +5563,15 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
    =========================================================================== */
 
 function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck, goLiveDate, weights, onResetWeights, tierFilter, setTierFilter }) {
+  const [search, setSearch] = useState('');
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const commsGroup = plan.find((g) => g.group === 'Communication');
   const daysLive = useMemo(() => daysSince(goLiveDate), [goLiveDate]);
-  const rows = useMemo(() => scored
-    .filter((r) => tierFilter === 'All' || r.tier === tierFilter)
-    .map((r) => ({ role: r, milestones: commsPlan(r) })), [scored, tierFilter]);
+  const tierRows = useMemo(() => scored
+    .filter((r) => tierFilter === 'All' || r.tier === tierFilter), [scored, tierFilter]);
+  const rows = useMemo(() => tierRows
+    .filter((r) => matchesRoleSearch(r, search))
+    .map((r) => ({ role: r, milestones: commsPlan(r) })), [tierRows, search]);
 
   const byTier = useMemo(() => TIER_ORDER.map((t) => {
     const roles = scored.filter((r) => r.tier === t);
@@ -5611,6 +5645,7 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
             {TIER_ORDER.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
+        <RoleSearchField value={search} onChange={setSearch} shown={rows.length} total={tierRows.length} />
       </div>
 
       <div className="table-scroll" style={{ marginBottom: 'var(--space-16)' }}>
@@ -5627,7 +5662,9 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
                 <td>{(role.risk.decisionRights >= 4 || role.tier === 'Reassure') ? 'Yes' : 'No'}</td>
               </tr>
             ))}
-            {!rows.length && <tr><td colSpan={4} style={{ color: 'var(--ink-3)' }}>No roles match this filter.</td></tr>}
+            {!rows.length && (
+              <tr><td colSpan={4} style={{ color: 'var(--ink-3)' }}>{roleSearchEmptyNote(search, () => setSearch(''))}</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -5667,9 +5704,6 @@ function EffortWeightingPanel({ agg }) {
         <span className="hint">What "Share of change effort" on the Stakeholder Impact tab is computed from</span>
       </div>
       <div className="card-body">
-        <p className="sub" style={{ marginBottom: 'var(--space-12)' }}>
-          Share of effort is headcount × effort weight, not headcount alone — a Rebuild role takes far more effort per head to support than an Inform role.
-        </p>
         <div className="table-scroll" style={{ marginBottom: 10 }}>
           <table className="mini">
             <thead>
@@ -5718,7 +5752,6 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
     o[t] = simulatedTrainingCompletion(t, daysLive); return o;
   }, {}));
   const metrics = useMemo(() => simulatedAdoptionMetrics(agg, daysLive), [agg, daysLive]);
-  const boundary = useMemo(() => nearestBoundaryRoles(scored, 3), [scored]);
 
   // Training-completion bars grow from zero on reveal, staggered by tier -
   // scaleX from the left edge, never the width itself (that inline style
@@ -5748,7 +5781,42 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
-      <EffortWeightingPanel agg={agg} />
+      <div className="grid cols-5" style={{ marginBottom: 'var(--space-16)' }}>
+        <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} countTo={metrics.signOnRate} countFormat={{ suffix: '%' }} meta="of in-scope headcount, at least once" />
+        <Tile simulated label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} countTo={metrics.processesCompleted} rule="3.2 per person over the adoption window" />
+        <Tile simulated label="Job-aid access rate" value={`${metrics.jobAidAccessRate}%`} countTo={metrics.jobAidAccessRate} countFormat={{ suffix: '%' }} meta="of issued job aids opened at least once" />
+        <Tile simulated label="Comms click rate" value={`${metrics.commsClickRate}%`} countTo={metrics.commsClickRate} countFormat={{ suffix: '%' }} meta="go-live communication click-through" />
+        <Tile simulated label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} countTo={metrics.hrCaseVolume} meta="Rebuild + Enable population, tapering as adoption matures" />
+      </div>
+
+      <div className="card simulated" style={{ marginBottom: 'var(--space-16)' }} ref={barsRef}>
+        <div className="card-head">
+          <h3>Training completion by tier <span className="sim-tag">Simulated</span></h3>
+          <span className="hint">Ramps toward a tier-specific ceiling with days live. Editable for this demo.</span>
+        </div>
+        <div className="card-body">
+          {TIER_ORDER.filter((t) => agg.byTier[t].roles > 0).map((t) => {
+            const presc = tierPrescription(t, scored);
+            return (
+              <div key={t} style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-8)' }}>
+                    <i className="dot" style={{ '--dot': TIERS[t].hex }} /><b>{t}</b>
+                    <span className="hint">{pluralize(presc.hours, 'hour')} curriculum · {pluralize(presc.roleCount, 'role')} prescribed</span>
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input type="number" min="0" max="100" value={completion[t]}
+                           onChange={(e) => setCompletion((c) => ({ ...c, [t]: Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)) }))}
+                           style={{ width: 56, textAlign: 'right' }} aria-label={`${t} training completion percent`} />
+                    <span className="sim-tag">Simulated</span>
+                  </span>
+                </div>
+                <div className="bar"><i style={{ width: `${completion[t]}%`, background: TIERS[t].hex }} /></div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
@@ -5777,65 +5845,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
-        <div className="card-head">
-          <h3>Roles nearest a tier boundary</h3>
-          <span className="hint">What the next re-score is most likely to move</span>
-        </div>
-        <div className="card-body">
-          {boundary.length === 0 && <p className="sub" style={{ marginTop: 0 }}>No scored roles yet.</p>}
-          {boundary.map(({ role, axis, margin }) => (
-            <div key={role.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid var(--hairline)', fontSize: 13.5 }}>
-              <button type="button" className="link-btn" onClick={() => onSelect(role.id)}>{role.role}</button>
-              <span className="hint">
-                {axis} {role.scores[axis].toFixed(1)}, {margin.toFixed(1)} {role.scores[axis] >= THRESHOLD ? 'above' : 'below'} the {THRESHOLD.toFixed(1)} line
-                {' '}· <TierBadge tier={role.tier} />
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="card simulated" style={{ marginBottom: 'var(--space-16)' }} ref={barsRef}>
-        <div className="card-head">
-          <h3>Training completion by tier <span className="sim-tag">Simulated</span></h3>
-          <span className="hint">Ramps toward a tier-specific ceiling with days live. Editable for this demo.</span>
-        </div>
-        <div className="card-body">
-          {TIER_ORDER.filter((t) => agg.byTier[t].roles > 0).map((t) => {
-            const presc = tierPrescription(t, scored);
-            const accessed = Math.round(presc.totalAids * (completion[t] / 100));
-            return (
-              <div key={t} style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-8)' }}>
-                    <i className="dot" style={{ '--dot': TIERS[t].hex }} /><b>{t}</b>
-                    <span className="hint">{pluralize(presc.hours, 'hour')} curriculum · {pluralize(presc.roleCount, 'role')} prescribed</span>
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <input type="number" min="0" max="100" value={completion[t]}
-                           onChange={(e) => setCompletion((c) => ({ ...c, [t]: Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)) }))}
-                           style={{ width: 56, textAlign: 'right' }} aria-label={`${t} training completion percent`} />
-                    <span className="sim-tag">Simulated</span>
-                  </span>
-                </div>
-                <div className="bar"><i style={{ width: `${completion[t]}%`, background: TIERS[t].hex }} /></div>
-                <p className="hint" style={{ marginTop: 'var(--space-4)' }}>
-                  ≈ {accessed} of {pluralize(presc.totalAids, 'prescribed job aid')} accessed at this completion rate (simulated, tracks completion)
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="grid cols-5" style={{ marginBottom: 'var(--space-12)' }}>
-        <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} countTo={metrics.signOnRate} countFormat={{ suffix: '%' }} meta="of in-scope headcount, at least once" />
-        <Tile simulated label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} countTo={metrics.processesCompleted} rule="3.2 per person over the adoption window" />
-        <Tile simulated label="Job-aid access rate" value={`${metrics.jobAidAccessRate}%`} countTo={metrics.jobAidAccessRate} countFormat={{ suffix: '%' }} meta="of issued job aids opened at least once" />
-        <Tile simulated label="Comms click rate" value={`${metrics.commsClickRate}%`} countTo={metrics.commsClickRate} countFormat={{ suffix: '%' }} meta="go-live communication click-through" />
-        <Tile simulated label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} countTo={metrics.hrCaseVolume} meta="Rebuild + Enable population, tapering as adoption matures" />
-      </div>
+      <EffortWeightingPanel agg={agg} />
 
       <div className="card simulated">
         <div className="card-head"><h3>Qualitative feedback <span className="sim-tag">Simulated</span></h3></div>
