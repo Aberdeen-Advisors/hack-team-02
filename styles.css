@@ -174,37 +174,39 @@ a { color: var(--aberdeen-blue); }
 .app { min-height: 100vh; display: flex; flex-direction: column; }
 
 .topbar {
-  /* Subtle depth, not a flat slab: a gradient toward a deeper navy, a
-     Verdigris rule at the very bottom edge, and elevation so the header
-     visibly sits above the page. Sticky so it can go frosted on scroll
+  /* Light, not a dark slab: white surface, subtle elevation so it still
+     reads as chrome sitting above the page at rest, and a Verdigris rule
+     along the bottom edge doing the work the dark background used to do -
+     given real presence (4px, not a hairline) since it is now the header's
+     one strong color statement. Sticky so it can go frosted on scroll
      (see .topbar.scrolled below); background/shadow are transitioned so
      that state change reads as a soft cross-fade, not a hard cut. */
-  background: linear-gradient(165deg, var(--aberdeen-blue) 0%, var(--aberdeen-blue-deep) 100%);
-  color: #fff;
+  background: var(--surface);
+  color: var(--ink);
   padding: 14px 28px 0;
-  border-bottom: 3px solid var(--verdigris);
+  border-bottom: 4px solid var(--verdigris);
+  box-shadow: var(--elev-1);
   position: sticky; top: 0; z-index: 50;
   transition: background-color .25s ease, box-shadow .25s ease, backdrop-filter .25s ease;
 }
 .topbar.scrolled {
   box-shadow: var(--elev-3);
-  background-color: color-mix(in srgb, var(--aberdeen-blue) 88%, transparent);
-  background-image: linear-gradient(165deg, var(--aberdeen-blue) 0%, var(--aberdeen-blue-deep) 100%);
+  background-color: color-mix(in srgb, var(--surface) 88%, transparent);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
 /* Solid fallback where backdrop-filter is unsupported: full-strength
    background instead of the semi-transparent one above. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .topbar.scrolled { background-color: var(--aberdeen-blue); }
+  .topbar.scrolled { background-color: var(--surface); }
 }
 .topbar-row {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   max-width: 1560px; margin: 0 auto; width: 100%;
 }
 /* Deliberately spaced groups, not items scattered along the bar: brand,
-   then project context (visually separated by a hairline-on-dark rule),
-   then actions - pushed right as their own group. */
+   then project context (visually separated by a hairline rule), then
+   actions - pushed right as their own group. */
 .tb-brand { display: flex; align-items: center; gap: 10px; }
 /* Center-aligned, not baseline: a rounded pill and a plain text line have
    no shared baseline to speak of, and center is what reads as "these two
@@ -212,29 +214,34 @@ a { color: var(--aberdeen-blue); }
    happen to be next to each other. */
 .tb-context {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  padding-left: 16px; margin-left: 2px; border-left: 1px solid rgba(255,255,255,.2);
+  padding-left: 16px; margin-left: 2px; border-left: 1px solid var(--hairline-strong);
 }
 .tb-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .brand-logo { height: 22px; width: auto; align-self: center; display: block; }
-.topbar h1 { font-size: 17px; letter-spacing: -.01em; font-weight: 200; }
+.topbar h1 { font-size: 17px; letter-spacing: -.01em; font-weight: 200; color: var(--aberdeen-blue); }
+/* A light, brand-compliant tinted pill (Aberdeen Blue on its own wash),
+   not the dark chip a solid white-on-navy treatment would have left
+   behind on this now-light header. */
 .project-tag {
-  font-size: 12px; font-weight: 500; color: #fff; white-space: nowrap;
-  background: rgba(255,255,255,.14); border-radius: 999px; padding: 4px 12px;
+  font-size: 12px; font-weight: 500; color: var(--aberdeen-blue); white-space: nowrap;
+  background: var(--aberdeen-blue-wash); border: 1px solid var(--aberdeen-blue-line);
+  border-radius: 999px; padding: 4px 12px;
 }
 /* Same weight as the pill beside it, not a quieter afterthought - the two
    are one group (what project, how big), so they carry matching emphasis. */
 .topbar .sub {
-  font-size: 13px; font-weight: 500; color: rgba(255,255,255,.72); font-variant-numeric: tabular-nums;
+  font-size: 13px; font-weight: 500; color: var(--ink-2); font-variant-numeric: tabular-nums;
 }
-.topbar .btn { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.22); color: #fff; }
-.topbar .btn:hover { background: rgba(255,255,255,.18); }
 
 /* Persistent, visible from every tab, whenever weights differ from
-   default - not just a suffix on a sentence inside one disclosure. */
+   default - not just a suffix on a sentence inside one disclosure. The
+   Verdigris-derived "review this" flag family (see --flag-* in :root):
+   custom weighting is exactly the kind of thing worth flagging. */
 .weight-alert {
   display: flex; align-items: center; gap: 7px; white-space: nowrap;
-  font-size: 12px; font-weight: 500; color: var(--aberdeen-blue);
-  background: #fff; border-radius: 999px; padding: 3px 6px 3px 11px;
+  font-size: 12px; font-weight: 500; color: var(--flag);
+  background: var(--flag-wash); border: 1px solid var(--flag-line);
+  border-radius: 999px; padding: 3px 6px 3px 11px;
 }
 .weight-alert .link-btn { color: var(--aberdeen-blue); font-weight: 600; }
 .weight-alert .link-btn:hover { color: var(--ink); }
@@ -243,16 +250,16 @@ a { color: var(--aberdeen-blue); }
    fading in under the header, gone again a few seconds later. */
 .weight-flash {
   max-width: 1560px; margin: 10px auto 0; width: 100%;
-  font-size: 12.5px; color: #fff; background: rgba(255,255,255,.14);
+  font-size: 12.5px; color: var(--live); background: var(--live-wash);
   border-radius: var(--radius-s) var(--radius-s) 0 0; padding: 6px var(--space-12);
   animation: weight-flash-in .25s ease-out;
 }
 /* Same slot and motion as the weight flash, but a stale/mistyped link is a
    warning, not a neutral status update, so it gets a distinct tint - the
    same Verdigris-derived wash .note.warn already uses for "worth flagging"
-   copy elsewhere, translucent here since it sits on the dark topbar. Not a
-   tier hue: Verdigris is its own color, not a wash of any of the four. */
-.weight-flash.route-notice { background: rgba(68,176,177,.3); font-weight: 500; }
+   copy elsewhere. Not a tier hue: Verdigris is its own color, not a wash
+   of any of the four. */
+.weight-flash.route-notice { background: var(--flag-wash); color: var(--flag); font-weight: 500; }
 @keyframes weight-flash-in {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
@@ -265,17 +272,19 @@ a { color: var(--aberdeen-blue); }
 .tab {
   appearance: none; background: transparent; border: 0; cursor: pointer;
   padding: 9px var(--space-16) 11px; border-radius: 8px 8px 0 0;
-  color: rgba(255,255,255,.7); font-size: 13.5px; font-weight: 500;
+  color: var(--ink-2); font-size: 13.5px; font-weight: 500;
   white-space: nowrap; border-bottom: 2px solid transparent;
   border-top: 2px solid transparent;
 }
-.tab:hover { color: #fff; background: rgba(255,255,255,.08); border-top-color: rgba(68,176,177,.45); }
-/* The active-tab indicator: a Verdigris rule along the top edge. The
+.tab:hover { color: var(--ink); background: var(--surface-sunk); }
+/* The active-tab indicator: an Aberdeen Blue rule along the top edge -
+   not Verdigris, which the header's own bottom rule already carries, so
+   the current tab needs its own, unmistakably brand-primary, signal. The
    bottom edge keeps its own job - matching --page so the selected tab
    visually flows into the content below it. */
 .tab[aria-selected="true"] {
   background: var(--page); color: var(--ink); font-weight: 500;
-  border-bottom-color: var(--page); border-top-color: var(--verdigris);
+  border-bottom-color: var(--page); border-top-color: var(--aberdeen-blue);
 }
 
 .main { flex: 1; max-width: 1560px; margin: 0 auto; width: 100%; padding: var(--space-24) 28px var(--space-64); }
@@ -555,18 +564,17 @@ a { color: var(--aberdeen-blue); }
 .hero-rule { width: 44px; height: 3px; border-radius: 2px; background: var(--verdigris); margin-top: 10px; }
 .hero-support { font-size: 13px; color: var(--ink-2); margin-top: 8px; font-variant-numeric: tabular-nums; }
 .hero-support .hero-link { font-size: 13px; }
-/* The chart card's own title, deliberately quiet: a section label sitting
-   under the hero headline, not a second heading competing with it.
-   Selector includes .card-head so it outranks the generic .card-head h3
-   rule (a class + element pair) rather than losing to it on specificity. */
-.card-head .chart-card-label {
+/* The chart's own title row: no card chrome here at all (see
+   .dashboard-chart-col below) - just the quiet section label and the site
+   filter, sitting directly above the plot with minimal air between them. */
+.chart-head-row { display: flex; align-items: center; gap: var(--space-12); flex-wrap: wrap; margin-bottom: var(--space-8); }
+.chart-card-label {
   font-size: 12.5px; text-transform: uppercase; letter-spacing: .07em;
   color: var(--ink-3); font-weight: 500;
 }
-/* A compact filter select sitting in a card-head next to the chart's own
-   label, not a full labeled .field block - the card-head is already the
-   label. Pushed to the row's far right since the label no longer carries
-   a .hint span with its own margin-left: auto to ride along with. */
+/* A compact filter select sitting next to the chart's own label, not a
+   full labeled .field block - the label is already the label. Pushed to
+   the row's far right by its own margin-left: auto. */
 .card-head-select { min-width: 0; font-size: 13px; padding: 6px 9px; margin-left: auto; }
 
 /* ----------------------------------------------------- dashboard layout */
@@ -579,17 +587,35 @@ a { color: var(--aberdeen-blue); }
    the weighting panel's own expanded content sit below this grid, under
    the fold on purpose.
    align-items: stretch (the grid default, stated explicitly) makes both
-   columns exactly as tall as the taller one - here, always the chart
-   column, since the weighting panel now lives in its own full-width row
-   below this grid, not inside it. .dashboard-cards then stretches to fill
-   that same height, and its four children share it equally via flex: 1 on
-   each .tier-tile, so the Inform card's bottom edge always lands exactly
-   on the chart card's bottom edge - a relationship this can maintain at
-   any chart size, without a hand-tuned card height anywhere. */
+   columns exactly as tall as the taller one, whichever that is - neither
+   column is allowed to shrink the OTHER below its own natural content:
+   the cards only grow from their natural height (flex-shrink: 0, below),
+   and the chart's plot area grows to fill any extra height its own column
+   is given (flex: 1 on .map-wrap), so the Inform card's bottom edge and
+   the chart's bottom edge land together regardless of which one would
+   naturally be taller on its own. */
 .dashboard-grid { display: grid; grid-template-columns: 3fr 7fr; gap: var(--space-16); align-items: stretch; }
 .dashboard-cards { display: flex; flex-direction: column; gap: var(--space-16); min-width: 0; }
-.dashboard-cards > .tier-tile { flex: 1 1 0; }
+/* flex-grow: 1, flex-shrink: 0, flex-basis: auto - each card is NEVER
+   smaller than its own natural content height (name + the 2x2 metrics
+   grid), only ever equal to it or larger. If the grid stretches this
+   column taller than the four cards' combined natural height (because the
+   chart column needs more room), the extra space is distributed growing
+   every card equally; it can never be taken FROM a card to shrink it
+   below its content, which is what was clipping the tier name and the
+   second metric row. */
+.dashboard-cards > .tier-tile { flex: 1 0 auto; }
 .dashboard-chart-col { display: flex; flex-direction: column; min-width: 0; }
+/* The plot itself keeps its own aspect ratio (width: 100%; height: auto,
+   in .map-wrap svg below) rather than being force-stretched to fill an
+   externally imposed height - stretching an SVG viewBox to a taller box
+   than its own ratio just letterboxes or distorts it, trading one bug for
+   a worse one. Instead .map-wrap fills the column and pushes its own
+   legend row down with margin-top: auto (see below): if the grid gives
+   this column more height than the plot + legend need, the extra space
+   opens up as breathing room above the legend, not as distortion, and the
+   legend still lands level with the bottom of the cards column. */
+.dashboard-chart-col > .map-wrap { flex: 1; }
 
 @media (max-width: 1100px) {
   /* Collapses to one column, in source order: headline (above this grid),
@@ -657,18 +683,19 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 
 /* ---------------------------------------------------------------- heat map */
 
-/* Faint inset shadow so the points read as sitting inside a surface, not
-   floating on a flat white rectangle - no hairline ring here, since the
-   .card this sits inside already draws the one border this element needs;
-   a second one directly inside it read as a mistake, not a design. */
-.map-wrap {
-  position: relative; border-radius: var(--radius-s);
-  box-shadow: inset 0 1px 3px rgba(9,55,95,.06);
-}
+/* No card, no border, no background here on purpose: the plot is the
+   object on this screen, not a panel holding one. It sits directly on the
+   page, at its own natural aspect ratio (width: 100%; height: auto below -
+   never force-stretched to fill an externally imposed height, which would
+   only letterbox or distort it). If .dashboard-chart-col ends up taller
+   than the plot + legend need, margin-top: auto on the legend opens that
+   extra space up above it, so the legend - and the column's bottom edge -
+   still lands level with the cards column, without touching the plot. */
+.map-wrap { position: relative; display: flex; flex-direction: column; }
 .map-wrap svg { display: block; width: 100%; height: auto; }
 .map-legend {
-  display: flex; gap: var(--space-16); flex-wrap: wrap; align-items: center;
-  padding: 10px 18px 14px; font-size: 12.5px; color: var(--ink-2);
+  display: flex; gap: var(--space-12); flex-wrap: wrap; align-items: center;
+  margin-top: auto; padding-top: var(--space-4); font-size: 11px; color: var(--ink-2);
 }
 .map-legend .sizes { display: flex; align-items: center; gap: 7px; }
 .map-legend .sizes svg { width: auto; }
@@ -704,9 +731,9 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
    needs. Tier identity here comes from quadrant position and the table
    below, not this label's color - a role's name itself only ever shows
    on hover/focus (the tooltip), never sitting permanently on the plot. */
-.quad-label { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; fill: var(--ink-2); }
-.axis-t { font-size: 10.5px; fill: var(--ink-3); font-variant-numeric: tabular-nums; }
-.axis-title { font-size: 11px; fill: var(--ink-2); font-weight: 500; }
+.quad-label { font-size: 10px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; fill: var(--ink-2); }
+.axis-t { font-size: 9.5px; fill: var(--ink-3); font-variant-numeric: tabular-nums; }
+.axis-title { font-size: 10px; fill: var(--ink-2); font-weight: 500; }
 
 .tip {
   position: absolute; pointer-events: none; z-index: 20;
@@ -725,13 +752,15 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 /* ------------------------------------------------------------------ tables */
 
 table.data { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-/* table-layout: fixed, driven by the <colgroup> RoleTable renders, so the
-   sticky <th> row and the <tbody> cells are guaranteed to share the exact
-   same column widths - with table-layout: auto, a sticky th's width can be
-   computed independently of its column's body cells (a real cross-browser
-   quirk, not a styling choice), which is what was producing a header that
-   didn't sit above its own data. Scoped to the Role × site table only -
-   the other .data tables have no <colgroup> and stay on auto layout. */
+/* table-layout: fixed, driven by the <colgroup> RoleTable renders, so
+   header and body cells share the exact same column widths by
+   construction. Still not sufficient on its own, in practice: a sticky
+   <th> can be laid out independently of its column's body cells in some
+   engines even under fixed layout, which is what was producing a header
+   row narrower than the body and columns off by one against their data -
+   see the position: static override for this table specifically, below.
+   Scoped to the Role × site table only - the other .data tables have no
+   <colgroup> and stay on auto layout. */
 table.data.role-site-table { table-layout: fixed; }
 table.data th, table.data td { padding: 12px var(--space-12); text-align: left; border-bottom: 1px solid var(--hairline); overflow-wrap: break-word; }
 table.data th {
@@ -741,6 +770,12 @@ table.data th {
   color: var(--caption); font-weight: 500; white-space: nowrap;
   position: sticky; top: 0; background: var(--surface); z-index: 1;
 }
+/* Not sticky here: this table already pairs a <colgroup> with
+   table-layout: fixed for a guaranteed shared column model, and a sticky
+   header on top of that is what was still producing a header row that
+   didn't match the body's widths. A plain (non-sticky) header is a fixed
+   trade against a still-real cross-browser layout bug. */
+table.data.role-site-table th { position: static; }
 table.data th.sortable { padding: 0; user-select: none; }
 /* A real <button> filling the header cell: native keyboard focus/activation
    (Enter and Space both worked already via onClick on a real button), not

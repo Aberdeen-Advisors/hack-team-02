@@ -4274,13 +4274,12 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
           bubble-size key (which the cards don't carry) earns a place here. */}
       <div className="map-legend">
         <span className="sizes">
-          {/* Bottom-aligned circles in a viewBox tall enough for the
-              largest one (r=15) plus a few px of margin - the previous
-              30-tall box clipped that circle's own top by 2px. */}
-          <svg viewBox="0 0 108 36" width="108" height="36" aria-hidden="true">
-            <circle cx="8" cy="27" r="5" fill="var(--ink-3)" fillOpacity=".45" />
-            <circle cx="30" cy="23" r="9" fill="var(--ink-3)" fillOpacity=".45" />
-            <circle cx="62" cy="17" r="15" fill="var(--ink-3)" fillOpacity=".45" />
+          {/* Bottom-aligned circles, smaller than before - a quiet key,
+              not a second visual feature competing with the plot above it. */}
+          <svg viewBox="0 0 76 26" width="76" height="26" aria-hidden="true">
+            <circle cx="6" cy="21" r="4" fill="var(--ink-3)" fillOpacity=".45" />
+            <circle cx="21" cy="18" r="7" fill="var(--ink-3)" fillOpacity=".45" />
+            <circle cx="43" cy="13" r="11" fill="var(--ink-3)" fillOpacity=".45" />
           </svg>
           point area = headcount
         </span>
@@ -4299,19 +4298,35 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
 // body's cells. role/siteArchetype carry no width and split whatever's
 // left equally between them, since role names and site scopes are the
 // two fields most likely to run long across the three example projects.
+//
+// `render` is the ONE place a column's cell content is written - the
+// header, the <colgroup>, a scored row and an incomplete row all read the
+// same `columns` array below, cell for cell, so there is no way for a
+// hand-authored body row to carry a column the header doesn't (or vice
+// versa): the two can never drift out of sync because there is only one
+// list of columns to drift from.
 function columnsFor(comboExample) {
   return [
-    { key: 'role', label: 'Role' },
+    { key: 'role', label: 'Role',
+      render: (r) => <><span className="rolename">{r.role}</span>{r.isNewRole && <span className="newflag">new role</span>}</> },
     { key: 'siteArchetype', label: 'Sites', title: comboExample
         ? `The site archetype (or combination) this row scopes to, e.g. "${comboExample}"`
-        : 'The site archetype this row scopes to. Every role in this project sits at a single archetype, none span more than one.' },
-    { key: 'headcount', label: 'People', n: true, width: 100 },
+        : 'The site archetype this row scopes to. Every role in this project sits at a single archetype, none span more than one.',
+      render: (r) => <>{r.siteArchetype}{r.deskless ? ' · deskless' : ''}</> },
+    { key: 'headcount', label: 'People', n: true, width: 100,
+      render: (r) => (r.headcount || 0).toLocaleString() },
     { key: 'siteCount', label: 'Site count', n: true, width: 116,
       title: 'How many individual sites are in this row\'s scope. Not the same as the Sites column, which names the '
-           + 'archetype, not how many of it there are.' },
-    { key: 'impact', label: 'Impact', n: true, width: 96, title: 'Impact severity: hover a value to see its weighted breakdown' },
-    { key: 'risk', label: 'Risk', n: true, width: 96, title: 'Adoption risk: hover a value to see its weighted breakdown' },
-    { key: 'tier', label: 'Tier', width: 132 },
+           + 'archetype, not how many of it there are.',
+      render: (r) => r.siteCount },
+    { key: 'impact', label: 'Impact', n: true, width: 96, title: 'Impact severity: hover a value to see its weighted breakdown',
+      render: (r, incomplete) => incomplete ? 'N/A' : r.scores.impact.toFixed(1),
+      cellTitle: (r, incomplete) => incomplete ? null : axisFormula(IMPACT_FACTORS, r.impact, r.scores.impact) },
+    { key: 'risk', label: 'Risk', n: true, width: 96, title: 'Adoption risk: hover a value to see its weighted breakdown',
+      render: (r, incomplete) => incomplete ? 'N/A' : r.scores.risk.toFixed(1),
+      cellTitle: (r, incomplete) => incomplete ? null : axisFormula(RISK_FACTORS, r.risk, r.scores.risk) },
+    { key: 'tier', label: 'Tier', width: 132,
+      render: (r, incomplete) => incomplete ? <span className="incflag">incomplete</span> : <TierBadge tier={r.tier} /> },
   ];
 }
 
@@ -4375,26 +4390,20 @@ const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId,
             <tr key={r.id} className={'tr-tier' + (selectedId === r.id ? ' sel' : '')} style={{ '--row-tier': TIERS[r.tier].hex }}
                 onClick={() => onSelect(r.id)}
                 role="button" tabIndex={0} aria-label={`Open one-pager for ${r.role}`} onKeyDown={rowKeyHandler(r.id)}>
-              <td><span className="rolename">{r.role}</span>{r.isNewRole && <span className="newflag">new role</span>}</td>
-              <td>{r.siteArchetype}{r.deskless ? ' · deskless' : ''}</td>
-              <td className="n">{r.headcount.toLocaleString()}</td>
-              {showSiteCount && <td className="n">{r.siteCount}</td>}
-              <td className="n" title={axisFormula(IMPACT_FACTORS, r.impact, r.scores.impact)}>{r.scores.impact.toFixed(1)}</td>
-              <td className="n" title={axisFormula(RISK_FACTORS, r.risk, r.scores.risk)}>{r.scores.risk.toFixed(1)}</td>
-              <td><TierBadge tier={r.tier} /></td>
+              {columns.map((c) => (
+                <td key={c.key} className={c.n ? 'n' : undefined} title={c.cellTitle ? c.cellTitle(r, false) : undefined}>
+                  {c.render(r, false)}
+                </td>
+              ))}
             </tr>
           ))}
           {(incomplete || []).map((r) => (
             <tr key={r.id} className={'inc' + (selectedId === r.id ? ' sel' : '')} onClick={() => onSelect(r.id)}
                 role="button" tabIndex={0} aria-label={`Open one-pager for ${r.role}, incomplete`} onKeyDown={rowKeyHandler(r.id)}
                 title={`${r.missing.length} of 6 sub-factors missing: ${r.missing.join(', ')}`}>
-              <td><span className="rolename">{r.role}</span></td>
-              <td>{r.siteArchetype}{r.deskless ? ' · deskless' : ''}</td>
-              <td className="n">{(r.headcount || 0).toLocaleString()}</td>
-              {showSiteCount && <td className="n">{r.siteCount}</td>}
-              <td className="n">N/A</td>
-              <td className="n">N/A</td>
-              <td><span className="incflag">incomplete</span></td>
+              {columns.map((c) => (
+                <td key={c.key} className={c.n ? 'n' : undefined}>{c.render(r, true)}</td>
+              ))}
             </tr>
           ))}
           {!sorted.length && !(incomplete || []).length && <tr><td colSpan={columns.length} style={{ color: 'var(--ink-3)' }}>No roles match this filter.</td></tr>}
@@ -4597,11 +4606,11 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       )}
 
       {/* 2. THE DASHBOARD: four tier cards, ranked top-to-bottom, on the
-          left (~30%); the quadrant chart on the right (~70%), sized to the
-          taller column, so the Inform card's bottom edge lands exactly on
-          the chart card's. Both columns fit above the fold together -
-          role-level detail (the table) and the weighting panel below do
-          not have to. */}
+          left (~30%); the quadrant chart on the right (~70%, no card
+          chrome - the plot itself is the object here), sized so the
+          Inform card's bottom edge lands exactly on the chart's. Both
+          columns fit above the fold together - role-level detail (the
+          table) and the weighting panel below do not have to. */}
       <div className="dashboard-grid">
         <div className="dashboard-cards">
           {TIER_ORDER.map((t) => (
@@ -4609,14 +4618,14 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
           ))}
         </div>
 
+        {/* No card chrome here on purpose: the plot itself, not a panel
+            containing it, is the object on this screen. */}
         <div className="dashboard-chart-col">
-          <div className="card">
-            <div className="card-head">
-              <h3 className="chart-card-label">Impact severity × adoption risk</h3>
-              {siteFilterControl}
-            </div>
-            <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
+          <div className="chart-head-row">
+            <h3 className="chart-card-label">Impact severity × adoption risk</h3>
+            {siteFilterControl}
           </div>
+          <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
         </div>
       </div>
 
@@ -6695,7 +6704,7 @@ function App() {
       <header className={'topbar no-print' + (scrolled ? ' scrolled' : '')}>
         <div className="topbar-row">
           <div className="tb-brand">
-            <img src="assets/brand/logo-white.svg" alt="Aberdeen Advisors" className="brand-logo" />
+            <img src="assets/brand/logo-blue.svg" alt="Aberdeen Advisors" className="brand-logo" />
             <h1>Change Impact Assessment Tool</h1>
           </div>
           <div className="tb-context">
