@@ -1123,8 +1123,8 @@ table.data td .rolename { font-weight: 500; }
 .pkg-extra h5 { margin: 0 0 6px; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
 .pkg-extra p { margin-bottom: .5em; }
 .pkg-extra .sub, .btn-row .sub { font-size: 12px; color: var(--ink-3); }
-.pkg-extra ol.esc, .assume ol.esc { margin: 0; padding-left: 18px; }
-.pkg-extra ol.esc li, .assume ol.esc li { margin-bottom: 2px; }
+.pkg-extra ol.esc { margin: 0; padding-left: 18px; }
+.pkg-extra ol.esc li { margin-bottom: 2px; }
 
 .tasklist { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
 .tasklist li { margin-bottom: var(--space-4); }
@@ -1298,24 +1298,20 @@ table.data td .incflag {
 /* -------------------------------------------------------------- ROI / plan */
 
 .chart-box { position: relative; height: 380px; }
-.assume {
-  background: var(--surface-sunk); border: 1px solid var(--hairline); border-radius: var(--radius-s);
-  padding: 14px var(--space-16); font-size: 13px;
-}
-.assume h4 { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 9px; }
-.assume dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 5px 14px; }
-.assume dt { color: var(--ink-2); }
-.assume dd { margin: 0; font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; }
 
 /* The Training tab's wave schedule: a horizontal strip, left to right in
    the order training actually starts. All four cards get the identical
-   treatment - background, border, elevation - on purpose: there is no
-   "current" or "heaviest" wave here, only the dot and the content differ. */
+   treatment - same light Verdigris-derived wash, same border, same
+   elevation - on purpose: there is no "current" or "heaviest" wave here,
+   only the dot and the content differ. Not a tier hue: this tint reads as
+   "this whole schedule is one deliberate group", the same family
+   .note.warn already uses for "worth a look", not a fifth wash competing
+   with the four tier colors. */
 .wave-row { display: flex; gap: var(--space-12); flex-wrap: wrap; }
 .wave {
   flex: 1 1 180px; min-width: 180px;
-  border: 1px solid var(--hairline); border-radius: var(--radius-s);
-  padding: 12px 14px; background: var(--surface-sunk);
+  border: 1px solid var(--flag-line); border-radius: var(--radius-s);
+  padding: 12px 14px; background: var(--flag-wash);
 }
 .wave-tier { display: flex; align-items: center; gap: 7px; font-weight: 500; font-size: 14px; margin-bottom: 6px; }
 .wave-dates { font-size: 12.5px; color: var(--ink-2); margin-bottom: 8px; }
