@@ -5854,6 +5854,347 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
 }
 
 /* ===========================================================================
+   10d. ASK ASSISTANT: a floating explainer that looks and feels like a chat
+   widget but is not one - there is no model call, no API key, nothing that
+   can hallucinate or go quiet mid-demo. Every answer is a deterministic
+   function of the active project's own already-scored roles (`aggregate`,
+   `concentrationFinding`, `TIERS`, `DOSES`, `THRESHOLD` - the same functions
+   and constants the rest of the app already renders from), so it is correct
+   for Thornwood, Bellcrest and Ashford without being written three times,
+   and a free-text question that doesn't confidently match anything says so
+   rather than guessing.
+   =========================================================================== */
+
+function findRoleMatches(q, roles) {
+  const needle = q.trim().toLowerCase();
+  if (needle.length < 3) return [];
+  return roles.filter((r) => r.role.toLowerCase().includes(needle));
+}
+
+const bySeverity = (a, b) => (b.scores.impact + b.scores.risk) - (a.scores.impact + a.scores.risk);
+
+function askWhichRolesMatter({ project, scored }) {
+  const agg = aggregate(scored);
+  const rebuild = agg.byTier.Rebuild;
+  if (rebuild.roles === 0) {
+    const heaviest = heaviestTierBelowRebuild(agg);
+    if (!heaviest) {
+      return {
+        text: [`No role in ${project.name} sits above Inform right now - nothing here needs more than broadcast communications.`],
+        chips: ['how-scored', 'where-start'],
+      };
+    }
+    const roles = scored.filter((r) => r.tier === heaviest).sort(bySeverity);
+    return {
+      text: [
+        `No role in ${project.name} sits in Rebuild right now. The heaviest intervention actually present is ${heaviest}: `
+          + `${pluralize(agg.byTier[heaviest].roles, 'role')}, ${agg.byTier[heaviest].people.toLocaleString()} people.`,
+      ],
+      roleLinks: roles.slice(0, 5),
+      chips: [{ label: `What does ${heaviest} mean?`, question: `What does ${heaviest} mean?` }, 'how-scored'],
+    };
+  }
+  const roles = scored.filter((r) => r.tier === 'Rebuild').sort(bySeverity);
+  return {
+    text: [
+      `${pluralize(rebuild.roles, 'role')} in ${project.name} sit in Rebuild - impact severity and adoption risk both at or `
+        + `above the ${THRESHOLD.toFixed(1)} threshold, the tier needing full role redesign.`,
+      `That's ${rebuild.people.toLocaleString()} of ${agg.totalPeople.toLocaleString()} people (${pct(rebuild.popShare)}).`,
+    ],
+    roleLinks: roles.slice(0, 5),
+    chips: ['what-rebuild', 'where-start'],
+  };
+}
+
+function askWhatTierMeans({ project, scored }, raw) {
+  const named = TIER_ORDER.find((t) => new RegExp(t, 'i').test(raw || ''));
+  const tier = named || 'Rebuild';
+  const info = TIERS[tier];
+  const agg = aggregate(scored);
+  const b = agg.byTier[tier];
+  const roles = scored.filter((r) => r.tier === tier).sort(bySeverity);
+  return {
+    text: [
+      `${tier} sits in the ${info.quadrant} quadrant of the model. Its package: ${info.package.join(', ')}.`,
+      `In ${project.name}: ${pluralize(b.roles, 'role')}, ${b.people.toLocaleString()} people.`,
+    ],
+    roleLinks: roles.slice(0, 5),
+    chips: ['which-matter', 'how-scored'],
+  };
+}
+
+function askHowScored({ weights }) {
+  const isDefault = weightsAreDefault(weights);
+  return {
+    text: [
+      `Every role is scored on two axes - impact severity and adoption risk - each an average of three weighted sub-factors, 1 to 5.`,
+      `A role tiers into Rebuild when both axes are at or above ${THRESHOLD.toFixed(1)}, inclusive; Enable, Reassure and Inform cover the other three combinations.`,
+      `The six sub-factor weights are Aberdeen judgment, tunable from their default split${isDefault ? '' : ' - this project currently has them adjusted from that default'}.`,
+    ],
+    chips: ['which-matter', 'what-rebuild'],
+  };
+}
+
+function askDeskless({ project, scored }) {
+  const deskless = scored.filter((r) => r.deskless);
+  if (!deskless.length) {
+    return {
+      text: [`No role in ${project.name} is marked deskless, so every role here gets the same training format - only the required hours, set by tier, differ.`],
+      chips: ['which-matter', 'how-scored'],
+    };
+  }
+  return {
+    text: [
+      `Deskless roles get the same required hours as any other role in their tier, delivered on shift at the point of work instead of a classroom, with laminated local-language job aids.`,
+      `Their comms channel drops email entirely for a QR code on the shift huddle board.`,
+      `${pluralize(deskless.length, 'role')} in ${project.name} ${deskless.length === 1 ? 'is' : 'are'} deskless.`,
+    ],
+    roleLinks: deskless.slice(0, 5),
+    chips: ['which-matter', 'where-start'],
+  };
+}
+
+function askWhereStart({ project, scored }) {
+  const agg = aggregate(scored);
+  const rebuild = agg.byTier.Rebuild;
+  if (rebuild.roles === 0) {
+    const heaviest = heaviestTierBelowRebuild(agg);
+    if (!heaviest) {
+      return {
+        text: [`Nothing in ${project.name} sits above Inform, so there's no forced sequencing - broadcast comms cover the whole population.`],
+        chips: ['which-matter', 'how-scored'],
+      };
+    }
+    const roles = scored.filter((r) => r.tier === heaviest).sort(bySeverity);
+    return {
+      text: [`Start with ${heaviest}, the heaviest intervention actually present in ${project.name}: ${pluralize(agg.byTier[heaviest].roles, 'role')}, ${agg.byTier[heaviest].people.toLocaleString()} people.`],
+      roleLinks: roles.slice(0, 3),
+      chips: [{ label: `What does ${heaviest} mean?`, question: `What does ${heaviest} mean?` }, 'how-scored'],
+    };
+  }
+  const roles = scored.filter((r) => r.tier === 'Rebuild').sort(bySeverity);
+  return {
+    text: [
+      `Start with Rebuild: ${pluralize(rebuild.roles, 'role')}, ${rebuild.people.toLocaleString()} people, the only tier needing full role redesign, sandbox training and an on-site super-user.`,
+      `Rebuild also re-scores every ${pluralize(DOSES.Rebuild.rescoreDays, 'day')} - the shortest cycle of any tier - so standing up its support first gives the earliest read on whether it's landing.`,
+    ],
+    roleLinks: roles.slice(0, 3),
+    chips: ['which-matter', 'what-rebuild'],
+  };
+}
+
+function askAboutRole(role) {
+  if (!role.complete) {
+    return {
+      text: [`${role.role} is in the data set but incomplete - ${role.missing.join(', ')} missing - so it isn't scored or tiered yet.`],
+      chips: ['which-matter', 'how-scored'],
+    };
+  }
+  const info = TIERS[role.tier];
+  return {
+    text: [
+      `${role.role} tiers into ${role.tier} (${info.quadrant}): impact ${role.scores.impact.toFixed(1)}, risk ${role.scores.risk.toFixed(1)}, `
+        + `threshold ${THRESHOLD.toFixed(1)} inclusive on both axes.`,
+      `${role.siteArchetype} · ${pluralize(role.headcount, 'person', 'people')}${role.deskless ? ' · deskless' : ''}.`,
+    ],
+    roleLinks: [role],
+    chips: [{ label: `What does ${role.tier} mean?`, question: `What does ${role.tier} mean?` }, 'how-scored'],
+  };
+}
+
+function askAboutRoleMatches(project, matches) {
+  return {
+    text: [`${pluralize(matches.length, 'role')} in ${project.name} match that:`],
+    roleLinks: matches,
+    chips: ['which-matter', 'how-scored'],
+  };
+}
+
+const ASK_QUESTIONS = [
+  { id: 'which-matter', chip: 'Which roles actually matter?',
+    keywords: /matter|which roles?|most important|highest impact|top roles|worth (focusing|prioriti)/i,
+    run: askWhichRolesMatter },
+  { id: 'what-rebuild', chip: 'What does Rebuild mean?',
+    keywords: /what\s+(is|does)\s+(rebuild|enable|reassure|inform)|(rebuild|enable|reassure|inform)\s+mean/i,
+    run: askWhatTierMeans },
+  { id: 'how-scored', chip: 'How were these scores calculated?',
+    keywords: /\bscore|calculat|threshold|weight|methodology|how.*work/i,
+    run: askHowScored },
+  { id: 'deskless', chip: 'Why do the deskless roles get different training?',
+    keywords: /deskless|frontline|no desk|shift work|on the floor/i,
+    run: askDeskless },
+  { id: 'where-start', chip: 'Where would we start?',
+    keywords: /where.*start|\bbegin\b|first step|priorit|sequence|kick ?off/i,
+    run: askWhereStart },
+];
+
+/* Role names first (a project's own vocabulary always wins over a generic
+   question), then the five canonical questions. Never a fuzzy/partial
+   canonical match dressed up as confidence - if nothing hits, the caller
+   shows the "not sure" fallback and re-offers the suggested questions,
+   rather than this function guessing. */
+function answerQuestion(raw, ctx) {
+  const q = String(raw || '').trim();
+  if (!q) return null;
+  const allRoles = [...ctx.scored, ...ctx.incomplete];
+  const roleMatches = findRoleMatches(q, allRoles);
+  if (roleMatches.length === 1) return askAboutRole(roleMatches[0]);
+  if (roleMatches.length > 1 && roleMatches.length <= 6) return askAboutRoleMatches(ctx.project, roleMatches);
+  const hit = ASK_QUESTIONS.find((qq) => qq.keywords.test(q));
+  if (hit) return hit.run(ctx, q);
+  return null;
+}
+
+// A chip is either a canonical question id (looked up here) or an inline
+// { label, question } object built on the fly (e.g. "What does Enable
+// mean?", for a tier this project doesn't ship a canonical chip for).
+// Clicking either behaves exactly like typing its question text - there is
+// only one answer path, not a second one reserved for chips.
+function resolveAskChip(entry) {
+  if (typeof entry === 'string') {
+    const q = ASK_QUESTIONS.find((qq) => qq.id === entry);
+    return q ? { label: q.chip, question: q.chip } : null;
+  }
+  return entry && entry.label && entry.question ? entry : null;
+}
+
+function AskAssistant({ project, tab, scored, incomplete, weights, onOpenRole }) {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [openingLine, setOpeningLine] = useState(null);
+  const [input, setInput] = useState('');
+  const buttonRef = useRef(null);
+  const panelRef = useRef(null);
+  const transcriptRef = useRef(null);
+  const wasOpenRef = useRef(false);
+  const prevProjectId = useRef(project.id);
+
+  // A stale answer from the last project must never linger into this one -
+  // reset the whole conversation, not just close the panel, the moment the
+  // loaded project changes.
+  useEffect(() => {
+    if (prevProjectId.current !== project.id) {
+      prevProjectId.current = project.id;
+      setMessages([]);
+      setOpeningLine(null);
+      setOpen(false);
+    }
+  }, [project.id]);
+
+  useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      requestAnimationFrame(() => panelRef.current && panelRef.current.focus());
+    } else if (!open && wasOpenRef.current) {
+      buttonRef.current && buttonRef.current.focus();
+    }
+    wasOpenRef.current = open;
+  }, [open]);
+
+  useEffect(() => {
+    if (transcriptRef.current) transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
+  }, [messages, open]);
+
+  const ctx = useMemo(() => ({ project, scored, incomplete, weights }), [project, scored, incomplete, weights]);
+
+  const toggleOpen = useCallback(() => {
+    setOpen((o) => {
+      const next = !o;
+      if (next && messages.length === 0) {
+        setOpeningLine(`You're looking at ${project.name}'s ${TAB_LABELS[tab] || 'Stakeholder Impact'} tab. Ask me anything about this assessment.`);
+      }
+      return next;
+    });
+  }, [messages.length, project.name, tab]);
+
+  const ask = useCallback((raw) => {
+    const q = String(raw || '').trim();
+    if (!q) return;
+    const answer = answerQuestion(q, ctx);
+    setMessages((m) => [
+      ...m,
+      { from: 'user', text: q },
+      answer
+        ? { from: 'bot', ...answer }
+        : { from: 'bot', text: ["I'm not confident I understood that. Try one of these:"], chips: ASK_QUESTIONS.map((qq) => qq.id) },
+    ]);
+    setInput('');
+  }, [ctx]);
+
+  const handleRoleClick = useCallback((id) => {
+    setOpen(false);
+    onOpenRole(id);
+  }, [onOpenRole]);
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Escape') { e.preventDefault(); setOpen(false); return; }
+    // A light focus trap: Tab/Shift+Tab cycle within the panel rather than
+    // escaping into the page behind it.
+    if (e.key === 'Tab' && panelRef.current) {
+      const focusable = Array.from(panelRef.current.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])'))
+        .filter((el) => !el.disabled && el.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }, []);
+
+  const lastMsg = messages[messages.length - 1];
+  const showRootChips = messages.length === 0;
+  const chipSource = showRootChips ? ASK_QUESTIONS.map((q) => q.id) : (lastMsg && lastMsg.from === 'bot' ? (lastMsg.chips || []) : []);
+  const chips = chipSource.map(resolveAskChip).filter(Boolean);
+
+  return (
+    <>
+      <button type="button" ref={buttonRef} className="ask-fab no-print"
+              aria-label={open ? 'Close assessment assistant' : 'Ask about this assessment'} aria-haspopup="dialog" aria-expanded={open}
+              onClick={toggleOpen}>
+        <img src="assets/brand/icon-white.svg" alt="" />
+      </button>
+      {open && (
+        <div className="ask-panel no-print" role="dialog" aria-modal="false" aria-label="Ask about this assessment"
+             ref={panelRef} tabIndex={-1} onKeyDown={handleKeyDown}>
+          <div className="ask-head">
+            <img src="assets/brand/icon-white.svg" alt="" />
+            <h3>Ask about this assessment</h3>
+            <button type="button" className="ask-close" onClick={() => setOpen(false)} aria-label="Close">×</button>
+          </div>
+          <div className="ask-body" ref={transcriptRef}>
+            {openingLine && <div className="ask-msg bot"><p>{openingLine}</p></div>}
+            {messages.map((m, i) => (
+              <div key={i} className={'ask-msg ' + m.from}>
+                {m.from === 'user' ? <p>{m.text}</p> : (m.text || []).map((t, j) => <p key={j}>{t}</p>)}
+                {m.from === 'bot' && m.roleLinks && m.roleLinks.length > 0 && (
+                  <ul className="ask-role-links">
+                    {m.roleLinks.map((r) => (
+                      <li key={r.id}>
+                        <button type="button" className="link-btn" onClick={() => handleRoleClick(r.id)}>{r.role} →</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+            {chips.length > 0 && (
+              <div className="ask-chips">
+                {chips.map((c) => (
+                  <button key={c.label} type="button" className="ask-chip" onClick={() => ask(c.question)}>{c.label}</button>
+                ))}
+              </div>
+            )}
+          </div>
+          <form className="ask-input-row" onSubmit={(e) => { e.preventDefault(); ask(input); }}>
+            <input type="text" value={input} onChange={(e) => setInput(e.target.value)}
+                   placeholder="Ask a question or type a role name" aria-label="Ask a question or type a role name" />
+            <button type="submit" className="btn primary" disabled={!input.trim()}>Ask</button>
+          </form>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ===========================================================================
    11. APP
    =========================================================================== */
 
@@ -6845,6 +7186,8 @@ function App() {
         )}
         {tab === 'add' && <AddRoleView onCreate={createRole} project={project} comboExample={comboExample} />}
       </main>
+
+      <AskAssistant project={project} tab={tab} scored={scored} incomplete={incomplete} weights={weights} onOpenRole={openRole} />
     </div>
   );
 }
