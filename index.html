@@ -4055,6 +4055,17 @@ function WeightNote({ weights, onReset }) {
 // px()/py() below map data values into.
 const MAP = { w: 460, h: 460, l: 46, r: 20, t: 24, b: 42 };
 
+// The Stakeholder Impact tab's content width is derived, not fixed: cards
+// column + the grid's own gap + however wide the square actually renders
+// (which is itself derived from available viewport height, not width - see
+// .chart-square). CARDS_COL_WIDTH and DASHBOARD_GAP have to match the
+// literal pixel values .dashboard-cards/.dashboard-grid use in styles.css;
+// there is no way to read a CSS px value back out in this app (no build
+// step, no CSS-in-JS), so this is the one place that duplication has to be
+// kept in sync by hand.
+const CARDS_COL_WIDTH = 340;
+const DASHBOARD_GAP = 16;
+
 /* Memoized: an SVG scatter plus tooltip logic over the full role set,
    sitting inside PortfolioView next to the weight tuner, which lives in the
    same component. Without this, a re-render triggered by something that
@@ -4074,9 +4085,30 @@ function pointMark(tier, cx, cy, r, extraProps) {
   return <circle cx={cx} cy={cy} r={r} fill={TIERS[tier].hex} fillOpacity="0.78" {...extraProps} />;
 }
 
-const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
+const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect, onSquareWidth }) {
   const [tip, setTip] = useState(null);
   const wrap = useRef(null);
+  // The square's rendered width is a real CSS-computed value (height-driven,
+  // via .chart-square's aspect-ratio) that this component cannot know in
+  // advance - it depends on viewport height, the headline's actual height,
+  // and the cards column's actual height, none of which JS re-derives here.
+  // Measuring the live element and reporting it up (PortfolioView uses it to
+  // size the whole tab's content width to "cards + gap + square", so there
+  // is never an empty band beside the plot) is more work than trusting a
+  // CSS shrink-to-fit chain through an aspect-ratio box, but it is the one
+  // way to be certain the number used for layout matches the number the
+  // browser actually painted.
+  const squareRef = useRef(null);
+  useLayoutEffect(() => {
+    const el = squareRef.current;
+    if (!el || !onSquareWidth) return undefined;
+    const report = () => onSquareWidth(el.getBoundingClientRect().width);
+    report();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [onSquareWidth]);
   // Motion bookkeeping: the <g> DOM node per role id, and the last screen
   // position this effect actually animated to. React always renders every
   // mark's true cx/cy/fill correctly and immediately - none of this ever
@@ -4207,7 +4239,7 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
           no gap on the right - any slack lands on the left instead, as a
           small margin against the cards. */}
       <div className="chart-square-frame">
-      <svg className="chart-square" viewBox={`0 0 ${MAP.w} ${MAP.h}`} role="img"
+      <svg ref={squareRef} className="chart-square" viewBox={`0 0 ${MAP.w} ${MAP.h}`} role="img"
            aria-label="Impact severity against adoption risk, one point per role, colored by intervention tier."
            aria-describedby="role-site-table-desc">
         <defs>
@@ -4547,6 +4579,13 @@ function headlineFinding(finding, agg) {
 function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights, weightDeltas,
                           siteArchetypeBase, siteArchetypeCombos, comboExample, citeDeck,
                           onOpenEffortWeights, sa, setSa, projectName }) {
+  // Reported by HeatMap once the square's real, height-driven width is
+  // known (see HeatMap's own ResizeObserver). null until then, in which
+  // case the tab just renders at .main's own default width for one frame
+  // - useLayoutEffect fires before paint, so in practice this never shows.
+  const [squareW, setSquareW] = useState(null);
+  const contentMaxWidth = squareW ? Math.round(CARDS_COL_WIDTH + DASHBOARD_GAP + squareW) : null;
+
   // A filter with one real choice is not a filter: Ashford has one site
   // archetype and no combos, so the control is hidden rather than showing
   // "All site archetypes" next to a single, redundant second option.
@@ -4587,8 +4626,11 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
           headline, the two-column dashboard, the collapsed weighting row -
           lives inside this one height-constrained wrapper (see .above-fold
           in styles.css). The table below it is deliberately outside: it's
-          fine, expected even, for it to need a scroll to reach. */}
-      <div className="above-fold">
+          fine, expected even, for it to need a scroll to reach.
+          max-width is this tab's own, derived from the square's real
+          measured width (cards + gap + square) - not .main's shared
+          default - so there is never an empty band beside the plot. */}
+      <div className="above-fold" style={{ maxWidth: contentMaxWidth || undefined, margin: '0 auto' }}>
         {/* 1. THE HEADLINE: the hero of the tab, the one place this tool
             states a conclusion rather than data. Everything below it is
             the evidence for this sentence. */}
@@ -4636,7 +4678,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
               <h3 className="chart-card-label">Impact severity × adoption risk</h3>
               {siteFilterControl}
             </div>
-            <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
+            <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} onSquareWidth={setSquareW} />
           </div>
         </div>
 
@@ -5396,7 +5438,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, weig
       </div>
 
       {trainingGroup && (
-        <div className="grid cols-4" style={{ marginBottom: 'var(--space-16)' }}>
+        <div className="grid cols-3" style={{ marginBottom: 'var(--space-16)' }}>
           {trainingGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} countTo={r.n} rule={r.rule} emptyNote={r.n === 0 ? r.emptyNote : null} />)}
         </div>
       )}
@@ -5523,7 +5565,7 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
       </div>
 
       {commsGroup && (
-        <div className="grid cols-4" style={{ marginBottom: 'var(--space-16)' }}>
+        <div className="grid cols-3" style={{ marginBottom: 'var(--space-16)' }}>
           {commsGroup.rows.map((r) => <Tile key={r.txt} label={r.txt} value={r.n} countTo={r.n} rule={r.rule} emptyNote={r.n === 0 ? r.emptyNote : null} />)}
         </div>
       )}
@@ -5787,7 +5829,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         </div>
       </div>
 
-      <div className="grid cols-4" style={{ marginBottom: 'var(--space-12)' }}>
+      <div className="grid cols-5" style={{ marginBottom: 'var(--space-12)' }}>
         <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} countTo={metrics.signOnRate} countFormat={{ suffix: '%' }} meta="of in-scope headcount, at least once" />
         <Tile simulated label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} countTo={metrics.processesCompleted} rule="3.2 per person over the adoption window" />
         <Tile simulated label="Job-aid access rate" value={`${metrics.jobAidAccessRate}%`} countTo={metrics.jobAidAccessRate} countFormat={{ suffix: '%' }} meta="of issued job aids opened at least once" />
@@ -6719,7 +6761,9 @@ function App() {
             <h1>Change Impact Assessment Tool</h1>
           </div>
           <div className="tb-context">
-            <span className="project-tag">{project.name}{project.industry ? ` · ${project.industry}` : ''}</span>
+            <span className="project-tag" title={`${project.name}${project.industry ? ` · ${project.industry}` : ''}`}>
+              {project.name}{project.industry ? ` · ${project.industry}` : ''}
+            </span>
             <span className="sub">
               {pluralize(all.length, 'role')} · {pluralize(all.reduce((s, r) => s + (r.headcount || 0), 0), 'person', 'people')}
               {incomplete.length ? ` · ${pluralize(incomplete.length, 'incomplete role')}` : ''}
