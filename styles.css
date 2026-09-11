@@ -610,6 +610,14 @@ a { color: var(--aberdeen-blue); }
 .hero-rule { width: 44px; height: 3px; border-radius: 2px; background: var(--verdigris); margin-top: 6px; }
 .hero-support { font-size: 13px; color: var(--ink-2); margin-top: 5px; font-variant-numeric: tabular-nums; }
 .hero-support .hero-link { font-size: 13px; }
+/* The Adoption tab's hero is a number + its unit, not a full sentence -
+   .hero-stat overrides .hero-sentence's block layout to a baseline-aligned
+   row for this one instance only, so the digit keeps the shared 36px/
+   ExtraLight/Aberdeen Blue treatment while the unit reads as a label next
+   to it, not part of the same emphasis. */
+.hero-stat { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.hero-stat .hero-num { font-variant-numeric: tabular-nums; }
+.hero-stat .hero-unit { font-size: 16px; font-weight: 300; color: var(--ink-2); letter-spacing: 0; }
 /* The chart's own title row: no card chrome here at all (see
    .dashboard-chart-col below) - just the quiet section label and the site
    filter, sitting directly above the plot with minimal air between them. */
@@ -638,6 +646,28 @@ a { color: var(--aberdeen-blue); }
 }
 .role-search .clear-btn:hover { color: var(--ink); }
 .role-search .count { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------- qualitative feedback */
+
+.qual-list { list-style: none; margin: 0 0 var(--space-12); padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.qual-item {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-8);
+  padding: 8px 10px; background: var(--surface-sunk); border: 1px solid var(--hairline); border-radius: var(--radius-s);
+  font-size: 13.5px; line-height: 1.4;
+}
+.qual-item span { flex: 1; }
+/* Visible on hover, but never removed from the tab order - :focus-visible
+   reveals it the same way hover does, so a keyboard-only user reaches it
+   without needing to see it first. */
+.qual-remove {
+  flex: none; appearance: none; border: none; background: none; cursor: pointer; color: var(--ink-3);
+  font-size: 15px; line-height: 1; padding: 2px 5px; border-radius: 4px; opacity: 0; transition: opacity .12s ease;
+}
+.qual-item:hover .qual-remove, .qual-remove:focus-visible { opacity: 1; }
+.qual-remove:hover { color: var(--ink); background: var(--hairline); }
+.qual-add-row { display: flex; gap: var(--space-8); }
+.qual-add-row input { flex: 1; min-width: 0; }
+.qual-error { color: var(--flag); font-size: 12px; margin: 6px 0 0; }
 
 /* ----------------------------------------------------- dashboard layout */
 

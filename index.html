@@ -5700,7 +5700,6 @@ function EffortWeightingPanel({ agg }) {
     <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
       <div className="card-head">
         <h3>Change effort weighting</h3>
-        <span className="hint">What "Share of change effort" on the Stakeholder Impact tab is computed from</span>
       </div>
       <div className="card-body">
         <div className="table-scroll" style={{ marginBottom: 10 }}>
@@ -5741,7 +5740,109 @@ function EffortWeightingPanel({ agg }) {
   );
 }
 
-function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate, weights, onResetWeights }) {
+/* Qualitative feedback, editable and persisted per project (localStorage,
+   keyed by project id, so Thornwood/Bellcrest/Ashford never share a list).
+   Every read and write is wrapped in try/catch and degrades to plain
+   in-memory state if storage is unavailable (private browsing, a locked-
+   down environment, quota exceeded) - never a thrown error, never a blank
+   screen. */
+function loadFeedback(projectId, seed) {
+  try {
+    const raw = localStorage.getItem(`qual-feedback:${projectId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.every((it) => it && typeof it.id === 'string' && typeof it.text === 'string')) {
+        return parsed;
+      }
+    }
+  } catch (e) { /* storage unavailable or the saved value is corrupt - fall through to the seed */ }
+  return seed ? [{ id: 'seed', text: seed }] : [];
+}
+function saveFeedback(projectId, items) {
+  try {
+    localStorage.setItem(`qual-feedback:${projectId}`, JSON.stringify(items));
+  } catch (e) { /* storage unavailable - state simply stays in-memory for this session */ }
+}
+
+function QualitativeFeedbackPanel({ projectId, seed }) {
+  const [items, setItems] = useState(() => loadFeedback(projectId, seed));
+  const [input, setInput] = useState('');
+  const [error, setError] = useState(null);
+  const prevProjectId = useRef(projectId);
+
+  // A different project's feedback must never bleed into this one - reload
+  // from (that project's own) storage the moment the loaded project changes.
+  useEffect(() => {
+    if (prevProjectId.current !== projectId) {
+      prevProjectId.current = projectId;
+      setItems(loadFeedback(projectId, seed));
+      setInput('');
+      setError(null);
+    }
+  }, [projectId, seed]);
+
+  useEffect(() => { saveFeedback(projectId, items); }, [projectId, items]);
+
+  const add = useCallback(() => {
+    const text = input.trim();
+    if (!text) { setError('Add some text before submitting.'); return; }
+    setItems((its) => [...its, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, text }]);
+    setInput('');
+    setError(null);
+  }, [input]);
+
+  const remove = useCallback((id) => {
+    setItems((its) => its.filter((it) => it.id !== id));
+  }, []);
+
+  return (
+    <div className="card simulated">
+      <div className="card-head"><h3>Qualitative feedback</h3></div>
+      <div className="card-body">
+        {items.length === 0 ? (
+          <p className="sub" style={{ margin: 0 }}>No feedback logged yet.</p>
+        ) : (
+          <ul className="qual-list">
+            {items.map((it) => (
+              <li key={it.id} className="qual-item">
+                <span>{it.text}</span>
+                <button type="button" className="qual-remove" onClick={() => remove(it.id)} aria-label={`Remove: ${it.text}`}>×</button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form className="qual-add-row" onSubmit={(e) => { e.preventDefault(); add(); }}>
+          <input type="text" value={input}
+                 onChange={(e) => { setInput(e.target.value); if (error) setError(null); }}
+                 placeholder="Add feedback" aria-label="Add feedback" />
+          <button type="submit" className="btn">Add</button>
+        </form>
+        {error && <p className="qual-error" role="alert">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+/* The hero number's supporting copy, for the three states this tab can be
+   in: tracking underway, go-live still ahead, or no date set at all. `num`
+   is the bare digit the hero renders huge; `label` is the phrase after it,
+   singular/plural handled explicitly rather than templated; `support` is
+   the quiet secondary line under the rule. Never hardcoded per project -
+   every figure here is `daysSince(goLiveDate)`, computed against the real
+   clock, for whichever project/date was actually passed in. */
+function adoptionHeroCopy(daysLive, goLiveDate) {
+  if (daysLive === null) {
+    return { num: '—', label: 'no go-live date set', support: 'Set one on the engagement profile to start tracking.' };
+  }
+  const dateStr = fmtShortDate(new Date(goLiveDate + 'T00:00:00'));
+  if (daysLive < 0) {
+    const n = -daysLive;
+    return { num: n.toLocaleString(), label: n === 1 ? 'day until go-live' : 'days until go-live', support: `${dateStr} - tracking begins once live.` };
+  }
+  return { num: daysLive.toLocaleString(), label: daysLive === 1 ? 'day since go-live' : 'days since go-live', support: dateStr };
+}
+
+function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate, projectId, weights, onResetWeights }) {
   const agg = useMemo(() => aggregate(scored), [scored]);
   const daysLive = useMemo(() => daysSince(goLiveDate), [goLiveDate]);
   const tierStatus = useMemo(() => TIER_ORDER.map((t) => ({
@@ -5751,6 +5852,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
     o[t] = simulatedTrainingCompletion(t, daysLive); return o;
   }, {}));
   const metrics = useMemo(() => simulatedAdoptionMetrics(agg, daysLive), [agg, daysLive]);
+  const hero = useMemo(() => adoptionHeroCopy(daysLive, goLiveDate), [daysLive, goLiveDate]);
 
   // Training-completion bars grow from zero on reveal, staggered by tier -
   // scaleX from the left edge, never the width itself (that inline style
@@ -5766,23 +5868,24 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
     return () => tween.kill();
   }, []);
 
-  const liveLede = daysLive === null
-    ? 'No target go-live date is set for this project yet, so tracking has not started. Set one on the engagement profile.'
-    : daysLive < 0
-      ? `Go-live is ${-daysLive} day${-daysLive === 1 ? '' : 's'} away. Tracking below begins once the project goes live.`
-      : `${daysLive} day${daysLive === 1 ? '' : 's'} since go-live (${fmtShortDate(new Date(goLiveDate + 'T00:00:00'))}).`;
-
   return (
     <>
-      <div className="view-head">
-        <h2>Adoption: tracking since go-live</h2>
-        <p className="lede">{liveLede} Training completion and adoption metrics below are illustrative for this demo, not measured.</p>
-        <WeightNote weights={weights} onReset={onResetWeights} />
+      {/* Same hero treatment as Stakeholder Impact's headline, same position
+          (the very top of the tab) - the one conclusion-shaped number this
+          tab has, styled to match, so the five tabs read as one product. */}
+      <div className="hero-headline">
+        <h2 className="hero-sentence hero-stat">
+          <span className="hero-num">{hero.num}</span>
+          <span className="hero-unit">{hero.label}</span>
+        </h2>
+        <div className="hero-rule" aria-hidden="true" />
+        <p className="hero-support">{hero.support}</p>
       </div>
+      <WeightNote weights={weights} onReset={onResetWeights} />
 
-      <div className="grid cols-5" style={{ marginBottom: 'var(--space-16)' }}>
+      <div className="grid cols-5" style={{ marginBottom: 'var(--space-16)', marginTop: 'var(--space-16)' }}>
         <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} countTo={metrics.signOnRate} countFormat={{ suffix: '%' }} meta="of in-scope headcount, at least once" />
-        <Tile simulated label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} countTo={metrics.processesCompleted} rule="3.2 per person over the adoption window" />
+        <Tile simulated label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} countTo={metrics.processesCompleted} />
         <Tile simulated label="Job-aid access rate" value={`${metrics.jobAidAccessRate}%`} countTo={metrics.jobAidAccessRate} countFormat={{ suffix: '%' }} meta="of issued job aids opened at least once" />
         <Tile simulated label="Comms click rate" value={`${metrics.commsClickRate}%`} countTo={metrics.commsClickRate} countFormat={{ suffix: '%' }} meta="go-live communication click-through" />
         <Tile simulated label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} countTo={metrics.hrCaseVolume} meta="Rebuild + Enable population, tapering as adoption matures" />
@@ -5791,7 +5894,6 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
       <div className="card simulated" style={{ marginBottom: 'var(--space-16)' }} ref={barsRef}>
         <div className="card-head">
           <h3>Training completion by tier</h3>
-          <span className="hint">Ramps toward a tier-specific ceiling with days live. Editable for this demo.</span>
         </div>
         <div className="card-body">
           {TIER_ORDER.filter((t) => agg.byTier[t].roles > 0).map((t) => {
@@ -5819,7 +5921,6 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
       <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>Status by tier</h3>
-          <span className="hint">Tied to each tier's own re-score cadence: {TIER_ORDER.map((t) => `${t} ${DOSES[t].rescoreDays}d`).join(' · ')}</span>
         </div>
         <div className="card-body">
           {tierStatus.length === 0 && <p className="sub">No scored roles yet.</p>}
@@ -5845,10 +5946,7 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
 
       <EffortWeightingPanel agg={agg} />
 
-      <div className="card simulated">
-        <div className="card-head"><h3>Qualitative feedback</h3></div>
-        <div className="card-body"><p style={{ margin: 0 }}>{metrics.qualitative}</p></div>
-      </div>
+      <QualitativeFeedbackPanel projectId={projectId} seed={metrics.qualitative} />
     </>
   );
 }
@@ -7210,7 +7308,7 @@ function App() {
         )}
         {tab === 'plan' && (
           <PlanView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
-                    showDeckProvenance={project.hasDeckReproduction} goLiveDate={project.goLiveDate}
+                    showDeckProvenance={project.hasDeckReproduction} goLiveDate={project.goLiveDate} projectId={project.id}
                     weights={weights} onResetWeights={resetWeights} />
         )}
         {tab === 'role' && (
