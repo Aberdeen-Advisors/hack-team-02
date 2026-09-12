@@ -18,7 +18,7 @@
       "impact": { "taskShare": 4.5, "frequencyVolume": 4.6, "errorConsequence": 4.5 },
       "risk": { "decisionRights": 4.7, "capabilityDelta": 4.2, "localReadiness": 3.6 },
       "before": [
-        "Builds a risk assessment from the submission, external data pulls and personal judgement",
+        "Builds a risk assessment from the submission, external data pulls and personal judgment",
         "Prices the policy manually against the rate manual",
         "Documents the rationale for the decision in free-text underwriting notes",
         "Refers borderline risks up to a senior underwriter by email"
@@ -58,8 +58,8 @@
       "after": [
         "Reviews only the risks the model flags as low-confidence or high-severity, not every large case by default",
         "Recalibrates authority limits against model performance, not just premium size",
-        "Broker escalations increasingly concern model-driven pricing, not just risk judgement",
-        "Mentors underwriters on how to read and challenge model output, not only on risk judgement"
+        "Broker escalations increasingly concern model-driven pricing, not just risk judgment",
+        "Mentors underwriters on how to read and challenge model output, not only on risk judgment"
       ],
       "tasksRemoved": 2,
       "tasksChanged": 7,
@@ -78,7 +78,7 @@
       "headcount": 24,
       "deskless": false,
       "isNewRole": false,
-      "summary": "Prepares submissions for underwriting review: data entry, document collection and file assembly. Much of this preparation is now done automatically by the intake system that feeds the AI model, shrinking the role's core task without touching underwriting judgement, which this role never held.",
+      "summary": "Prepares submissions for underwriting review: data entry, document collection and file assembly. Much of this preparation is now done automatically by the intake system that feeds the AI model, shrinking the role's core task without touching underwriting judgment, which this role never held.",
       "impact": { "taskShare": 3.9, "frequencyVolume": 4.2, "errorConsequence": 2.8 },
       "risk": { "decisionRights": 1.8, "capabilityDelta": 3.4, "localReadiness": 3.0 },
       "before": [
@@ -212,7 +212,7 @@
       "before": [
         "Reviews the renewal file and prior-year loss history to decide on rollover, adjustment or non-renewal",
         "Manually flags accounts that need a fresh underwriting look",
-        "Prices the renewal against the rate manual and personal judgement",
+        "Prices the renewal against the rate manual and personal judgment",
         "Documents the renewal rationale in free-text notes"
       ],
       "after": [

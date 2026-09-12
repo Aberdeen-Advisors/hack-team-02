@@ -83,7 +83,7 @@
       "risk": { "decisionRights": 4.6, "capabilityDelta": 3.6, "localReadiness": 3.9 },
       "before": [
         "Orders written by hand on the chart or given verbally to the unit clerk",
-        "Medication choice and dosing left to individual judgement and memory",
+        "Medication choice and dosing left to individual judgment and memory",
         "Drug interaction and allergy checks performed manually or not at all",
         "Discharge orders written the morning of discharge with no structured checklist"
       ],

@@ -997,24 +997,18 @@ function fmtWeeksFromGoLive(weeks) {
 }
 
 /* Marks each milestone in one tier's timeline past or upcoming against
-   today, and inserts a "Today" divider at the point it actually falls -
-   which milestones have already happened is different per tier (a tier
-   with an 8-week hypercare tail can still have its last milestone ahead of
-   us on a go-live that is otherwise long past) and different per project
-   (three different go-live dates). daysLive is daysSince(goLiveDate); null
-   when no go-live date is set, in which case nothing is markable as past. */
-function timelineWithToday(timeline, daysLive) {
+   today - which milestones have already happened is different per tier (a
+   tier with an 8-week hypercare tail can still have its last milestone
+   ahead of us on a go-live that is otherwise long past) and different per
+   project (three different go-live dates). daysLive is daysSince(goLiveDate);
+   null when no go-live date is set, in which case nothing is markable as
+   past. The "Today" marker itself is a single element shared across every
+   tier's timeline (see CommunicationView), not inserted per tier here -
+   "today" is one moment, not four, and four tier cards each carrying their
+   own copy of it read as a repeated element rather than a real divider. */
+function withPastFlags(timeline, daysLive) {
   if (daysLive === null) return timeline.map((s) => ({ ...s, past: false }));
-  const out = [];
-  let inserted = false;
-  timeline.forEach((s) => {
-    const milestoneDay = Math.round(s.weeksFromGoLive * 7);
-    const past = daysLive >= milestoneDay;
-    if (!inserted && !past) { out.push({ today: true }); inserted = true; }
-    out.push({ ...s, past });
-  });
-  if (!inserted) out.push({ today: true });
-  return out;
+  return timeline.map((s) => ({ ...s, past: daysLive >= Math.round(s.weeksFromGoLive * 7) }));
 }
 
 /* ---------------------------------------------------------------------------
@@ -1064,7 +1058,7 @@ function draftCountSentence(f) {
    like four different situations - because they are. */
 const TOWNHALL_OPENING = {
   Rebuild:  'We are rebuilding how this role works, not adjusting it.',
-  Enable:   'Your tools are changing. Most of your judgement stays with you.',
+  Enable:   'Your tools are changing. Most of your judgment stays with you.',
   Reassure: 'Little changes in your day-to-day work. The system behind you is changing.',
   Inform:   'This program does not change your day-to-day work.',
 };
@@ -1339,11 +1333,11 @@ const EFFORT_WEIGHT_PER_TIER = EFFORT_WEIGHTS.reduce((o, b) => { o[b.tier] = b.w
    Gold, Reassure -> Deep Sky Blue, Inform -> Jade. */
 const TIERS = {
   Rebuild:  { hex: '#DB504A', wash: 'var(--t-rebuild-wash)',  quadrant: 'High impact · High risk',
-              package: ['Role redesign', 'Practice in a safe copy of the system', 'A trained colleague on site', 'Manager coaching'] },
+              package: ['Role redesign', 'Practice environment', 'Trained colleague', 'Manager coaching'] },
   Enable:   { hex: '#F7D002', wash: 'var(--t-enable-wash)',   quadrant: 'High impact · Low risk',
-              package: ['Role-based training', 'How-to guides', 'Recruit as champions'] },
+              package: ['Role-based training', 'How-to guides', 'Peer champions'] },
   Reassure: { hex: '#5CC8FF', wash: 'var(--t-reassure-wash)', quadrant: 'Low impact · High risk',
-              package: ['Manager briefings', 'Address the fear, not the skill'] },
+              package: ['Manager briefings', 'Awareness training'] },
   Inform:   { hex: '#00A676', wash: 'var(--t-inform-wash)',   quadrant: 'Low impact · Low risk',
               package: ['Broadcast updates only'] },
 };
@@ -1375,12 +1369,12 @@ function packageFor(role) {
     case 'Enable': return [
       { text: 'Role-based training',   dose: method },
       { text: 'How-to guides', dose: `${t.aids.count}`, hint: aidsHint },
-      { text: 'Recruit as champions',  dose: `${pluralize(Math.max(1, Math.ceil(role.headcount / d.superUserRatio)), 'champion')}${role.deskless ? ', coaching on shift' : ''}`, hint: `About 1 champion per ${d.superUserRatio} people` },
+      { text: 'Peer champions',  dose: `${pluralize(Math.max(1, Math.ceil(role.headcount / d.superUserRatio)), 'champion')}${role.deskless ? ', coaching on shift' : ''}`, hint: `About 1 champion per ${d.superUserRatio} people` },
       { text: 'Support after go-live', dose: `${pluralize(d.hypercareWeeks, 'week')}` },
     ];
     case 'Reassure': return [
       { text: 'Manager briefings',                dose: `${pluralize(d.cascadeScripts, 'script')}, ${pluralize(d.managerCoachingSessions, 'briefing')}` },
-      { text: 'Address the fear, not the skill',  dose: `${method}, awareness only` },
+      { text: 'Awareness training',  dose: `${method}, awareness only` },
       { text: 'How-to guides',            dose: `${t.aids.count}`, hint: aidsHint },
       { text: 'Support after go-live',      dose: `${pluralize(d.hypercareWeeks, 'week')}` },
     ];
@@ -1569,7 +1563,16 @@ function daysSince(isoDate) {
 /* Re-score status for one tier, derived purely from days-since-go-live and
    that tier's own re-score cadence (DOSES[tier].rescoreDays), nothing else.
    Green: well inside the current cycle. Yellow: approaching the next
-   re-score. Red: past the point where this tier is due again. Ours. */
+   re-score. Red: the final stretch before it's due. Ours.
+
+   cyclesCompleted always advances (via Math.floor) to keep daysIntoCycle
+   inside [0, cadence) - which means daysToNext (cadence - daysIntoCycle)
+   is mathematically always > 0 here. There is no data this function could
+   ever see that puts a tier past its due date, so red must never be
+   labeled "Overdue" (RESCORE_STATUS_LABEL below calls it "Due now"
+   instead) - a label claiming the date has passed would contradict the
+   "next due in N days" sentence rendered right beside it, which always
+   names a positive number of days. */
 function rescoreStatus(tier, daysLive) {
   const cadence = DOSES[tier].rescoreDays;
   if (daysLive === null) return { status: 'pending', cadence };
@@ -1577,7 +1580,7 @@ function rescoreStatus(tier, daysLive) {
   const cyclesCompleted = Math.floor(daysLive / cadence);
   const daysIntoCycle = daysLive - cyclesCompleted * cadence;
   const frac = daysIntoCycle / cadence;
-  const status = frac < 0.6 ? 'green' : frac < 0.85 ? 'yellow' : 'red';
+  const status = frac < 0.6 ? 'green' : frac < 0.9 ? 'yellow' : 'red';
   return { status, cadence, daysIntoCycle, daysToNext: Math.round(cadence - daysIntoCycle), cyclesCompleted };
 }
 /* Named, not color-coded: the tier palette (red/gold/sky/jade) is reserved
@@ -1586,7 +1589,7 @@ function rescoreStatus(tier, daysLive) {
    class is a secondary reinforcement in a palette that shares no hue with
    TIERS[*].hex, so a status pill can never be mistaken for a tier marker. */
 const RESCORE_STATUS_LABEL = {
-  green: 'On track', yellow: 'Due soon', red: 'Overdue', upcoming: 'Upcoming', pending: 'Not yet live',
+  green: 'On track', yellow: 'Due soon', red: 'Due now', upcoming: 'Upcoming', pending: 'Not yet live',
 };
 const RESCORE_STATUS_CLASS = {
   green: 'ontrack', yellow: 'duesoon', red: 'overdue', upcoming: 'pending', pending: 'pending',
@@ -1747,7 +1750,7 @@ const SEED_ROLES = /*__SEED__*/[
     "headcount": 42,
     "deskless": false,
     "isNewRole": false,
-    "summary": "Owns the weekly production sequence for two to three lines per plant, today built by hand in Excel from an MRP extract and defended by phone. Under ERP the plan is generated by the system and the scheduler's job becomes validating it, clearing exceptions and releasing orders inside rules that no longer bend to local judgement.",
+    "summary": "Owns the weekly production sequence for two to three lines per plant, today built by hand in Excel from an MRP extract and defended by phone. Under ERP the plan is generated by the system and the scheduler's job becomes validating it, clearing exceptions and releasing orders inside rules that no longer bend to local judgment.",
     "impact": {
       "taskShare": 4.8,
       "frequencyVolume": 4.5,
@@ -1761,7 +1764,7 @@ const SEED_ROLES = /*__SEED__*/[
     "before": [
       "Builds the weekly plan in Excel from an MRP extract",
       "Negotiates line changes by phone",
-      "Owns sequencing on local judgement",
+      "Owns sequencing on local judgment",
       "Reconciles variances by hand at week end"
     ],
     "after": [
@@ -1776,7 +1779,7 @@ const SEED_ROLES = /*__SEED__*/[
     "tasksNew": 4,
     "fteDelta": -0.4,
     "constraints": [
-      "Sequencing authority moves from local judgement to rules-based exception approval",
+      "Sequencing authority moves from local judgment to rules-based exception approval",
       "6 plants, each with its own local sequencing conventions",
       "Plants go live in waves, not simultaneously"
     ]
@@ -1846,7 +1849,7 @@ const SEED_ROLES = /*__SEED__*/[
     "before": [
       "Keys invoices manually from PDF and paper into the finance system",
       "Chases purchase order and receipt mismatches by email",
-      "Holds and releases payment blocks on personal judgement",
+      "Holds and releases payment blocks on personal judgment",
       "Maintains a private spreadsheet of supplier quirks and payment terms",
       "Builds the weekly payment run by hand"
     ],
@@ -1863,7 +1866,7 @@ const SEED_ROLES = /*__SEED__*/[
     "fteDelta": -0.9,
     "constraints": [
       "Shared-mailbox working practice disappears at go-live",
-      "Blocking and releasing payment moves from personal judgement to rules",
+      "Blocking and releasing payment moves from personal judgment to rules",
       "Month-end close window cannot slip"
     ]
   },
@@ -2047,7 +2050,7 @@ const SEED_ROLES = /*__SEED__*/[
     "headcount": 26,
     "deskless": false,
     "isNewRole": false,
-    "summary": "Sets and polices customer credit limits and chases overdue cash, today from a downloaded aged-debt report and a personal call list. ERP scores credit automatically, blocks orders in real time and drives a worklist, which turns judgement-led collection into exception handling against system rules.",
+    "summary": "Sets and polices customer credit limits and chases overdue cash, today from a downloaded aged-debt report and a personal call list. ERP scores credit automatically, blocks orders in real time and drives a worklist, which turns judgment-led collection into exception handling against system rules.",
     "impact": {
       "taskShare": 4.1,
       "frequencyVolume": 4.4,
@@ -2060,7 +2063,7 @@ const SEED_ROLES = /*__SEED__*/[
     },
     "before": [
       "Downloads aged debt to Excel and builds a personal call list",
-      "Sets and releases credit limits on judgement and history",
+      "Sets and releases credit limits on judgment and history",
       "Releases blocked orders informally when sales pushes",
       "Applies cash to invoices manually from bank statements",
       "Reports collection status in a weekly slide pack"
@@ -2103,7 +2106,7 @@ const SEED_ROLES = /*__SEED__*/[
     "before": [
       "Maintains a personal Excel forecast model per category",
       "Collects sales input by email and merges it manually",
-      "Adjusts the forecast on judgement without recording why",
+      "Adjusts the forecast on judgment without recording why",
       "Reconciles against supply constraints in a separate spreadsheet",
       "Publishes the forecast as a monthly file"
     ],
@@ -2595,7 +2598,7 @@ const SEED_ROLES = /*__SEED__*/[
     "headcount": 34,
     "deskless": false,
     "isNewRole": false,
-    "summary": "Produces budgets, forecasts and management reporting, today by pulling extracts into a large Excel model. ERP-integrated planning removes most of the extract-and-rebuild cycle; the analytical judgement is unchanged but the plumbing under it is entirely new.",
+    "summary": "Produces budgets, forecasts and management reporting, today by pulling extracts into a large Excel model. ERP-integrated planning removes most of the extract-and-rebuild cycle; the analytical judgment is unchanged but the plumbing under it is entirely new.",
     "impact": {
       "taskShare": 3.8,
       "frequencyVolume": 3.4,
@@ -2884,7 +2887,7 @@ const SEED_ROLES = /*__SEED__*/[
       "Deskless",
       "3 shifts",
       "No corporate email for most of the population",
-      "Approval authority becomes a system limit rather than a judgement call",
+      "Approval authority becomes a system limit rather than a judgment call",
       "340 supervisors group-wide need the decision-rights briefing"
     ]
   },
@@ -3440,7 +3443,7 @@ const SEED_ROLES_HEALTHCARE = [
     },
     "before": [
       "Orders written by hand on the chart or given verbally to the unit clerk",
-      "Medication choice and dosing left to individual judgement and memory",
+      "Medication choice and dosing left to individual judgment and memory",
       "Drug interaction and allergy checks performed manually or not at all",
       "Discharge orders written the morning of discharge with no structured checklist"
     ],
@@ -3839,7 +3842,7 @@ const SEED_ROLES_FINANCIAL = [
       "localReadiness": 3.6
     },
     "before": [
-      "Builds a risk assessment from the submission, external data pulls and personal judgement",
+      "Builds a risk assessment from the submission, external data pulls and personal judgment",
       "Prices the policy manually against the rate manual",
       "Documents the rationale for the decision in free-text underwriting notes",
       "Refers borderline risks up to a senior underwriter by email"
@@ -3887,8 +3890,8 @@ const SEED_ROLES_FINANCIAL = [
     "after": [
       "Reviews only the risks the model flags as low-confidence or high-severity, not every large case by default",
       "Recalibrates authority limits against model performance, not just premium size",
-      "Broker escalations increasingly concern model-driven pricing, not just risk judgement",
-      "Mentors underwriters on how to read and challenge model output, not only on risk judgement"
+      "Broker escalations increasingly concern model-driven pricing, not just risk judgment",
+      "Mentors underwriters on how to read and challenge model output, not only on risk judgment"
     ],
     "tasksRemoved": 2,
     "tasksChanged": 7,
@@ -3907,7 +3910,7 @@ const SEED_ROLES_FINANCIAL = [
     "headcount": 24,
     "deskless": false,
     "isNewRole": false,
-    "summary": "Prepares submissions for underwriting review: data entry, document collection and file assembly. Much of this preparation is now done automatically by the intake system that feeds the AI model, shrinking the role's core task without touching underwriting judgement, which this role never held.",
+    "summary": "Prepares submissions for underwriting review: data entry, document collection and file assembly. Much of this preparation is now done automatically by the intake system that feeds the AI model, shrinking the role's core task without touching underwriting judgment, which this role never held.",
     "impact": {
       "taskShare": 3.9,
       "frequencyVolume": 4.2,
@@ -4081,7 +4084,7 @@ const SEED_ROLES_FINANCIAL = [
     "before": [
       "Reviews the renewal file and prior-year loss history to decide on rollover, adjustment or non-renewal",
       "Manually flags accounts that need a fresh underwriting look",
-      "Prices the renewal against the rate manual and personal judgement",
+      "Prices the renewal against the rate manual and personal judgment",
       "Documents the renewal rationale in free-text notes"
     ],
     "after": [
@@ -5474,9 +5477,9 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
           <div className="t">
             <h2>{role.role}</h2>
             <div className="crumbs">
-              <span>{role.siteCount === 1 ? `1 site (${role.siteArchetype})` : `${pluralize(role.siteCount, 'site')} (${role.siteArchetype})`}</span>
-              <span>{pluralize(role.headcount, 'person', 'people')}</span>
-              {role.deskless && <span>on the floor</span>}
+              {role.siteCount === 1 ? `1 site (${role.siteArchetype})` : `${pluralize(role.siteCount, 'site')} (${role.siteArchetype})`}
+              {' · '}{pluralize(role.headcount, 'person', 'people')}
+              {role.deskless ? ' · on the floor' : ''}
             </div>
           </div>
           <TierBadge tier={role.tier} large />
@@ -6097,7 +6100,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, goLi
                 <td data-label="Tier"><TierBadge tier={role.tier} /></td>
                 <td className="n" data-label="Total required hours">{pluralize(design.hours, 'hour')}</td>
                 <td data-label="How it's delivered">{design.primary.method}</td>
-                <td data-label="Delivery constraint">{design.deliveryConstraint || '-'}</td>
+                <td data-label="Delivery constraint">{design.deliveryConstraint || 'None'}</td>
               </tr>
             ))}
             {!rows.length && (
@@ -6228,7 +6231,7 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
     const roles = scored.filter((r) => r.tier === t);
     const deskCount = roles.filter((r) => !r.deskless).length;
     const desklessCount = roles.filter((r) => r.deskless).length;
-    return { tier: t, roles, deskCount, desklessCount, timeline: timelineWithToday(tierCommsTimeline(t, deskCount, desklessCount), daysLive) };
+    return { tier: t, roles, deskCount, desklessCount, timeline: withPastFlags(tierCommsTimeline(t, deskCount, desklessCount), daysLive) };
   }).filter((g) => g.roles.length > 0), [scored, daysLive]);
 
   // A go-live already behind us reads as unmaintained if the page still
@@ -6258,6 +6261,12 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
         </div>
       )}
 
+      {daysLive !== null && (
+        <p className="today-banner">
+          ◆ Today{` · ${daysLive < 0 ? `${pluralize(-daysLive, 'day')} before go-live` : daysLive === 0 ? 'go-live day' : `${pluralize(daysLive, 'day')} since go-live`}`}
+        </p>
+      )}
+
       {byTier.map((g) => (
         <div className="card" key={g.tier} style={{ marginBottom: 'var(--space-16)' }}>
           <div className="card-head">
@@ -6268,27 +6277,19 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
             <p className="sub" style={{ marginTop: 0 }}>{TIERS[g.tier].package.join(', ')}.</p>
             <table className="mini milestones">
               <tbody>
-                {g.timeline.map((s, i) => (
-                  s.today ? (
-                    <tr key="today" className="today-marker">
-                      <td colSpan={4}>
-                        ◆ Today{daysLive !== null ? ` · ${daysLive < 0 ? `${pluralize(-daysLive, 'day')} before go-live` : daysLive === 0 ? 'go-live day' : `${pluralize(daysLive, 'day')} since go-live`}` : ''}
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr key={s.label} className={s.past ? 'past' : ''}>
-                      <th scope="row">{s.past && <span className="done-mark" aria-hidden="true">✓ </span>}{s.label}</th>
-                      <td className="ch" style={{ whiteSpace: 'nowrap' }}>
-                        {goLiveDate ? fmtShortDate(dateFromGoLive(goLiveDate, s.weeksFromGoLive)) : fmtWeeksFromGoLive(s.weeksFromGoLive)}
-                      </td>
-                      <td className="ch">{s.channel || '-'}</td>
-                      <td className="ch no-print">
-                        <button type="button" className="link-btn" onClick={() => setDraftsView({ mode: 'milestone', tier: g.tier, milestoneIdx: g.tier === 'Inform' ? 1 : COMMS_MILESTONES.findIndex((m) => m.name === s.label) })}>
-                          Drafts →
-                        </button>
-                      </td>
-                    </tr>
-                  )
+                {g.timeline.map((s) => (
+                  <tr key={s.label} className={s.past ? 'past' : ''}>
+                    <th scope="row">{s.past && <span className="done-mark" aria-hidden="true">✓ </span>}{s.label}</th>
+                    <td className="ch" style={{ whiteSpace: 'nowrap' }}>
+                      {goLiveDate ? fmtShortDate(dateFromGoLive(goLiveDate, s.weeksFromGoLive)) : fmtWeeksFromGoLive(s.weeksFromGoLive)}
+                    </td>
+                    <td className="ch">{s.channel || '-'}</td>
+                    <td className="ch no-print">
+                      <button type="button" className="link-btn" onClick={() => setDraftsView({ mode: 'milestone', tier: g.tier, milestoneIdx: g.tier === 'Inform' ? 1 : COMMS_MILESTONES.findIndex((m) => m.name === s.label) })}>
+                        Drafts →
+                      </button>
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -6393,7 +6394,11 @@ function EffortWeightingPanel({ agg }) {
               })}
               <tr style={{ borderTop: '1px solid var(--hairline)', fontWeight: 500 }}>
                 <th scope="row">Total</th>
-                <td className="num">-</td>
+                {/* Effort weight is a per-tier multiplier, not an additive
+                    quantity - there is no real number to sum here, so the
+                    cell is genuinely empty rather than filled with a
+                    placeholder dash that would read as a value. */}
+                <td className="num"></td>
                 <td className="num">{agg.totalPeople.toLocaleString()}</td>
                 <td className="num">{totalWeighted.toFixed(1)}</td>
                 <td className="num">100%</td>
@@ -7846,12 +7851,7 @@ function ProjectPicker({ projects, onSelect, onStartNew }) {
         </div>
         <span className="entrance-rule" aria-hidden="true" />
         <h1 className="entrance-name">{PRODUCT_NAME}</h1>
-        <p className="lede">
-          Pick a project to open its impact heat map, role one-pagers and resourced plan. The three below are
-          worked examples, entirely synthetic, built to show the same scoring engine at a different scale,
-          in a different industry, against a different kind of change. Or start a blank project and score
-          your own roles live.
-        </p>
+        <p className="lede">Pick a project to open its impact heat map, role one-pagers and resourced plan.</p>
       </header>
 
       <div className="project-grid">
@@ -7871,6 +7871,8 @@ function ProjectPicker({ projects, onSelect, onStartNew }) {
         <span className="pc-name">Start new project</span>
         <span className="pc-desc">Begin with an empty portfolio and score roles live, one at a time.</span>
       </button>
+
+      <p className="footnote">The three worked examples above are entirely synthetic. All figures illustrative.</p>
     </div>
   );
 }

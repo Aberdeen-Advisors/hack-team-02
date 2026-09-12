@@ -1085,7 +1085,6 @@ table.data td .rolename { font-weight: 500; }
 .op-head .t { flex: 1 1 340px; }
 .op-head h2 { font-size: 24px; letter-spacing: -.02em; }
 .op-head .crumbs { color: var(--ink-2); font-size: 13.5px; margin-top: 5px; }
-.op-head .crumbs span + span::before { content: "·"; margin: 0 7px; color: var(--ink-3); }
 
 .op-summary { color: var(--ink-2); font-size: 14.5px; max-width: 88ch; }
 
@@ -1202,9 +1201,13 @@ table.mini.milestones { margin: 9px 0 2px; }
    reads as done, not as an upcoming step the plan still owes. */
 table.mini.milestones tr.past th, table.mini.milestones tr.past td { color: var(--ink-3); }
 table.mini.milestones tr.past .done-mark { color: var(--flag); font-weight: 500; }
-table.mini.milestones tr.today-marker td {
+/* One shared "Today" marker above every tier's own timeline table, not one
+   per tier - today is a single moment, so it renders once, not once per
+   card (see CommunicationView/withPastFlags). */
+.today-banner {
+  display: inline-block; margin-bottom: var(--space-16);
   font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; font-weight: 500;
-  color: var(--aberdeen-blue); background: var(--flag-wash); padding: 3px var(--space-8); border-radius: 3px; border-bottom: none;
+  color: var(--aberdeen-blue); background: var(--flag-wash); padding: 4px var(--space-12); border-radius: 3px;
 }
 
 /* weight tuner - a full-width row below the two-column dashboard, closed
