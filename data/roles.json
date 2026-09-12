@@ -184,7 +184,7 @@
       "headcount": 240,
       "deskless": false,
       "isNewRole": false,
-      "summary": "The largest single affected population: order takers across three service centres who currently type orders from email, phone and fax into a legacy order system and fix pricing by hand. ERP validates credit, pricing and availability at entry, so orders that used to be forced through now stop and have to be resolved.",
+      "summary": "The largest single affected population: order takers across three service centers who currently type orders from email, phone and fax into a legacy order system and fix pricing by hand. ERP validates credit, pricing and availability at entry, so orders that used to be forced through now stop and have to be resolved.",
       "impact": {
         "taskShare": 4.7,
         "frequencyVolume": 4.9,
@@ -215,9 +215,9 @@
       "tasksNew": 4,
       "fteDelta": -0.6,
       "constraints": [
-        "3 service centres on different shift patterns",
-        "Highest ticket volume predicted at go-live - hypercare sizing driver",
-        "Peak season overlaps the second deployment wave"
+        "3 service centers on different shift patterns, so training needs to run once per shift",
+        "Highest ticket volume of any role is expected right at go-live, so post-launch support here needs extra capacity",
+        "Peak season overlaps the second deployment wave, so this role trains in wave one"
       ]
     },
     {
@@ -242,14 +242,14 @@
       "before": [
         "Rebuilds the plant cost report in Excel each month from ledger extracts",
         "Calculates production variances manually against local standards",
-        "Maintains a shadow set of cost centres and allocation rules",
+        "Maintains a shadow set of cost centers and allocation rules",
         "Explains the gap between plant numbers and corporate numbers",
         "Prepares month-end accruals from emailed input"
       ],
       "after": [
         "Reviews standard variance reporting generated in-system",
         "Analyzes actual costing in real time rather than reconstructing it",
-        "Works from one governed cost centre and allocation structure",
+        "Works from one governed cost center and allocation structure",
         "Plant and corporate report from the same ledger, so the gap conversation ends",
         "Accruals raised through workflow with system-held audit trail"
       ],
@@ -457,14 +457,14 @@
         "Quotes price and promotion from a printed list and memory",
         "Has no visibility of the customer's credit or payment status",
         "Reports calls and competitor activity in a weekly spreadsheet",
-        "Chases delivery status through the service centre"
+        "Chases delivery status through the service center"
       ],
       "after": [
         "Captures the order on a mobile device with live validation",
         "Prices from live condition records, including promotion eligibility",
         "Sees credit status and open items before promising a delivery",
         "Call reporting captured in-app as part of the visit",
-        "Reads order and delivery status directly, no service-centre call"
+        "Reads order and delivery status directly, no service-center call"
       ],
       "tasksRemoved": 5,
       "tasksChanged": 9,
@@ -484,7 +484,7 @@
       "headcount": 150,
       "deskless": false,
       "isNewRole": false,
-      "summary": "Handles deductions, damages, shortages and returns across the three service centres, today reconstructing each case from emails, proof-of-delivery scans and phone calls. ERP gives a structured returns and claims process with linked documents, so cases follow a defined path with a documented settlement authority.",
+      "summary": "Handles deductions, damages, shortages and returns across the three service centers, today reconstructing each case from emails, proof-of-delivery scans and phone calls. ERP gives a structured returns and claims process with linked documents, so cases follow a defined path with a documented settlement authority.",
       "impact": {
         "taskShare": 4.2,
         "frequencyVolume": 4.4,
@@ -514,7 +514,7 @@
       "tasksNew": 4,
       "fteDelta": -0.4,
       "constraints": [
-        "3 service centres with different local claim conventions",
+        "3 service centers with different local claim conventions",
         "Goodwill authority becomes a system threshold rather than a conversation"
       ]
     },
@@ -875,7 +875,7 @@
       },
       "before": [
         "Pulls monthly extracts into a master Excel reporting model",
-        "Chases cost centre owners for commentary by email",
+        "Chases cost center owners for commentary by email",
         "Rebuilds the forecast template each cycle",
         "Reconciles reported numbers against the ledger by hand",
         "Distributes reporting as attachments"
@@ -988,7 +988,7 @@
       "headcount": 300,
       "deskless": true,
       "isNewRole": false,
-      "summary": "Picks, packs and puts away stock in the two distribution centres. The physical work is unchanged, but the paper list and the end-of-shift keying are replaced by a handheld that directs and records every move - and the population has watched two WMS attempts fail already.",
+      "summary": "Picks, packs and puts away stock in the two distribution centers. The physical work is unchanged, but the paper list and the end-of-shift keying are replaced by a handheld that directs and records every move - and the population has watched two WMS attempts fail already.",
       "impact": {
         "taskShare": 3.4,
         "frequencyVolume": 4.2,
@@ -1408,7 +1408,7 @@
       "headcount": 12,
       "deskless": false,
       "isNewRole": false,
-      "summary": "Accountable for the whole plant. Few of their own tasks change, but almost every decision right they delegate downward is redefined at once, and their site's performance becomes continuously visible to the centre.",
+      "summary": "Accountable for the whole plant. Few of their own tasks change, but almost every decision right they delegate downward is redefined at once, and their site's performance becomes continuously visible to the center.",
       "impact": {
         "taskShare": 2.8,
         "frequencyVolume": 2.6,
@@ -1422,11 +1422,11 @@
       "before": [
         "Runs the plant on locally defined KPIs and reporting",
         "Delegates approval authority by custom and trust",
-        "Reports performance to the centre monthly, with narrative",
+        "Reports performance to the center monthly, with narrative",
         "Approves capital and spend requests on paper"
       ],
       "after": [
-        "Reports on group-standard KPIs from the same live data as the centre",
+        "Reports on group-standard KPIs from the same live data as the center",
         "Delegates through configured authorization and release strategies",
         "Performance visible continuously; the monthly narrative loses its role",
         "Approvals arrive and are recorded in workflow"
@@ -1437,7 +1437,7 @@
       "fteDelta": 0.0,
       "constraints": [
         "Sponsorship role - their visible behavior sets site adoption",
-        "Loses the ability to shape the story before the centre sees the numbers"
+        "Loses the ability to shape the story before the center sees the numbers"
       ]
     },
     {

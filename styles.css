@@ -1102,38 +1102,49 @@ table.data td .rolename { font-weight: 500; }
 .score-head .name { font-weight: 500; font-size: 14px; }
 .score-head .val { font-size: 30px; font-weight: 200; color: var(--aberdeen-blue); letter-spacing: -.01em; font-variant-numeric: tabular-nums; margin-left: auto; }
 .score-head .thr { font-size: 12px; color: var(--ink-3); }
-.subfactors { margin-top: 10px; display: grid; gap: 7px; }
-.sf { display: grid; grid-template-columns: 1fr 42px 52px; gap: 10px; align-items: center; font-size: 13px; }
+/* 20px between sub-factors, well clear of the 6px used *within* one (see
+   .sf's own row-gap below) - the gap between groups has to read as
+   obviously bigger than the gap inside one, or a band description sits
+   as close to the next sub-factor's label as it does to its own, and
+   reads as belonging to the wrong row. */
+.subfactors { margin-top: 10px; display: grid; gap: 20px; }
+.sf { display: grid; grid-template-columns: 1fr 42px 52px; column-gap: 10px; row-gap: 6px; align-items: center; font-size: 13px; }
 .sf .lbl { color: var(--ink-2); }
 .sf .w { color: var(--ink-3); font-variant-numeric: tabular-nums; text-align: right; font-size: 12px; }
 .sf .v { font-variant-numeric: tabular-nums; text-align: right; font-weight: 500; }
-.sf .bar { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: var(--surface-sunk); border: 1px solid var(--hairline); overflow: hidden; margin-top: -3px; }
-.sf .bar i { display: block; height: 100%; background: color-mix(in srgb, var(--aberdeen-blue) 45%, white); }
+/* Thin and quiet on purpose: this bar restates the number beside it and
+   nothing else, so it should never be the heaviest thing in the panel. */
+.sf .bar { grid-column: 1 / -1; height: 2px; border-radius: 2px; background: var(--surface-sunk); overflow: hidden; }
+.sf .bar i { display: block; height: 100%; background: color-mix(in srgb, var(--aberdeen-blue) 35%, transparent); }
 
 .bar { height: 6px; border-radius: 3px; background: var(--surface-sunk); border: 1px solid var(--hairline); overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--aberdeen-blue); }
 /* The anchor line under each sub-factor bar: what that score actually means. */
 .sf .sf-an {
   grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--space-4) 7px;
-  align-items: baseline; font-size: 11.5px; line-height: 1.45; margin-top: 3px;
+  align-items: baseline; font-size: 11.5px; line-height: 1.45;
 }
-.sf .sf-an > b {
-  flex: none; min-width: 16px; font-variant-numeric: tabular-nums; text-align: center;
+.sf .sf-an-level {
+  flex: none; font-variant-numeric: tabular-nums; white-space: nowrap;
   font-size: 10.5px; color: var(--ink-3);
-  background: var(--surface-sunk); border: 1px solid var(--hairline); border-radius: 3px;
+  background: var(--surface-sunk); border: 1px solid var(--hairline); border-radius: 3px; padding: 1px 6px;
 }
 .sf .sf-an .t { flex: 1 1 55%; min-width: 0; color: var(--ink-2); }
-.sf .sf-an .prov { font-style: normal; }
-.sf-total { display: flex; font-size: 12.5px; color: var(--ink-3); margin-top: 9px; padding-top: var(--space-8); border-top: 1px dashed var(--hairline); }
-.sf-total b { margin-left: auto; color: var(--ink); font-variant-numeric: tabular-nums; }
+/* flex-wrap so a long formula never gets squeezed off-screen by the
+   result - .terms is allowed to shrink and wrap, the result never is. */
+.sf-total { display: flex; flex-wrap: wrap; column-gap: var(--space-8); row-gap: 2px; font-size: 12.5px; color: var(--ink-3); margin-top: 9px; padding-top: var(--space-8); border-top: 1px dashed var(--hairline); }
+.sf-total .terms { flex: 1 1 auto; min-width: 0; }
+.sf-total b { flex: none; margin-left: auto; color: var(--ink); font-variant-numeric: tabular-nums; }
 
-.pkg-list { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--space-8); }
-.pkg-list li { display: flex; gap: 9px; font-size: 14px; align-items: baseline; }
-.pkg-list li .dose {
-  margin-left: auto; font-size: 12.5px; font-weight: 500; color: var(--ink);
-  background: var(--surface-sunk); border: 1px solid var(--hairline);
-  border-radius: 999px; padding: 1px 9px; white-space: nowrap; font-variant-numeric: tabular-nums;
-}
+/* A two-column list, not a row of right-aligned pills: the dot, then the
+   label column (auto-sized to the longest label across every row, since
+   .pkg-list li is display: contents and its children become direct
+   grid items of .pkg-list's own three columns), then the value - so
+   every value starts at the same x position regardless of label length. */
+.pkg-list { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: 14px auto 1fr; column-gap: 10px; row-gap: var(--space-8); font-size: 14px; }
+.pkg-list li { display: contents; }
+.pkg-list li .dot { align-self: start; margin-top: 6px; }
+.pkg-list li .dose { font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
 .mod {
   margin-top: 14px; border-radius: var(--radius-s); padding: 11px 13px;
   background: var(--surface-sunk); border: 1px solid var(--hairline); border-left: 3px solid var(--aberdeen-blue);
@@ -1166,8 +1177,14 @@ table.data td .rolename { font-weight: 500; }
    of options to scan. */
 .manager-actions { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--space-8); }
 .manager-actions li { display: flex; gap: 10px; font-size: 13.5px; align-items: baseline; }
+/* A fixed width, not min-width: every row's date sits in the same column
+   regardless of how long its own date string is (a range like "Jun 28,
+   2026 to Aug 9, 2026" is the longest this app ever produces), so every
+   action starts at the same x position - and because these are flex
+   siblings, not one run of text, a wrapped action's second line already
+   aligns with its own first line rather than sliding under the date. */
 .manager-actions .when {
-  flex: none; min-width: 108px; font-size: 11.5px; font-weight: 600; color: var(--ink-3);
+  flex: none; width: 210px; font-size: 11.5px; font-weight: 600; color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1650,6 +1667,14 @@ table.data td .incflag {
 
   /* ---- weighting panel: .wt-grid's own auto-fit(260px) already collapses
      to one slider per row at this width; nothing further needed here. */
+
+  /* ---- manager actions: the fixed date column is a desktop scanning aid
+     (see .manager-actions .when above) - at this width it would leave too
+     little room for the action text, so the date takes its own line and
+     the action wraps below it instead of beside it. */
+  .manager-actions li { flex-wrap: wrap; row-gap: 2px; }
+  .manager-actions .when { flex: 1 1 100%; width: auto; }
+  .manager-actions .when + span { flex: 1 1 100%; }
 
   /* ---- explainer: already a full-width bottom sheet at this same
      breakpoint (.ask-panel's own rule above); nothing further needed. */

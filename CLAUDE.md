@@ -191,6 +191,15 @@ their own `siteArchetypeBase` in their `PROJECTS` entry instead.
   `siteArchetypeCombos` array producing no stray "Spans more than one
   archetype" group in a dropdown — every one of these needs an explicit
   branch, not `${n} thing${s}`-and-hope.
+- **No em dash, anywhere in interface copy.** That covers every string a
+  user reads: component JSX, the explainer's answers, the generated
+  message drafts, the one-pagers, tooltips, and the prompts sent to the
+  model in `api/suggest-scores.js` (so the model doesn't pattern-match the
+  prompt's own punctuation into its output). Use a comma, a colon, a full
+  stop, or restructure the sentence instead. Hyphens in compound words and
+  number ranges are unaffected. Reason: an em dash is a common tell of
+  machine-written prose, and this product's whole pitch is that its output
+  reads like a person wrote it.
 
 ## Verification standard
 

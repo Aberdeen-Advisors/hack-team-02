@@ -8,7 +8,7 @@
  *
  *   node tools/embed-seed.js
  *
- * Not a build step — the site runs fine without ever running this; the embedded
+ * Not a build step: the site runs fine without ever running this; the embedded
  * copy just goes stale.
  */
 'use strict';
