@@ -371,9 +371,22 @@ a { color: var(--aberdeen-blue); }
 
 .picker-page { max-width: 900px; margin: 0 auto; width: 100%; padding: 56px 28px 72px; }
 .picker-head { margin-bottom: 34px; }
-.picker-head .brand-logo { height: 30px; margin-bottom: 14px; align-self: unset; }
+.picker-mark-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.picker-head .brand-logo { height: 30px; margin-bottom: 0; align-self: unset; }
 .picker-head h1 { font-size: 27px; margin-top: 6px; }
 .picker-head .lede { color: var(--ink-2); font-size: 14.5px; max-width: 68ch; margin-top: 10px; }
+
+/* The A-mark's own animated draw-in (see EntranceMark/useLandingEntrance).
+   .mark-path's default state here IS the settled, fully-drawn/filled look -
+   JS only ever opts INTO the hidden starting point right before animating
+   away from it, so a page where that JS never runs (reduced motion, GSAP
+   missing, already played this session) needs no fallback branch: this is
+   already the correct, final appearance. */
+.entrance-mark { width: 32px; height: 22px; flex: none; }
+.mark-path { stroke-width: 3px; stroke-dasharray: 1; stroke-dashoffset: 0; fill-opacity: 1; }
+/* Same settled-by-default contract: a full-width, already-drawn Verdigris
+   rule unless useLandingEntrance scales it down from zero to wipe it in. */
+.entrance-rule { display: block; height: 3px; width: 220px; max-width: 100%; background: var(--verdigris); border-radius: 2px; margin: 2px 0 16px; }
 
 .project-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -388,6 +401,10 @@ a { color: var(--aberdeen-blue); }
   transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
 }
 .project-card:hover { border-color: var(--aberdeen-blue); transform: translateY(-1px); box-shadow: var(--elev-2); }
+/* The floating clone ProjectPicker's openProject() lifts and fades on open
+   - fixed-positioned at the real card's own rect, so this only ever needs
+   to add elevation and lift it out of the page's stacking order. */
+.card-open-clone { position: fixed; z-index: 9999; pointer-events: none; box-shadow: var(--elev-4); }
 
 .example-badge {
   align-self: flex-start; text-transform: uppercase; letter-spacing: .08em; font-weight: 500;

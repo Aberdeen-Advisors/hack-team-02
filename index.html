@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Change Impact Assessment Tool: Aberdeen Advisors</title>
+<!-- Kept in sync by hand with PRODUCT_NAME below (this tag exists before any
+     JS has run); the app overwrites document.title with the same value at
+     boot so the two never actually drift once the script has executed. -->
+<title>Change Impact Assessment: Aberdeen Advisors</title>
 <meta name="description" content="Scores every Role x Site, assigns a tier, and generates the training, communication and adoption plan per role. Synthetic data.">
 
 <!-- Favicon: the blue icon reads on the light tab chrome most browsers use;
@@ -22,6 +25,25 @@
      plain CSS fallback in styles.css if even the local files are somehow
      unreachable. -->
 <link rel="stylesheet" href="styles.css">
+
+<!-- Boot splash: React itself takes ~3s to mount on a cold load because the
+     JSX below is transpiled in-browser by Babel Standalone (no build step -
+     see CLAUDE.md). Rather than a blank white page for that entire stretch,
+     this paints on the very first frame (inline styles, no dependency on
+     styles.css or any script finishing) and is removed the instant
+     ReactDOM actually mounts (see the bottom of the app script) - same
+     background as the real page (styles.css's body rule) so the swap is a
+     plain cut, never a color flash. Deliberately static, not a spinner or
+     looping animation: the landing entrance below takes over from exactly
+     this state instead of from blank. -->
+<style>
+  #boot-splash {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(1100px 460px at 50% 0, rgba(9,55,95,.05), transparent 62%), #F6F6F6;
+  }
+  #boot-splash img { width: 64px; height: auto; }
+</style>
 
 <!--
   No build step. React 18 + ReactDOM UMD + Babel Standalone (JSX) + Chart.js,
@@ -48,10 +70,21 @@
 <script>window.ScrollTrigger || document.write('<script src="vendor/ScrollTrigger.min.js"><\/script>');</script>
 </head>
 <body>
+<div id="boot-splash" aria-hidden="true"><img src="assets/brand/icon-blue.svg" alt=""></div>
 <div id="root"></div>
 
 <script type="text/babel" data-presets="react">
 const { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } = React;
+
+/* ===========================================================================
+   0a. BRAND: the product's display name, in exactly one place. The header
+   (both the project picker and the in-project topbar), the document title,
+   the printed one-pager footer and the print-only masthead all read this
+   constant rather than their own copy of the string, so renaming the
+   product is this one edit.
+   =========================================================================== */
+const PRODUCT_NAME = 'Change Impact Assessment';
+document.title = `${PRODUCT_NAME}: Aberdeen Advisors`;
 
 /* ===========================================================================
    0. MOTION: GSAP + ScrollTrigger, chosen because the count-up and quadrant
@@ -196,6 +229,70 @@ function useTabTransitionIn(ref, depKey) {
     const tween = gsap.fromTo(el, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.28, ease: 'power2.out', clearProps: 'opacity,transform' });
     return () => tween.kill();
   }, [depKey]);
+}
+
+/* Plain sessionStorage flag, not React state: it has to survive the
+   ProjectPicker unmounting entirely (leaving a project) and remounting
+   fresh (returning to it), which resets every piece of this component's
+   own state. */
+const ENTRANCE_SESSION_KEY = 'aa-entrance-played';
+
+/* The landing entrance: the A-mark draws itself in (stroke-dasharray/
+   dashoffset, then a fill fade), the Verdigris rule wipes in beneath the
+   wordmark, the product name fades up, then the project cards stagger in -
+   once per browser session, never on a return trip to this screen, and
+   never at all under reduced motion. Every element this targets already
+   renders its own fully-visible, correct settled state in plain CSS/JSX by
+   default (see .mark-path/.entrance-rule in styles.css) - this effect only
+   ever OPTS IN to a hidden starting point right before animating away from
+   it, so a skipped effect (already played, reduced motion, GSAP missing,
+   or an error thrown mid-setup) always leaves the settled state on screen,
+   never something stuck mid-animation or invisible. */
+function useLandingEntrance(containerRef) {
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el || REDUCE_MOTION || !window.gsap) return undefined;
+    let played = false;
+    try { played = sessionStorage.getItem(ENTRANCE_SESSION_KEY) === '1'; } catch (e) { /* private mode, etc - treat as not yet played */ }
+    if (played) return undefined;
+
+    const markPaths = el.querySelectorAll('.mark-path');
+    const rule = el.querySelectorAll('.entrance-rule');
+    const name = el.querySelectorAll('.entrance-name');
+    const cards = el.querySelectorAll('.project-card:not(.project-card--new)');
+    const targets = [markPaths, rule, name, cards];
+    const markPlayed = () => { try { sessionStorage.setItem(ENTRANCE_SESSION_KEY, '1'); } catch (e) {} };
+
+    let tl;
+    try {
+      gsap.set(markPaths, { strokeDashoffset: 1, fillOpacity: 0 });
+      gsap.set(rule, { scaleX: 0, transformOrigin: '0% 50%' });
+      gsap.set(name, { opacity: 0, y: 10 });
+      gsap.set(cards, { opacity: 0, y: 16 });
+
+      tl = gsap.timeline({ onComplete: markPlayed });
+      tl.to(markPaths, { strokeDashoffset: 0, duration: 0.4, ease: 'power2.out', stagger: 0.04 }, 0)
+        .to(markPaths, { fillOpacity: 1, duration: 0.25, ease: 'power1.out', clearProps: 'fillOpacity,strokeDashoffset' }, 0.3)
+        .to(rule, { scaleX: 1, duration: 0.3, ease: 'power2.out', clearProps: 'transform' }, 0.3)
+        .to(name, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out', clearProps: 'opacity,transform' }, 0.5)
+        .to(cards, { opacity: 1, y: 0, duration: 0.32, ease: 'power2.out', stagger: 0.08, clearProps: 'opacity,transform' }, 0.7);
+    } catch (e) {
+      // Decorative only: never leave the picker stuck mid-reveal.
+      if (tl) tl.kill();
+      targets.forEach((t) => gsap.set(t, { clearProps: 'all' }));
+      markPlayed();
+      return undefined;
+    }
+    // Dead-man's switch, same rationale as useRevealGroup below: if the
+    // timeline never fires onComplete for some reason, force the settled
+    // state and mark the session as played anyway rather than risk a
+    // replay or a stuck-invisible element on the next mount.
+    const failsafe = setTimeout(() => {
+      targets.forEach((t) => gsap.set(t, { clearProps: 'all' }));
+      markPlayed();
+    }, 2500);
+    return () => { clearTimeout(failsafe); if (tl) tl.kill(); };
+  }, [containerRef]);
 }
 
 /* ===========================================================================
@@ -5279,7 +5376,7 @@ function onePagerText(role, citeDeck, goLiveDate) {
     L.push('WHAT THE MANAGER NEEDS TO DO');
     actions.forEach((a) => L.push(`  - ${a.when}: ${a.text}`));
   }
-  L.push(''); L.push('Aberdeen Advisors · Change Impact Assessment Tool · illustrative figures, synthetic data');
+  L.push(''); L.push(`Aberdeen Advisors · ${PRODUCT_NAME} · illustrative figures, synthetic data`);
   return L.join('\n');
 }
 
@@ -7670,12 +7767,75 @@ function auditInputs(draftRoles, uploads) {
   return { roleCount: namedRoles.length, coverage, anyDocDone, mentionsByDraftId, unmentioned, completeness };
 }
 
-function ProjectPicker({ projects, onSelect, onStartNew }) {
+/* The real Aberdeen A-mark, inlined (not redrawn) from assets/brand/icon-
+   blue.svg - the two path shapes and their transforms are copied verbatim,
+   so any edit to that file's geometry has to be brought over by hand here
+   too. pathLength="1" on each path puts stroke-dasharray/dashoffset in a
+   fixed 0-1 range regardless of the path's real length or the non-uniform
+   scale in its transform, which is what lets useLandingEntrance drive a
+   clean 0->1 draw-in with one pair of values that works for both paths. */
+function EntranceMark() {
   return (
-    <div className="picker-page">
+    <svg className="entrance-mark" viewBox="-6 -6 221 152" role="img" aria-label="" aria-hidden="true" focusable="false">
+      <g transform="matrix(1,0,0,1,-9314.05,-24606.7)">
+        <g transform="matrix(1,0,0,1.17409,19091,11719.5)">
+          <g transform="matrix(0.259905,-0.125938,1.47417,2.20698,-25030.2,-9341.92)">
+            <path className="mark-path" pathLength="1"
+                  d="M4655.8,9526.17L5114.94,9498.47L5114.18,9513.36L5102.03,9514.09L4782.22,9533.39L4655.8,9526.17Z"
+                  style={{ fill: '#00B3B2', stroke: '#00B3B2' }} />
+          </g>
+          <g transform="matrix(1.32094,0.611943,-3.07774,4.81946,22664.7,-47266)">
+            <path className="mark-path" pathLength="1"
+                  d="M2853.95,11747.2L2853.95,11722.5L2943.01,11735.9L2921.51,11738.6L2910.6,11737L2875.44,11741.5L2875.44,11744.5L2853.95,11747.2ZM2875.44,11731.7L2875.44,11738.2L2898.73,11735.2L2875.44,11731.7Z"
+                  style={{ fill: '#003862', stroke: '#003862' }} />
+          </g>
+        </g>
+      </g>
+    </svg>
+  );
+}
+
+function ProjectPicker({ projects, onSelect, onStartNew }) {
+  const pageRef = useRef(null);
+  useLandingEntrance(pageRef);
+
+  // The project-open transition matters more than the entrance - it's the
+  // moment anyone is actually watching. A floating clone of the clicked
+  // card (appended straight to document.body, outside this component)
+  // lifts and fades on its own ~800ms timeline while the real dashboard
+  // mounts immediately underneath, full and correct - onSelect fires
+  // unconditionally, never gated on the animation, so a thrown error here
+  // (or reduced motion, or no GSAP) never blocks the actual navigation.
+  const openProject = useCallback((e, p) => {
+    try {
+      if (!REDUCE_MOTION && window.gsap) {
+        const card = e.currentTarget;
+        const rect = card.getBoundingClientRect();
+        const clone = card.cloneNode(true);
+        clone.setAttribute('aria-hidden', 'true');
+        clone.className += ' card-open-clone';
+        Object.assign(clone.style, {
+          position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`,
+          width: `${rect.width}px`, height: `${rect.height}px`, margin: '0',
+        });
+        document.body.appendChild(clone);
+        gsap.timeline({ onComplete: () => clone.remove() })
+          .to(clone, { y: -10, scale: 1.04, duration: 0.28, ease: 'power2.out', transformOrigin: '50% 50%' }, 0)
+          .to(clone, { opacity: 0, duration: 0.45, ease: 'power1.in' }, 0.32);
+      }
+    } catch (err) { /* purely decorative - onSelect below always still fires */ }
+    onSelect(p);
+  }, [onSelect]);
+
+  return (
+    <div className="picker-page" ref={pageRef}>
       <header className="picker-head">
-        <img src="assets/brand/logo-blue.svg" alt="Aberdeen Advisors" className="brand-logo" />
-        <h1>Change Impact Assessment Tool</h1>
+        <div className="picker-mark-row">
+          <EntranceMark />
+          <img src="assets/brand/logo-blue.svg" alt="Aberdeen Advisors" className="brand-logo" />
+        </div>
+        <span className="entrance-rule" aria-hidden="true" />
+        <h1 className="entrance-name">{PRODUCT_NAME}</h1>
         <p className="lede">
           Pick a project to open its impact heat map, role one-pagers and resourced plan. The three below are
           worked examples, entirely synthetic, built to show the same scoring engine at a different scale,
@@ -7686,7 +7846,7 @@ function ProjectPicker({ projects, onSelect, onStartNew }) {
 
       <div className="project-grid">
         {projects.map((p) => (
-          <button key={p.id} type="button" className="project-card" onClick={() => onSelect(p)}>
+          <button key={p.id} type="button" className="project-card" onClick={(e) => openProject(e, p)}>
             <span className="example-badge">Example</span>
             <span className="pc-name">{p.name}</span>
             <span className="pc-industry">{p.industry}</span>
@@ -8584,7 +8744,7 @@ function App() {
             <div className="tb-brand">
               <img src="assets/brand/logo-blue.svg" alt="Aberdeen Advisors" className="brand-logo" />
               <span className="tb-divider" aria-hidden="true" />
-              <h1>Change Impact Assessment Tool</h1>
+              <h1>{PRODUCT_NAME}</h1>
             </div>
             <div className="tb-context">
               <span className="project-tag" title={`${project.name}${project.industry ? ` · ${project.industry}` : ''}`}>
@@ -8625,7 +8785,7 @@ function App() {
       <div className="only-print" style={{ marginBottom: 'var(--space-12)' }}>
         <div style={{ fontSize: 10, letterSpacing: '.13em', textTransform: 'uppercase', color: 'var(--ink-2)' }}>Aberdeen Advisors</div>
         <div style={{ fontWeight: 500 }}>
-          Change Impact Assessment Tool: {tab === 'role' ? `role one-pager${selected ? ', ' + selected.role : ''}` : TAB_LABELS[tab] || tab}, {project.name}
+          {PRODUCT_NAME}: {tab === 'role' ? `role one-pager${selected ? ', ' + selected.role : ''}` : TAB_LABELS[tab] || tab}, {project.name}
         </div>
       </div>
 
@@ -8673,6 +8833,11 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+// React 18's initial mount commits synchronously here (no Suspense/
+// transition is in play), so the real app's first correct DOM is already
+// in place by this line - removing the boot splash now is a plain cut
+// straight into the app's own first paint, never an extra blank frame.
+{ const bootSplash = document.getElementById('boot-splash'); if (bootSplash) bootSplash.remove(); }
 </script>
 </body>
 </html>
