@@ -654,19 +654,32 @@ a { color: var(--aberdeen-blue); }
    card reads as deliberately belonging to its tier at a glance - a single,
    consistent border treatment on all four (not a left-only accent bar
    combined with fully rounded corners, which read as unfinished). */
+/* overflow: hidden used to sit here (only to keep the ::before specular
+   highlight below inside the card's rounded corners) and was clipping the
+   card's own real content - the tier name and the second metrics row -
+   whenever the grid above it forced the row shorter than these cards'
+   natural height. Never again: the highlight now carries its own
+   border-radius (inherited, see ::before below) so it self-clips to the
+   card's shape without the card itself needing overflow: hidden. This
+   card has no height/max-height of its own, on purpose - it sizes to its
+   content, full stop; see .dashboard-cards for why. */
 .tier-tile {
   border: 1.5px solid color-mix(in srgb, var(--tier-color, var(--ink-3)) 45%, var(--hairline-strong));
   background: linear-gradient(165deg, color-mix(in srgb, var(--tier-color, var(--ink-3)) 15%, var(--surface)) 0%, var(--surface) 65%);
   box-shadow: var(--elev-1);
-  position: relative; overflow: hidden;
+  position: relative;
   transition: box-shadow .2s ease;
 }
 .tier-tile:hover { box-shadow: var(--elev-3); }
 /* Specular highlight tracking the cursor, driven by --spot-* custom
    properties from useTiltHover - a plain CSS reaction to a JS-updated
-   position, no extra DOM node. */
+   position, no extra DOM node. border-radius: inherit clips the gradient
+   to the card's own rounded corners on its own (a background always
+   respects the box it's painted on), which is what lets .tier-tile drop
+   overflow: hidden above without square corners peeking out from behind it. */
 .tier-tile::before {
   content: ''; position: absolute; inset: 0; pointer-events: none;
+  border-radius: inherit;
   background: radial-gradient(circle at var(--spot-x, 50%) var(--spot-y, 50%), rgba(255,255,255,.5), transparent 55%);
   opacity: var(--spot-o, 0); transition: opacity .2s ease;
 }
@@ -682,11 +695,12 @@ a { color: var(--aberdeen-blue); }
    (row 1 Roles/People, row 2 % of pop./Effort share - so no label is ever
    squeezed into a quarter-width column the way a 4-across row was), and
    the info affordance pinned to the card's own top-right corner rather
-   than sitting inline after the tier name. Stretches to fill one of the
-   four equal-height grid rows in .dashboard-cards exactly - no fixed
-   height here. Sized tight on purpose: the chart column next to it is
-   often shorter than these four cards' combined natural height would
-   otherwise want (see useDashboardLayout in the script), so every
+   than sitting inline after the tier name. No height of its own - it
+   renders at its own natural content height, in one of .dashboard-cards'
+   four auto rows, and is never compressed below that to fit anything else
+   on the page. Sized tight anyway, on purpose: the chart column next to it
+   is the one flexible element (see useDashboardLayout in the script) and
+   these four cards' own combined natural height is its ceiling, so every
    dimension here is smaller than it would be as a standalone card. */
 .tier-tile-wide {
   display: flex; flex-direction: column; justify-content: center; gap: var(--space-4);
@@ -781,47 +795,40 @@ a { color: var(--aberdeen-blue); }
 
 /* ----------------------------------------------------- dashboard layout */
 
-/* Plain block flow now, no height floor of its own: PortfolioView's
-   useDashboardLayout hook computes the dashboard row's real pixel height
-   from the live DOM (see the script's own comment on that hook) and sets
-   it directly as .dashboard-grid's inline height, so there is nothing
-   left for this wrapper itself to constrain. Width is .main's own (max
-   1400px, centered) - the plot is a rectangle, not a square, so there is
-   no reason to derive this tab's width from it. The role table sits
-   outside this wrapper entirely, in normal flow below it, exactly because
-   it's fine for it to need a scroll to reach. */
+/* Plain block flow, no height of its own: the chart is the only flexible
+   element on this tab (see useDashboardLayout in the script) - everything
+   else, this wrapper included, sizes to its own content and is never
+   compressed to force a fit. Width is .main's own (max 1400px, centered).
+   The role table sits outside this wrapper entirely, in normal flow below
+   it, exactly because it's fine for it to need a scroll to reach. */
 .above-fold { display: block; }
 
 /* The Stakeholder Impact tab's two-column dashboard: tier cards ranked
    top-to-bottom on the left (30%), the chart on the right (70%) - fr
    units, not literal percentages, so the 30/70 split is of the row's
    actual content width net of the gap, not the row width plus an
-   overflowing gap on top of it. Height is set inline in px by
-   useDashboardLayout; align-items: stretch (the grid default, stated
-   explicitly) then makes both columns fill it exactly, which is what
-   lands the Inform card's bottom edge and the chart's bottom edge
-   together regardless of which one would naturally be taller alone.
-   grid-template-rows: minmax(0, 1fr), not the implicit default of auto -
-   an explicit height set directly on a grid CONTAINER does not, by
-   itself, make its auto-sized row track respect that height; an auto
-   track sizes to whatever its content asks for and the container simply
-   overflows its own set height if content wants more. minmax(0, 1fr)
-   makes the one row an actual flexible track that consumes exactly the
-   container's height, which is what makes the chart's real rendered
-   height agree with what this element was told to be - the container can
-   no longer silently grow taller than its own height and spill onto
-   whatever sits after it in the page (the weighting panel). */
-.dashboard-grid { display: grid; grid-template-columns: 3fr 7fr; grid-template-rows: minmax(0, 1fr); gap: var(--space-16); align-items: stretch; }
-/* Four equal-height rows, not a flex column distributing leftover space:
-   "equal" is the point, not an incidental result of every card happening
-   to have the same natural content height. minmax(0, 1fr), not a bare
-   1fr - a bare 1fr's automatic minimum is its content's own min-content
-   size, which is exactly what was clipping the tier name and the second
-   metric row when the grid was shorter than four cards' natural stacked
-   height; minmax(0, 1fr) lets the row size down to the grid's own
-   height and relies on the tiles' own compact padding (see
-   .tier-tile-wide) to still show every field at that height instead. */
-.dashboard-cards { display: grid; grid-template-rows: repeat(4, minmax(0, 1fr)); gap: var(--space-16); min-width: 0; }
+   overflowing gap on top of it.
+   align-items: start, not stretch: the cards column renders at its own
+   natural height (see .dashboard-cards) and the grid never stretches the
+   chart column to match it, nor the cards to match the chart - each
+   column is exactly as tall as its own content/explicit sizing says, no
+   more. No height set here at all any more: useDashboardLayout computes
+   a target height for the CHART alone (never taller than what the cards
+   column naturally needs, per its own rule below) and applies it directly
+   to the chart's own element, not to this shared row - so there is
+   nothing here for a mismatched height to overflow out of. */
+.dashboard-grid { display: grid; grid-template-columns: 3fr 7fr; gap: var(--space-16); align-items: start; }
+/* Four rows at their own natural (auto) height, never compressed - "equal
+   height" was a nice-to-have from an earlier pass; not clipping the tier
+   name or the second metrics row is not negotiable, and minmax(0, 1fr)
+   (which allows a row to shrink below its own content's min-content size
+   whenever the grid was shorter than these four cards' combined natural
+   height) is exactly what did that: combined with .tier-tile's own
+   overflow: hidden (now removed, see its own comment), a card that was
+   forced shorter than 112px of real content simply clipped 16px of it
+   off - the tier name at the top, the second metrics row at the bottom.
+   auto never shrinks a row below its content, so this can't recur. */
+.dashboard-cards { display: grid; grid-template-rows: repeat(4, auto); gap: var(--space-16); min-width: 0; }
 .dashboard-chart-col { display: flex; flex-direction: column; min-width: 0; }
 
 @media (max-width: 1100px) {
@@ -829,19 +836,17 @@ a { color: var(--aberdeen-blue); }
      grid), cards, chart - then the weighting panel and the table,
      already their own elements below the grid. Stacked like this, cards
      and chart are two separate grid rows, not two columns of the same
-     row, so align-items: stretch no longer ties their heights together -
-     the inline pixel height useDashboardLayout set is for the two-column
-     layout only and has to be cleared here (!important: it is an inline
-     style, which a plain rule can't otherwise beat), and the plot falls
-     back to a self-contained aspect-ratio box, sized from its own width,
-     same as any other chart would be at a narrow viewport. */
-  .dashboard-grid { grid-template-columns: 1fr; grid-template-rows: none; height: auto !important; }
+     row - PortfolioView also stops passing HeatMap a height prop below
+     this width, so the plot falls back to a self-contained aspect-ratio
+     box, sized from its own width, same as any other chart would be at a
+     narrow viewport. */
+  .dashboard-grid { grid-template-columns: 1fr; }
   .dashboard-cards { grid-template-rows: none; }
   /* HeatMap measures .map-wrap's own rendered box and sizes its <svg> to
      match exactly (see the heat-map section below) - overriding the box
      itself here is enough; the SVG picks up the new size on its own via
      the ResizeObserver already watching this element. */
-  .map-wrap { flex: none; aspect-ratio: 3 / 2; width: 100%; max-width: 700px; margin: 0 auto; }
+  .map-wrap { aspect-ratio: 3 / 2; width: 100%; max-width: 700px; margin: 0 auto; }
 }
 
 /* A shorter viewport (a 720p laptop screen, browser chrome included) gets
@@ -905,15 +910,17 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
    object on this screen, not a panel holding one - it sits directly on
    the page, filling its column edge to edge, no side rail or legend row
    splitting it.
-   flex: 1 makes .map-wrap fill whatever height .dashboard-chart-col has
-   above 1100px (that column's own height comes from .dashboard-grid's
-   inline pixel height - see useDashboardLayout in the script); below
-   1100px that's switched off in favor of a plain aspect-ratio box (see
-   the @media block above). Either way, HeatMap measures .map-wrap's own
-   rendered box directly and sizes its <svg> to match exactly - this rule
-   only ever decides what that box's dimensions ARE, never how the SVG
-   fills it. */
-.map-wrap { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+   No height set here: PortfolioView passes HeatMap a `height` prop (the
+   one number useDashboardLayout computed - the chart is the only
+   flexible element on this tab, capped so it's never taller than the
+   tier cards' own natural height, see .dashboard-cards) and HeatMap
+   applies it as this element's own inline style. Below 1100px no height
+   prop is passed at all, and a plain aspect-ratio box takes over instead
+   (see the @media block above). Either way, HeatMap measures .map-wrap's
+   own rendered box directly and sizes its <svg> to match exactly - this
+   rule (and the inline style) only ever decide what that box's
+   dimensions ARE, never how the SVG fills it. */
+.map-wrap { position: relative; }
 .chart-plot { display: block; }
 
 .pt { cursor: pointer; opacity: 1; transition: opacity .15s ease; }
@@ -1535,7 +1542,7 @@ table.data td .incflag {
      screen-only convenience for fitting everything above the fold - on
      paper, stack them so neither column gets squeezed into an unreadable
      sliver at print width. */
-  .dashboard-grid { display: block; height: auto !important; }
+  .dashboard-grid { display: block; }
   .dashboard-cards { grid-template-rows: none; margin-bottom: 10pt; }
   .tile { box-shadow: none; }
   .tile .value { font-size: 18pt; font-weight: 500; color: var(--ink); }

@@ -4640,17 +4640,19 @@ function pointMark(tier, cx, cy, r, extraProps) {
   return <circle cx={cx} cy={cy} r={r} fill={TIERS[tier].hex} fillOpacity="0.78" {...extraProps} />;
 }
 
-const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
+const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect, height }) {
   const [tip, setTip] = useState(null);
   const wrap = useRef(null);
-  // The plot's real rendered box - self-measured, not received as a prop.
-  // .map-wrap's own size is CSS-driven either way (flex: 1 filling
-  // whatever height PortfolioView's layout hook gave the chart column
-  // above 1100px; a plain aspect-ratio box below it - see styles.css), so
-  // reading it directly here is the one way this component's own viewBox
-  // and point coordinates ever agree with what the browser actually
-  // painted, in both regimes, without this component needing to know
-  // which one is currently active.
+  // The plot's real rendered box - self-measured, not trusted blindly from
+  // the height prop. Above 1100px, `height` is the one number
+  // useDashboardLayout computed (the chart is the only flexible element on
+  // this tab - see that hook's own comment), applied below as .map-wrap's
+  // own inline style; below it, no height prop is passed at all and a
+  // plain aspect-ratio box takes over instead (see styles.css). Either
+  // way, measuring the wrap's OWN rendered box directly, rather than
+  // trusting the prop or the CSS rule, is the one way this component's
+  // viewBox and point coordinates ever agree with what the browser
+  // actually painted, regardless of which regime is currently active.
   const [box, setBox] = useState(null);
   useLayoutEffect(() => {
     const el = wrap.current;
@@ -4792,10 +4794,11 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
   // guessed dimensions. useLayoutEffect resolves this before the browser
   // ever paints a frame in practice, so this is a safety branch, not a
   // normal visible state.
-  if (!ready) return <div className="map-wrap" ref={wrap} />;
+  const wrapStyle = height ? { height } : undefined;
+  if (!ready) return <div className="map-wrap" ref={wrap} style={wrapStyle} />;
 
   return (
-    <div className="map-wrap" ref={wrap}>
+    <div className="map-wrap" ref={wrap} style={wrapStyle}>
       {/* width/height are the wrap's own just-measured box, in real
           pixels - the SVG fills it exactly, whichever CSS rule (the
           two-column flex fill, or the narrow-viewport aspect-ratio box)
@@ -5167,31 +5170,35 @@ function headlineFinding(finding, agg) {
   };
 }
 
-/* Computes the two-column dashboard's real pixel layout from the actual DOM,
-   every render - the chart column's own rendered width (the plot fills it
-   exactly, per PortfolioView's own layout rules) and how much vertical room
-   is actually left for the dashboard row before the viewport runs out.
-   Nothing here is a guessed constant:
+/* The chart is the ONLY flexible element on this tab. Every other piece -
+   the header, the headline, the tier cards - sizes to its own content and
+   is never compressed to force a fit; if the total doesn't fit the
+   viewport, the CHART shrinks, and if the chart is already at its own
+   sensible floor, the page scrolls. Nothing here is a guessed constant:
      - gridTop (gridRef) already reflects the topbar, the headline's real
        height (it changes per project and wraps differently per width), and
        the optional incomplete-roles banner, whatever they currently are.
+     - cardsHeight (cardsRef) is the four tier cards' own real, natural,
+       uncompressed stacked height - the actual floor for the chart column,
+       per the rule above: the chart matches this height, or shrinks toward
+       it, never the reverse, and the cards are never resized to match the
+       chart.
      - headRowHeight (headRowRef) is the chart's own label/filter row, sitting
        above the plot in the same column.
      - weightRowSpace (weightRowRef) is the collapsed weighting panel below
-       the grid, plus the gap in front of it.
-   plotHeight is colWidth / 1.5 (a 3:2 rectangle), capped by whatever
-   vertical room that leaves, and never allowed past a 2:1 rectangle (the
-   risk axis already reads as a narrow band; more than 2:1 flattens it into
-   a line) - so it shrinks toward 2:1 before it would ever push the page
-   past one screen, rather than holding 1.5:1 and overflowing.
-   weightRowSpace is measured off the weighting panel's own <summary> only,
-   never its wrapping div - <summary> is the one part of a <details>
-   element that renders at a constant height whether the panel is open or
-   closed, so the dashboard's own height budget (and therefore the chart
-   and card columns) reads the COLLAPSED height always, regardless of
-   whatever state the panel is actually in right now. Expanding it must
-   never move or resize the two-column block above it - only grow the
-   page below, in normal flow.
+       the grid, plus the gap in front of it - measured off its own
+       <summary> only, never its wrapping div, since <summary> is the one
+       part of a <details> element that renders at a constant height
+       whether the panel is open or closed. This is what keeps expanding
+       the panel from ever moving or resizing the dashboard above it: the
+       height budget always reads the COLLAPSED height, regardless of
+       whatever state the panel is actually in right now.
+   plotHeight is the least of: colWidth / 1.5 (a natural 3:2 rectangle),
+   the cards' own height minus the head-row (so the chart COLUMN's total
+   never exceeds the cards column's total), and whatever vertical room is
+   actually left in the viewport - floored at PLOT_MIN_HEIGHT, below which
+   it stops shrinking and the page scrolls instead of the chart
+   disappearing.
    No dependency array: re-measures after every render, since headline
    text, the incomplete-roles banner and filters can all change the
    available space without the caller enumerating each one - cheap, since
@@ -5200,15 +5207,18 @@ function headlineFinding(finding, agg) {
    catch changes a re-render alone would miss (viewport resize, font
    loading). setLayout is skipped when nothing actually changed, so this
    can never loop. */
-function useDashboardLayout(gridRef, colRef, headRowRef, weightRowRef) {
+const PLOT_MIN_HEIGHT = 220;
+function useDashboardLayout(gridRef, colRef, cardsRef, headRowRef, weightRowRef) {
   const [layout, setLayout] = useState(null);
   useLayoutEffect(() => {
     const measure = () => {
-      const grid = gridRef.current, col = colRef.current, headRow = headRowRef.current, wr = weightRowRef.current;
-      if (!grid || !col || !headRow || !wr) return;
+      const grid = gridRef.current, col = colRef.current, cards = cardsRef.current,
+            headRow = headRowRef.current, wr = weightRowRef.current;
+      if (!grid || !col || !cards || !headRow || !wr) return;
       const colWidth = col.getBoundingClientRect().width;
       if (!colWidth) return;
       const gridTop = grid.getBoundingClientRect().top;
+      const cardsHeight = cards.getBoundingClientRect().height;
       const headRowHeight = headRow.getBoundingClientRect().height;
       const weightSummary = wr.querySelector('summary') || wr;
       const weightRowSpace = weightSummary.getBoundingClientRect().height + DASHBOARD_GAP;
@@ -5216,14 +5226,9 @@ function useDashboardLayout(gridRef, colRef, headRowRef, weightRowRef) {
                           // bottom edge lands strictly inside the viewport
       const availablePlot = window.innerHeight - gridTop - weightRowSpace - buffer - headRowHeight;
       const idealPlot = colWidth / 1.5;
-      let plotHeight = Math.min(idealPlot, Math.max(160, availablePlot));
-      plotHeight = Math.max(plotHeight, colWidth / 2); // never past a 2:1 rectangle
-      plotHeight = Math.min(plotHeight, idealPlot);     // never past the natural 3:2 rectangle
-      const next = {
-        colWidth: Math.round(colWidth),
-        plotHeight: Math.round(plotHeight),
-        rowHeight: Math.round(plotHeight + headRowHeight),
-      };
+      const cardsCapPlot = Math.max(0, cardsHeight - headRowHeight);
+      const plotHeight = Math.max(PLOT_MIN_HEIGHT, Math.min(idealPlot, cardsCapPlot, availablePlot));
+      const next = { colWidth: Math.round(colWidth), plotHeight: Math.round(plotHeight) };
       setLayout((prev) => (prev && prev.colWidth === next.colWidth && prev.plotHeight === next.plotHeight) ? prev : next);
     };
     measure();
@@ -5237,7 +5242,7 @@ function useDashboardLayout(gridRef, colRef, headRowRef, weightRowRef) {
       // comment above). Its <summary> is observed instead, watched via the
       // grid ref's own querySelector inside measure() at call time.
       const summaryEl = weightRowRef.current && weightRowRef.current.querySelector('summary');
-      [gridRef.current, colRef.current, headRowRef.current, summaryEl].forEach((el) => el && ro.observe(el));
+      [gridRef.current, colRef.current, cardsRef.current, headRowRef.current, summaryEl].forEach((el) => el && ro.observe(el));
     }
     return () => { window.removeEventListener('resize', measure); if (ro) ro.disconnect(); };
   });
@@ -5249,9 +5254,10 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
                           onOpenEffortWeights, sa, setSa, projectName }) {
   const gridRef = useRef(null);
   const chartColRef = useRef(null);
+  const cardsRef = useRef(null);
   const headRowRef = useRef(null);
   const weightRowRef = useRef(null);
-  const layout = useDashboardLayout(gridRef, chartColRef, headRowRef, weightRowRef);
+  const layout = useDashboardLayout(gridRef, chartColRef, cardsRef, headRowRef, weightRowRef);
 
   // The Role x site table's own search, narrowing whatever the site-archetype
   // filter above already left. It never touches `filtered`/`filteredIncomplete`
@@ -5334,13 +5340,14 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
 
         {/* 2. THE DASHBOARD: four tier cards, ranked top-to-bottom, on the
             left (30%); the quadrant chart on the right (70%, no card
-            chrome - the plot itself is the object here). The grid's own
-            height is set inline, in px, from useDashboardLayout above -
-            both columns stretch to fill it (align-items: stretch, in
-            styles.css), which is what lands the Inform card's bottom edge
-            on the chart's. */}
-        <div className="dashboard-grid" ref={gridRef} style={layout ? { height: layout.rowHeight } : undefined}>
-          <div className="dashboard-cards">
+            chrome - the plot itself is the object here). The cards render
+            at their own natural height, always (see .dashboard-cards) -
+            the chart is the one flexible element, sized by
+            useDashboardLayout to match that height or shrink toward it,
+            never the reverse, which is what normally lands the Inform
+            card's bottom edge on the chart's. */}
+        <div className="dashboard-grid" ref={gridRef}>
+          <div className="dashboard-cards" ref={cardsRef}>
             {TIER_ORDER.map((t) => (
               <TierSummaryTile key={t} tier={t} b={agg.byTier[t]} flash={changedTiers.has(t)} />
             ))}
@@ -5354,7 +5361,8 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
               <h3 className="chart-card-label">Impact severity × adoption risk</h3>
               {siteFilterControl}
             </div>
-            <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
+            <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect}
+                     height={layout ? layout.plotHeight : undefined} />
           </div>
         </div>
 
