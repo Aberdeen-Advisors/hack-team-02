@@ -4587,25 +4587,30 @@ function TabHeadline({ tab, text }) {
    7. PORTFOLIO / HEAT MAP
    =========================================================================== */
 
-// A true square, in viewBox units: both axes run 1-5, so the plot area
-// itself has to have equal pixel length on both, not just a similar-looking
-// aspect ratio. w === h, and the horizontal margin sum (l + r = 66) equals
-// the vertical margin sum (t + b = 66), so the plot area inside them
-// (w - l - r) × (h - t - b) is exactly square too. The real rendered pixel
-// size is driven entirely by CSS (.chart-square, height-based - see
-// styles.css), not by these numbers; this is only the coordinate system
-// px()/py() below map data values into.
-const MAP = { w: 460, h: 460, l: 46, r: 20, t: 24, b: 42 };
+// The plot is a rectangle now, not a square: both axes still run 1-5, but
+// the two are no longer at the same pixel scale (see PortfolioView's own
+// layout hook for why - width is column-driven, height is capped by
+// available viewport space, and the two only coincidentally agree).
+// MAP_REF_H is a fixed reference height in viewBox units, not a real pixel
+// count - keeping it constant while MAP.w below tracks the CURRENT real
+// aspect ratio means every stroke width and font-size defined in viewBox
+// units (axis ticks, quad labels) scales by the same factor the old square
+// chart did at a given rendered height, so the chart's texture ("what it
+// has now": tick size, label weight) doesn't drift just because the shape
+// changed. l/r/t/b are fixed label-margin budgets in the same units,
+// unchanged from the square chart - as MAP.w grows with a wider column,
+// they become a smaller fraction of the total, exactly as they should.
+const MAP_REF_H = 460;
+function mapFor(width, height) {
+  const ratio = (width > 0 && height > 0) ? width / height : 1.5;
+  return { w: Math.round(MAP_REF_H * ratio), h: MAP_REF_H, l: 46, r: 20, t: 24, b: 42 };
+}
 
-// The Stakeholder Impact tab's content width is derived, not fixed: cards
-// column + the grid's own gap + however wide the square actually renders
-// (which is itself derived from available viewport height, not width - see
-// .chart-square). CARDS_COL_WIDTH and DASHBOARD_GAP have to match the
-// literal pixel values .dashboard-cards/.dashboard-grid use in styles.css;
-// there is no way to read a CSS px value back out in this app (no build
-// step, no CSS-in-JS), so this is the one place that duplication has to be
-// kept in sync by hand.
-const CARDS_COL_WIDTH = 340;
+// Matches .dashboard-grid's own gap (var(--space-16)) in styles.css -
+// PortfolioView's layout hook needs this pixel value to compute available
+// height; there is no way to read a CSS value back out in this app (no
+// build step, no CSS-in-JS), so this is the one place that has to be kept
+// in sync with the stylesheet by hand.
 const DASHBOARD_GAP = 16;
 
 /* Memoized: an SVG scatter plus tooltip logic over the full role set,
@@ -4627,30 +4632,33 @@ function pointMark(tier, cx, cy, r, extraProps) {
   return <circle cx={cx} cy={cy} r={r} fill={TIERS[tier].hex} fillOpacity="0.78" {...extraProps} />;
 }
 
-const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect, onSquareWidth }) {
+const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
   const [tip, setTip] = useState(null);
   const wrap = useRef(null);
-  // The square's rendered width is a real CSS-computed value (height-driven,
-  // via .chart-square's aspect-ratio) that this component cannot know in
-  // advance - it depends on viewport height, the headline's actual height,
-  // and the cards column's actual height, none of which JS re-derives here.
-  // Measuring the live element and reporting it up (PortfolioView uses it to
-  // size the whole tab's content width to "cards + gap + square", so there
-  // is never an empty band beside the plot) is more work than trusting a
-  // CSS shrink-to-fit chain through an aspect-ratio box, but it is the one
-  // way to be certain the number used for layout matches the number the
-  // browser actually painted.
-  const squareRef = useRef(null);
+  // The plot's real rendered box - self-measured, not received as a prop.
+  // .map-wrap's own size is CSS-driven either way (flex: 1 filling
+  // whatever height PortfolioView's layout hook gave the chart column
+  // above 1100px; a plain aspect-ratio box below it - see styles.css), so
+  // reading it directly here is the one way this component's own viewBox
+  // and point coordinates ever agree with what the browser actually
+  // painted, in both regimes, without this component needing to know
+  // which one is currently active.
+  const [box, setBox] = useState(null);
   useLayoutEffect(() => {
-    const el = squareRef.current;
-    if (!el || !onSquareWidth) return undefined;
-    const report = () => onSquareWidth(el.getBoundingClientRect().width);
-    report();
+    const el = wrap.current;
+    if (!el) return undefined;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      setBox((prev) => (prev && prev.w === r.width && prev.h === r.height) ? prev : { w: r.width, h: r.height });
+    };
+    measure();
     if (typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(report);
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [onSquareWidth]);
+  }, []);
+  const ready = !!box;
   // Motion bookkeeping: the <g> DOM node per role id, and the last screen
   // position this effect actually animated to. React always renders every
   // mark's true cx/cy/fill correctly and immediately - none of this ever
@@ -4663,6 +4671,7 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect, onSqu
   const prevPosRef = useRef({});
   const mountedRef = useRef(false);
 
+  const MAP = mapFor(box && box.w, box && box.h);
   const px = (v) => MAP.l + ((v - 1) / 4) * (MAP.w - MAP.l - MAP.r);
   const py = (v) => (MAP.h - MAP.b) - ((v - 1) / 4) * (MAP.h - MAP.t - MAP.b);
   const rad = (hc) => Math.max(5.5, Math.min(27, Math.sqrt(hc) * 0.62));
@@ -4770,18 +4779,21 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect, onSqu
     if (window.gsap) Object.values(pointElsRef.current).forEach((el) => gsap.killTweensOf(el));
   }, []);
 
+  // Not yet measured (this component's own layout effect above hasn't run
+  // its first pass) - render the wrap with nothing in it rather than at
+  // guessed dimensions. useLayoutEffect resolves this before the browser
+  // ever paints a frame in practice, so this is a safety branch, not a
+  // normal visible state.
+  if (!ready) return <div className="map-wrap" ref={wrap} />;
+
   return (
     <div className="map-wrap" ref={wrap}>
-      {/* .chart-square-frame is the flex child that grows to fill the
-          wrap's height; .chart-square (the svg itself) is sized from that
-          height alone (height: 100%, aspect-ratio: 1, width: auto,
-          max-height capped in styles.css) - a true square, never stretched
-          to the frame's width. justify-content: flex-end (in styles.css)
-          pushes it to the frame's right edge, so it fills the column with
-          no gap on the right - any slack lands on the left instead, as a
-          small margin against the cards. */}
-      <div className="chart-square-frame">
-      <svg ref={squareRef} className="chart-square" viewBox={`0 0 ${MAP.w} ${MAP.h}`} role="img"
+      {/* width/height are the wrap's own just-measured box, in real
+          pixels - the SVG fills it exactly, whichever CSS rule (the
+          two-column flex fill, or the narrow-viewport aspect-ratio box)
+          produced that size. */}
+      <svg className="chart-plot" width={box.w} height={box.h}
+           viewBox={`0 0 ${MAP.w} ${MAP.h}`} role="img"
            aria-label="Impact severity against adoption risk, one point per role, colored by tier."
            aria-describedby="role-site-table-desc">
         <defs>
@@ -4842,7 +4854,6 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect, onSqu
           </g>
         ))}
       </svg>
-      </div>
 
       <p id="role-site-table-desc" className="sr">
         Every plotted role&rsquo;s identity, scores and tier are listed as text in the sortable Role × site table below this chart - the
@@ -5148,15 +5159,76 @@ function headlineFinding(finding, agg) {
   };
 }
 
+/* Computes the two-column dashboard's real pixel layout from the actual DOM,
+   every render - the chart column's own rendered width (the plot fills it
+   exactly, per PortfolioView's own layout rules) and how much vertical room
+   is actually left for the dashboard row before the viewport runs out.
+   Nothing here is a guessed constant:
+     - gridTop (gridRef) already reflects the topbar, the headline's real
+       height (it changes per project and wraps differently per width), and
+       the optional incomplete-roles banner, whatever they currently are.
+     - headRowHeight (headRowRef) is the chart's own label/filter row, sitting
+       above the plot in the same column.
+     - weightRowSpace (weightRowRef) is the collapsed weighting panel below
+       the grid, plus the gap in front of it.
+   plotHeight is colWidth / 1.5 (a 3:2 rectangle), capped by whatever
+   vertical room that leaves, and never allowed past a 2:1 rectangle (the
+   risk axis already reads as a narrow band; more than 2:1 flattens it into
+   a line) - so it shrinks toward 2:1 before it would ever push the page
+   past one screen, rather than holding 1.5:1 and overflowing.
+   No dependency array: re-measures after every render, since headline
+   text, the incomplete-roles banner and filters can all change the
+   available space without the caller enumerating each one - cheap, since
+   it is only getBoundingClientRect reads unless something actually moved.
+   A window resize listener and a ResizeObserver on the measured elements
+   catch changes a re-render alone would miss (viewport resize, font
+   loading). setLayout is skipped when nothing actually changed, so this
+   can never loop. */
+function useDashboardLayout(gridRef, colRef, headRowRef, weightRowRef) {
+  const [layout, setLayout] = useState(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const grid = gridRef.current, col = colRef.current, headRow = headRowRef.current, wr = weightRowRef.current;
+      if (!grid || !col || !headRow || !wr) return;
+      const colWidth = col.getBoundingClientRect().width;
+      if (!colWidth) return;
+      const gridTop = grid.getBoundingClientRect().top;
+      const headRowHeight = headRow.getBoundingClientRect().height;
+      const weightRowSpace = wr.getBoundingClientRect().height + DASHBOARD_GAP;
+      const buffer = 12; // breathing room against subpixel rounding, so the
+                          // bottom edge lands strictly inside the viewport
+      const availablePlot = window.innerHeight - gridTop - weightRowSpace - buffer - headRowHeight;
+      const idealPlot = colWidth / 1.5;
+      let plotHeight = Math.min(idealPlot, Math.max(160, availablePlot));
+      plotHeight = Math.max(plotHeight, colWidth / 2); // never past a 2:1 rectangle
+      plotHeight = Math.min(plotHeight, idealPlot);     // never past the natural 3:2 rectangle
+      const next = {
+        colWidth: Math.round(colWidth),
+        plotHeight: Math.round(plotHeight),
+        rowHeight: Math.round(plotHeight + headRowHeight),
+      };
+      setLayout((prev) => (prev && prev.colWidth === next.colWidth && prev.plotHeight === next.plotHeight) ? prev : next);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    let ro;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(measure);
+      [gridRef.current, colRef.current, headRowRef.current, weightRowRef.current].forEach((el) => el && ro.observe(el));
+    }
+    return () => { window.removeEventListener('resize', measure); if (ro) ro.disconnect(); };
+  });
+  return layout;
+}
+
 function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights, weightDeltas,
                           siteArchetypeBase, siteArchetypeCombos, comboExample, citeDeck,
                           onOpenEffortWeights, sa, setSa, projectName }) {
-  // Reported by HeatMap once the square's real, height-driven width is
-  // known (see HeatMap's own ResizeObserver). null until then, in which
-  // case the tab just renders at .main's own default width for one frame
-  // - useLayoutEffect fires before paint, so in practice this never shows.
-  const [squareW, setSquareW] = useState(null);
-  const contentMaxWidth = squareW ? Math.round(CARDS_COL_WIDTH + DASHBOARD_GAP + squareW) : null;
+  const gridRef = useRef(null);
+  const chartColRef = useRef(null);
+  const headRowRef = useRef(null);
+  const weightRowRef = useRef(null);
+  const layout = useDashboardLayout(gridRef, chartColRef, headRowRef, weightRowRef);
 
   // The Role x site table's own search, narrowing whatever the site-archetype
   // filter above already left. It never touches `filtered`/`filteredIncomplete`
@@ -5204,13 +5276,13 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
     <>
       {/* Everything that has to fit on one screen with no scrolling -
           headline, the two-column dashboard, the collapsed weighting row -
-          lives inside this one height-constrained wrapper (see .above-fold
-          in styles.css). The table below it is deliberately outside: it's
-          fine, expected even, for it to need a scroll to reach.
-          max-width is this tab's own, derived from the square's real
-          measured width (cards + gap + square) - not .main's shared
-          default - so there is never an empty band beside the plot. */}
-      <div className="above-fold" style={{ maxWidth: contentMaxWidth || undefined, margin: '0 auto' }}>
+          lives inside this one wrapper (see .above-fold in styles.css).
+          The table below it is deliberately outside: it's fine, expected
+          even, for it to need a scroll to reach. Width is .main's own
+          (max 1400px, centered) - the plot is a rectangle now, not a
+          square, so there is no reason to derive the page's own width
+          from it any more. */}
+      <div className="above-fold">
         {/* 1. THE HEADLINE: the hero of the tab, the one place this tool
             states a conclusion rather than data. Everything below it is
             the evidence for this sentence. */}
@@ -5238,10 +5310,13 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         )}
 
         {/* 2. THE DASHBOARD: four tier cards, ranked top-to-bottom, on the
-            left (~30%); the quadrant chart on the right (~70%, no card
-            chrome - the plot itself is the object here), sized so the
-            Inform card's bottom edge lands exactly on the chart's. */}
-        <div className="dashboard-grid">
+            left (30%); the quadrant chart on the right (70%, no card
+            chrome - the plot itself is the object here). The grid's own
+            height is set inline, in px, from useDashboardLayout above -
+            both columns stretch to fill it (align-items: stretch, in
+            styles.css), which is what lands the Inform card's bottom edge
+            on the chart's. */}
+        <div className="dashboard-grid" ref={gridRef} style={layout ? { height: layout.rowHeight } : undefined}>
           <div className="dashboard-cards">
             {TIER_ORDER.map((t) => (
               <TierSummaryTile key={t} tier={t} b={agg.byTier[t]} flash={changedTiers.has(t)} />
@@ -5250,21 +5325,19 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
 
           {/* No card chrome here on purpose: the plot itself, not a panel
               containing it, is the object on this screen. The filter sits
-              top right, aligned to the plot's own right edge (both the
-              label row and the square fill the same column width now that
-              there's no side rail splitting it). */}
-          <div className="dashboard-chart-col">
-            <div className="chart-head-row">
+              top right, aligned to the plot's own right edge. */}
+          <div className="dashboard-chart-col" ref={chartColRef}>
+            <div className="chart-head-row" ref={headRowRef}>
               <h3 className="chart-card-label">Impact severity × adoption risk</h3>
               {siteFilterControl}
             </div>
-            <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} onSquareWidth={setSquareW} />
+            <HeatMap roles={filtered} selectedId={selectedId} onSelect={onSelect} />
           </div>
         </div>
 
         {/* 3. THE WEIGHTING PANEL: full width, closed by default - a
             control for tuning the model, not part of the finding itself. */}
-        <div style={{ marginTop: 'var(--space-12)' }}>
+        <div ref={weightRowRef} style={{ marginTop: 'var(--space-12)' }}>
           <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} citeDeck={citeDeck} />
         </div>
       </div>
