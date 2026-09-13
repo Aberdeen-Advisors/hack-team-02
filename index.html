@@ -5174,57 +5174,67 @@ function headlineFinding(finding, agg) {
    the header, the headline, the tier cards - sizes to its own content and
    is never compressed to force a fit; if the total doesn't fit the
    viewport, the CHART shrinks, and if the chart is already at its own
-   sensible floor, the page scrolls. Nothing here is a guessed constant:
-     - gridTop (gridRef) already reflects the topbar, the headline's real
-       height (it changes per project and wraps differently per width), and
-       the optional incomplete-roles banner, whatever they currently are.
+   sensible floor, the page scrolls.
+
+   Every term is a HEIGHT or a fixed constant, never a position. It used to
+   read gridRef.getBoundingClientRect().top to stand in for "how much space
+   the topbar and headline occupy above the grid" - which is only correct
+   at scroll position 0. .topbar is position: sticky, so as the page
+   scrolls, an element's distance from the (fixed) viewport top changes
+   even though nothing about the LAYOUT did, and that stale-looking-live
+   number was quietly rewriting the plot's own height on every scroll.
+   TOPBAR_HEIGHT and MAIN_TOP_PADDING below are the fixed constants that
+   position used to stand in for (mirroring --topbar-h/--space-24 in
+   styles.css by hand, same reasoning as DASHBOARD_GAP above); aboveGridRef
+   measures the headline block's (plus the optional incomplete-roles
+   banner's) real HEIGHT, which - unlike its position - never changes with
+   scroll, only with its own content.
      - cardsHeight (cardsRef) is the four tier cards' own real, natural,
-       uncompressed stacked height - the actual floor for the chart column,
-       per the rule above: the chart matches this height, or shrinks toward
-       it, never the reverse, and the cards are never resized to match the
-       chart.
-     - headRowHeight (headRowRef) is the chart's own label/filter row, sitting
-       above the plot in the same column.
+       uncompressed stacked height - the actual floor for the chart column:
+       the chart matches this height, or shrinks toward it, never the
+       reverse, and the cards are never resized to match the chart.
+     - headRowHeight (headRowRef) is the chart's own label/filter row,
+       sitting above the plot in the same column.
      - weightRowSpace (weightRowRef) is the collapsed weighting panel below
        the grid, plus the gap in front of it - measured off its own
        <summary> only, never its wrapping div, since <summary> is the one
        part of a <details> element that renders at a constant height
-       whether the panel is open or closed. This is what keeps expanding
-       the panel from ever moving or resizing the dashboard above it: the
-       height budget always reads the COLLAPSED height, regardless of
-       whatever state the panel is actually in right now.
+       whether the panel is open or closed.
    plotHeight is the least of: colWidth / 1.5 (a natural 3:2 rectangle),
    the cards' own height minus the head-row (so the chart COLUMN's total
    never exceeds the cards column's total), and whatever vertical room is
    actually left in the viewport - floored at PLOT_MIN_HEIGHT, below which
    it stops shrinking and the page scrolls instead of the chart
    disappearing.
-   No dependency array: re-measures after every render, since headline
-   text, the incomplete-roles banner and filters can all change the
-   available space without the caller enumerating each one - cheap, since
-   it is only getBoundingClientRect reads unless something actually moved.
-   A window resize listener and a ResizeObserver on the measured elements
-   catch changes a re-render alone would miss (viewport resize, font
-   loading). setLayout is skipped when nothing actually changed, so this
-   can never loop. */
+
+   Mount-only effect, no scroll listener anywhere: recomputes once on
+   mount, then only on an actual window resize or when a ResizeObserver
+   reports one of the measured elements' SIZE (never position) genuinely
+   changed - a project switch changing the headline's text, a filter
+   changing whether the incomplete-roles banner is present, and so on.
+   Scrolling changes an element's getBoundingClientRect().top; it changes
+   nothing this hook reads, so it can no longer move the plot. setLayout
+   is skipped when nothing actually changed, so this can never loop. */
 const PLOT_MIN_HEIGHT = 220;
-function useDashboardLayout(gridRef, colRef, cardsRef, headRowRef, weightRowRef) {
+const TOPBAR_HEIGHT = 88;    // mirrors --topbar-h in styles.css
+const MAIN_TOP_PADDING = 24; // mirrors --space-24, .main's own top padding
+function useDashboardLayout(aboveGridRef, colRef, cardsRef, headRowRef, weightRowRef) {
   const [layout, setLayout] = useState(null);
   useLayoutEffect(() => {
     const measure = () => {
-      const grid = gridRef.current, col = colRef.current, cards = cardsRef.current,
+      const above = aboveGridRef.current, col = colRef.current, cards = cardsRef.current,
             headRow = headRowRef.current, wr = weightRowRef.current;
-      if (!grid || !col || !cards || !headRow || !wr) return;
+      if (!above || !col || !cards || !headRow || !wr) return;
       const colWidth = col.getBoundingClientRect().width;
       if (!colWidth) return;
-      const gridTop = grid.getBoundingClientRect().top;
+      const fixedAboveGrid = TOPBAR_HEIGHT + MAIN_TOP_PADDING + above.getBoundingClientRect().height;
       const cardsHeight = cards.getBoundingClientRect().height;
       const headRowHeight = headRow.getBoundingClientRect().height;
       const weightSummary = wr.querySelector('summary') || wr;
       const weightRowSpace = weightSummary.getBoundingClientRect().height + DASHBOARD_GAP;
       const buffer = 12; // breathing room against subpixel rounding, so the
                           // bottom edge lands strictly inside the viewport
-      const availablePlot = window.innerHeight - gridTop - weightRowSpace - buffer - headRowHeight;
+      const availablePlot = window.innerHeight - fixedAboveGrid - weightRowSpace - buffer - headRowHeight;
       const idealPlot = colWidth / 1.5;
       const cardsCapPlot = Math.max(0, cardsHeight - headRowHeight);
       const plotHeight = Math.max(PLOT_MIN_HEIGHT, Math.min(idealPlot, cardsCapPlot, availablePlot));
@@ -5239,25 +5249,24 @@ function useDashboardLayout(gridRef, colRef, cardsRef, headRowRef, weightRowRef)
       // The weighting panel's own wrapping div is deliberately NOT observed
       // here - its size changes every time the panel opens or closes, which
       // is exactly the change this layout must ignore (see measure()'s own
-      // comment above). Its <summary> is observed instead, watched via the
-      // grid ref's own querySelector inside measure() at call time.
+      // comment above). Its <summary> is observed instead.
       const summaryEl = weightRowRef.current && weightRowRef.current.querySelector('summary');
-      [gridRef.current, colRef.current, cardsRef.current, headRowRef.current, summaryEl].forEach((el) => el && ro.observe(el));
+      [aboveGridRef.current, colRef.current, cardsRef.current, headRowRef.current, summaryEl].forEach((el) => el && ro.observe(el));
     }
     return () => { window.removeEventListener('resize', measure); if (ro) ro.disconnect(); };
-  });
+  }, []);
   return layout;
 }
 
 function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights, weightDeltas,
                           siteArchetypeBase, siteArchetypeCombos, comboExample, citeDeck,
                           onOpenEffortWeights, sa, setSa, projectName }) {
-  const gridRef = useRef(null);
+  const aboveGridRef = useRef(null);
   const chartColRef = useRef(null);
   const cardsRef = useRef(null);
   const headRowRef = useRef(null);
   const weightRowRef = useRef(null);
-  const layout = useDashboardLayout(gridRef, chartColRef, cardsRef, headRowRef, weightRowRef);
+  const layout = useDashboardLayout(aboveGridRef, chartColRef, cardsRef, headRowRef, weightRowRef);
 
   // The Role x site table's own search, narrowing whatever the site-archetype
   // filter above already left. It never touches `filtered`/`filteredIncomplete`
@@ -5314,29 +5323,35 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
       <div className="above-fold">
         {/* 1. THE HEADLINE: the hero of the tab, the one place this tool
             states a conclusion rather than data. Everything below it is
-            the evidence for this sentence. */}
-        <div className="hero-headline">
-          <h2 className="hero-sentence">{sentence}</h2>
-          <div className="hero-rule" aria-hidden="true" />
-          <p className="hero-support">
-            {support}
-            {showEffortLink && (
-              <>
-                {' · '}
-                <button type="button" className="link-btn hero-link no-print" onClick={onOpenEffortWeights}>effort weighting →</button>
-              </>
-            )}
-          </p>
-        </div>
-
-        {filteredIncomplete.length > 0 && (
-          <div className="note warn" style={{ marginBottom: 'var(--space-16)' }}>
-            <b>{filteredIncomplete.length} row{filteredIncomplete.length === 1 ? '' : 's'} incomplete: not scored, not tiered, not plotted.</b>
-            <span className="sub">
-              {filteredIncomplete.map((r) => `${r.role} (${r.missing.length} of 6 sub-factors missing)`).join(' · ')}. {NOTE.incomplete}
-            </span>
+            the evidence for this sentence.
+            aboveGridRef wraps this plus the incomplete-roles banner below
+            it, so useDashboardLayout can read their combined real HEIGHT
+            (never their position - see that hook's own comment on why)
+            in one measurement, whichever of them is currently present. */}
+        <div ref={aboveGridRef} style={{ display: 'flow-root' }}>
+          <div className="hero-headline">
+            <h2 className="hero-sentence">{sentence}</h2>
+            <div className="hero-rule" aria-hidden="true" />
+            <p className="hero-support">
+              {support}
+              {showEffortLink && (
+                <>
+                  {' · '}
+                  <button type="button" className="link-btn hero-link no-print" onClick={onOpenEffortWeights}>effort weighting →</button>
+                </>
+              )}
+            </p>
           </div>
-        )}
+
+          {filteredIncomplete.length > 0 && (
+            <div className="note warn" style={{ marginBottom: 'var(--space-16)' }}>
+              <b>{filteredIncomplete.length} row{filteredIncomplete.length === 1 ? '' : 's'} incomplete: not scored, not tiered, not plotted.</b>
+              <span className="sub">
+                {filteredIncomplete.map((r) => `${r.role} (${r.missing.length} of 6 sub-factors missing)`).join(' · ')}. {NOTE.incomplete}
+              </span>
+            </div>
+          )}
+        </div>
 
         {/* 2. THE DASHBOARD: four tier cards, ranked top-to-bottom, on the
             left (30%); the quadrant chart on the right (70%, no card
@@ -5346,7 +5361,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
             useDashboardLayout to match that height or shrink toward it,
             never the reverse, which is what normally lands the Inform
             card's bottom edge on the chart's. */}
-        <div className="dashboard-grid" ref={gridRef}>
+        <div className="dashboard-grid">
           <div className="dashboard-cards" ref={cardsRef}>
             {TIER_ORDER.map((t) => (
               <TierSummaryTile key={t} tier={t} b={agg.byTier[t]} flash={changedTiers.has(t)} />
