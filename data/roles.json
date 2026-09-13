@@ -88,7 +88,7 @@
         "3 shifts",
         "No corporate email",
         "4 languages across sites",
-        "2 prior failed WMS attempts"
+        "2 prior failed warehouse management system attempts"
       ]
     },
     {
@@ -988,7 +988,7 @@
       "headcount": 300,
       "deskless": true,
       "isNewRole": false,
-      "summary": "Picks, packs and puts away stock in the two distribution centers. The physical work is unchanged, but the paper list and the end-of-shift keying are replaced by a handheld that directs and records every move - and the population has watched two WMS attempts fail already.",
+      "summary": "Picks, packs and puts away stock in the two distribution centers. The physical work is unchanged, but the paper list and the end-of-shift keying are replaced by a handheld that directs and records every move - and the population has watched two warehouse management system attempts fail already.",
       "impact": {
         "taskShare": 3.4,
         "frequencyVolume": 4.2,
@@ -1020,7 +1020,7 @@
         "No corporate email",
         "3 shifts",
         "4 languages across sites",
-        "2 prior failed WMS attempts",
+        "2 prior failed warehouse management system attempts",
         "Significant agency and seasonal workforce"
       ]
     },

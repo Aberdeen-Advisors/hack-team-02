@@ -600,8 +600,9 @@ a { color: var(--aberdeen-blue); }
 .cols-3 { grid-template-columns: repeat(3, 1fr); }
 .cols-4 { grid-template-columns: repeat(4, 1fr); }
 .cols-5 { grid-template-columns: repeat(5, 1fr); }
+.cols-6 { grid-template-columns: repeat(6, 1fr); }
 @media (max-width: 1100px) {
-  .cols-3, .cols-4, .cols-5 { grid-template-columns: repeat(2, 1fr); }
+  .cols-3, .cols-4, .cols-5, .cols-6 { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* -------------------------------------------------------------- stat tiles */
@@ -615,6 +616,11 @@ a { color: var(--aberdeen-blue); }
 /* Metric caption: small, uppercase, letter-spaced, Onyx at reduced
    opacity - deliberately quieter than the number it labels. */
 .tile .label { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--caption); font-weight: 500; }
+/* Six cards to a row (Training's own metric row, the only cols-6 grid in
+   the app) leaves noticeably less width per card than five - a smaller,
+   tighter label here instead of letting the longest labels wrap onto a
+   third line. */
+.cols-6 .tile .label { font-size: 10.5px; letter-spacing: .04em; }
 /* The label's last word plus its info icon (see splitLastWord in the
    script), glued into one unbreakable unit: the icon has no literal space
    before it, but a browser still treats the boundary between two inline
@@ -1122,19 +1128,22 @@ table.data td .rolename { font-weight: 500; }
   padding-left: 9px; border-left: 3px solid var(--verdigris); line-height: 1.3;
 }
 
-/* "What will affect delivery": each constraint (left) with what it
-   changes about delivery (right), where that's known - one shared column
-   model across every row (display: contents on .de-row promotes its
-   children to be direct grid items of .delivery-effects' own three
-   columns, the same technique .pkg-list uses above), so every consequence
-   starts at the same x position regardless of how long the constraint
-   text next to it is. A constraint with no known consequence (see
-   deliveryConsequenceFor in the script) simply has nothing in the second
-   or third column, rather than a fabricated one. */
-.delivery-effects { display: grid; grid-template-columns: auto auto 1fr; column-gap: var(--space-12); row-gap: var(--space-8); font-size: 13.5px; }
+/* "What will affect delivery": a fixed left column of constraints against
+   a second column of what each one changes about delivery, one shared
+   column model across every row (display: contents on .de-row promotes
+   its children to be direct grid items of .delivery-effects' own two
+   columns, the same technique .pkg-list uses above), so the consequence
+   column starts at the same x position regardless of how long the
+   constraint text next to it is. deliveryPairsFor in the script only ever
+   supplies pairs with a real consequence, so there is no third "arrow"
+   column to hide and no cell here is ever blank. A light divider under
+   each row (not the last) reads the constraint/consequence pair as one
+   unit rather than two lines that happen to be near each other. */
+.delivery-effects { display: grid; grid-template-columns: 190px 1fr; column-gap: var(--space-16); font-size: 13.5px; }
 .de-row { display: contents; }
+.de-row .de-constraint, .de-row .de-consequence { padding: var(--space-8) 0; border-bottom: 1px solid var(--hairline); }
+.de-row:last-child .de-constraint, .de-row:last-child .de-consequence { border-bottom: none; }
 .de-constraint { font-weight: 500; color: var(--ink); }
-.de-arrow { color: var(--ink-3); }
 .de-consequence { color: var(--ink-2); }
 
 /* Manager actions: dated, ordered, deliberately plainer than .pkg-list (no
@@ -1366,6 +1375,21 @@ table.data td .incflag {
   letter-spacing: -.005em; margin-bottom: var(--space-16); font-variant-numeric: tabular-nums;
 }
 
+/* Adoption's own hero figure: how long the change has been live, or how
+   long until it is - the single most load-bearing number on the tab, so it
+   gets the same treatment as the Stakeholder Impact hero (Poppins
+   ExtraLight, Aberdeen Blue, a Verdigris rule beneath), not just plain
+   text. The digit itself runs bigger than its trailing unit label, which
+   sits on the same line at a calmer size; the date is a quiet secondary
+   line below the rule, never the loudest thing here. */
+.go-live-hero { margin-bottom: var(--space-16); }
+.go-live-hero-line {
+  font-size: 24px; font-weight: 200; color: var(--aberdeen-blue);
+  letter-spacing: -.01em; line-height: 1.2; font-variant-numeric: tabular-nums;
+}
+.go-live-hero-figure { font-size: 42px; }
+.go-live-hero-date { font-size: 13px; color: var(--ink-2); margin-top: var(--space-4); }
+
 .empty { text-align: center; padding: 60px 20px; color: var(--ink-2); }
 .empty h3 { font-size: 17px; margin-bottom: 6px; }
 
@@ -1528,10 +1552,11 @@ table.data td .incflag {
   .card { border: 1px solid var(--hairline-strong); box-shadow: none; break-inside: avoid; }
   .cols-2 { display: block; }
   /* keep the metric tiles all in one row on paper, they are small */
-  .cols-3, .cols-4, .cols-5 { display: grid; gap: 6pt; }
+  .cols-3, .cols-4, .cols-5, .cols-6 { display: grid; gap: 6pt; }
   .cols-3 { grid-template-columns: repeat(3, 1fr); }
   .cols-4 { grid-template-columns: repeat(4, 1fr); }
   .cols-5 { grid-template-columns: repeat(5, 1fr); }
+  .cols-6 { grid-template-columns: repeat(6, 1fr); }
   /* The screen dashboard's two-column layout (cards beside the chart) is a
      screen-only convenience for fitting everything above the fold - on
      paper, stack them so neither column gets squeezed into an unreadable
@@ -1615,7 +1640,7 @@ table.data td .incflag {
   }
 
   /* ---- every KPI/tile grid collapses to one column, in source order -- */
-  .cols-2, .cols-3, .cols-4, .cols-5 { grid-template-columns: 1fr; }
+  .cols-2, .cols-3, .cols-4, .cols-5, .cols-6 { grid-template-columns: 1fr; }
 
   /* ---- quadrant chart: full width, never below a 320px side. Above
      1100px wide the chart still uses its two-column desktop sizing

@@ -891,25 +891,11 @@ function aggregateTrainingLoad(roles) {
   return { totalHours, sessions, trainerDays, headcount };
 }
 
-/* The headline finding for the Training tab, in the same treatment as the
-   other tabs' heroes: Rebuild's population share against its share of
-   total training hours, not effort or headcount - the training-specific
-   version of the same "small group, large share" finding. */
-function trainingHero(scored) {
-  const totalPeople = scored.reduce((s, r) => s + r.headcount, 0);
-  const totalHours = scored.reduce((s, r) => s + r.headcount * (DOSES[r.tier] ? DOSES[r.tier].curriculumHours : 0), 0);
-  const rebuild = scored.filter((r) => r.tier === 'Rebuild');
-  if (!rebuild.length || !totalPeople) {
-    return { sentence: 'No role needs Rebuild-level training right now.', totalHours };
-  }
-  const rebuildPeople = rebuild.reduce((s, r) => s + r.headcount, 0);
-  const rebuildHours = rebuildPeople * DOSES.Rebuild.curriculumHours;
-  const popShare = rebuildPeople / totalPeople;
-  const hourShare = totalHours > 0 ? rebuildHours / totalHours : 0;
-  return {
-    sentence: `${pct(popShare)} of the people need ${pct(hourShare)} of the training hours.`,
-    totalHours,
-  };
+/* Every person's required training hours, added up across every role -
+   the total classroom, online and on-shift time the change costs the
+   business. The Training tab's own hero card leads with this figure. */
+function totalTrainingHours(scored) {
+  return scored.reduce((s, r) => s + r.headcount * (DOSES[r.tier] ? DOSES[r.tier].curriculumHours : 0), 0);
 }
 
 /* The wave schedule: one wave per tier present, each starting however far
@@ -1420,27 +1406,37 @@ function deliveryConsequenceFor(constraint) {
   if (/\d+\s+languages/i.test(c)) {
     return 'Printed guides in local language at the point of work.';
   }
+  const failedAttempts = c.match(/^(\d+)\s+prior failed (.+?) attempts?$/i);
+  if (failedAttempts) {
+    const count = numberWord(parseInt(failedAttempts[1], 10));
+    return `Expect skepticism: name the ${count} earlier ${failedAttempts[2]} attempts directly in the first briefing.`;
+  }
   return null;
 }
 
-/* "What will affect delivery": every one of this role's own constraints,
-   paired with what it changes about delivery where that's knowable (see
-   deliveryConsequenceFor), constraint on the left, consequence on the
-   right - replacing what used to be two things that quietly duplicated
-   each other: the constraint chips stating "Deskless"/"No corporate
-   email" as plain facts, and a separate "Different delivery format" box
-   restating the same facts as prose underneath. role.deskless is a
-   structured field independent of whatever free text happens to be in
-   role.constraints - a handful of deskless roles (mostly in Bellcrest)
-   never spell out "Deskless" as its own constraint line at all, so if
-   nothing in this role's own constraints already surfaced the on-shift
-   consequence, one bare "Deskless" row is added rather than silently
-   losing that fact for exactly the roles least likely to have a desk to
-   read it from. */
+/* "What will affect delivery": the subset of this role's own constraints
+   that say something knowable about delivery (see deliveryConsequenceFor),
+   constraint on the left, consequence on the right - replacing what used
+   to be two things that quietly duplicated each other: the constraint
+   chips stating "Deskless"/"No corporate email" as plain facts, and a
+   separate "Different delivery format" box restating the same facts as
+   prose underneath. Every constraint that doesn't resolve to a real
+   consequence is left out of this list entirely, not shown with a blank
+   second column - a row with nothing on the right reads as broken, and
+   this section's job is to answer "what does this change about how we
+   deliver", not to restate the role's full constraint list (that's still
+   available as the constraint chips elsewhere on the page). role.deskless
+   is a structured field independent of whatever free text happens to be
+   in role.constraints - a handful of deskless roles (mostly in Bellcrest)
+   never spell out "Deskless" as its own constraint line at all, so if none
+   of this role's own constraints already produced a consequence, one bare
+   "Deskless" row is added rather than silently losing that fact for
+   exactly the roles least likely to have a desk to read it from. */
 function deliveryPairsFor(role) {
-  const pairs = (role.constraints || []).map((c) => ({ constraint: c, consequence: deliveryConsequenceFor(c) }));
-  const alreadyCoversDeskless = pairs.some((p) => p.consequence != null);
-  if (role.deskless === true && !alreadyCoversDeskless) {
+  const pairs = (role.constraints || [])
+    .map((c) => ({ constraint: c, consequence: deliveryConsequenceFor(c) }))
+    .filter((p) => p.consequence != null);
+  if (role.deskless === true && pairs.length === 0) {
     pairs.push({ constraint: 'Deskless', consequence: deliveryConsequenceFor('Deskless') });
   }
   return pairs;
@@ -1861,7 +1857,7 @@ const SEED_ROLES = /*__SEED__*/[
       "3 shifts",
       "No corporate email",
       "4 languages across sites",
-      "2 prior failed WMS attempts"
+      "2 prior failed warehouse management system attempts"
     ]
   },
   {
@@ -2761,7 +2757,7 @@ const SEED_ROLES = /*__SEED__*/[
     "headcount": 300,
     "deskless": true,
     "isNewRole": false,
-    "summary": "Picks, packs and puts away stock in the two distribution centers. The physical work is unchanged, but the paper list and the end-of-shift keying are replaced by a handheld that directs and records every move - and the population has watched two WMS attempts fail already.",
+    "summary": "Picks, packs and puts away stock in the two distribution centers. The physical work is unchanged, but the paper list and the end-of-shift keying are replaced by a handheld that directs and records every move - and the population has watched two warehouse management system attempts fail already.",
     "impact": {
       "taskShare": 3.4,
       "frequencyVolume": 4.2,
@@ -2793,7 +2789,7 @@ const SEED_ROLES = /*__SEED__*/[
       "No corporate email",
       "3 shifts",
       "4 languages across sites",
-      "2 prior failed WMS attempts",
+      "2 prior failed warehouse management system attempts",
       "Significant agency and seasonal workforce"
     ]
   },
@@ -5529,7 +5525,7 @@ function onePagerText(role, citeDeck, goLiveDate) {
   if (deliveryPairs.length) {
     L.push('');
     L.push('WHAT WILL AFFECT DELIVERY');
-    deliveryPairs.forEach((p) => L.push(p.consequence ? `  - ${p.constraint} -> ${p.consequence}` : `  - ${p.constraint}`));
+    deliveryPairs.forEach((p) => L.push(`  - ${p.constraint} -> ${p.consequence}`));
   }
   const td = trainingDesign(role);
   L.push('');
@@ -5711,8 +5707,7 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
                 {deliveryPairs.map((p, i) => (
                   <div className="de-row" key={i}>
                     <span className="de-constraint">{p.constraint}</span>
-                    {p.consequence && <span className="de-arrow" aria-hidden="true">→</span>}
-                    <span className="de-consequence">{p.consequence || ''}</span>
+                    <span className="de-consequence">{p.consequence}</span>
                   </div>
                 ))}
               </div>
@@ -6097,23 +6092,10 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
     acc.removed += r.tasksRemoved || 0;
     acc.changed += r.tasksChanged || 0;
     acc.added += r.tasksNew || 0;
-    if (r.isNewRole) acc.newRoles += 1;
     return acc;
-  }, { removed: 0, changed: 0, added: 0, newRoles: 0 }), [all]);
+  }, { removed: 0, changed: 0, added: 0 }), [all]);
 
-  // A single number hides its own story: Bellcrest's +8.3 is one net-new
-  // role at +9.0 and every other role netting to -0.7 - a completely
-  // different conversation. Split by net-new vs. existing.
-  const fte = useMemo(() => {
-    const newRoles = all.filter((r) => r.isNewRole);
-    const existing = all.filter((r) => !r.isNewRole);
-    const added = newRoles.reduce((s, r) => s + (r.fteDelta || 0), 0);
-    const released = existing.reduce((s, r) => s + (r.fteDelta || 0), 0);
-    return { newRoles, existing, added, released, net: added + released };
-  }, [all]);
-  const fteDriver = fte.newRoles.length > 0
-    ? `${signed(fte.added)} from ${pluralize(fte.newRoles.length, 'net-new role')}, ${signed(fte.released)} across ${pluralize(fte.existing.length, 'existing role')}`
-    : `across ${pluralize(fte.existing.length, 'existing role')}`;
+  const fteNet = useMemo(() => all.reduce((s, r) => s + (r.fteDelta || 0), 0), [all]);
 
   return (
     <>
@@ -6126,7 +6108,7 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
         <Tile label="Tasks removed" value={totals.removed} countTo={totals.removed} />
         <Tile label="Tasks changed" value={totals.changed} countTo={totals.changed} />
         <Tile label="Tasks new" value={totals.added} countTo={totals.added} />
-        <Tile label="Net full-time equivalent (FTE) change" value={signed(fte.net)} accent meta={fteDriver} />
+        <Tile label="Net full-time equivalent (FTE) change" value={signed(fteNet)} accent />
       </div>
       <div className="filters no-print">
         <div className="field">
@@ -6165,7 +6147,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, goLi
   const [search, setSearch] = useState('');
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const trainingGroup = plan.find((g) => g.group === 'Training');
-  const hero = useMemo(() => trainingHero(scored), [scored]);
+  const trainingHours = useMemo(() => totalTrainingHours(scored), [scored]);
   const waves = useMemo(() => trainingWaveSchedule(scored, goLiveDate), [scored, goLiveDate]);
   const overallLoad = useMemo(() => aggregateTrainingLoad(scored), [scored]);
   const totalGuides = useMemo(() => scored.reduce((s, r) => s + trainingDesign(r).aids.count, 0), [scored]);
@@ -6183,14 +6165,13 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, goLi
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
-      {/* Compact, not hero-scale - the hero treatment is reserved for
-          Stakeholder Impact alone, the one screen meant to open on a
-          conclusion. Here the finding and the hours total are one merged
-          line, well under heading size, so the five tiles below carry the
-          visual weight instead. */}
-      <p className="tab-finding">{hero.sentence} {hero.totalHours.toLocaleString()} training hours in total.</p>
-
-      <div className="grid cols-5" style={{ marginBottom: 'var(--space-16)' }}>
+      {/* No hero line on this tab - that treatment stays exclusive to
+          Stakeholder Impact and Adoption's own go-live figure. The total
+          hours figure carries its own weight instead, as the first of the
+          six metric cards below. */}
+      <div className="grid cols-6" style={{ marginBottom: 'var(--space-16)' }}>
+        <Tile label="Total training hours" value={trainingHours.toLocaleString()} countTo={trainingHours}
+              rule="Total training hours: every person's required hours added up across all roles. This is the total classroom, online and on-shift time the change costs the business." />
         {trainingGroup && trainingGroup.rows.map((r) => (
           <Tile key={r.txt} label={r.txt} value={r.n} countTo={r.n} rule={r.rule} emptyNote={r.n === 0 ? r.emptyNote : null} />
         ))}
@@ -6680,22 +6661,27 @@ function QualitativeFeedbackPanel({ projectId, seed }) {
   );
 }
 
-/* The hero number's supporting copy, for the three states this tab can be
-   in: tracking underway, go-live still ahead, or no date set at all. `num`
-   is the bare digit the hero renders huge; `label` is the phrase after it,
-   singular/plural handled explicitly rather than templated; `support` is
-   the quiet secondary line under the rule. Never hardcoded per project -
-   every figure here is `daysSince(goLiveDate)`, computed against the real
-   clock, for whichever project/date was actually passed in. */
+/* The hero number's supporting copy, for the four states this tab can be
+   in: live already (past), still ahead (future), live as of today, or no
+   date set at all. `num` is the bare digit the hero renders huge; `label`
+   is the unit phrase beside it, singular/plural handled explicitly rather
+   than templated; `dateStr` is the quiet secondary line under the rule.
+   Never hardcoded per project - every figure here is `daysSince(goLiveDate)`,
+   computed against the real clock, for whichever project/date was actually
+   passed in. */
 function adoptionHeroCopy(daysLive, goLiveDate) {
   if (daysLive === null) {
-    return { line: 'No go-live date set yet - set one on the engagement profile to start tracking.' };
+    return { kind: 'none', line: 'No go-live date set yet - set one on the engagement profile to start tracking.' };
   }
   const dateStr = fmtShortDate(new Date(goLiveDate + 'T00:00:00'));
-  if (daysLive < 0) {
-    return { line: `${pluralize(-daysLive, 'day')} until go-live (${dateStr}). Tracking begins once live.` };
+  if (daysLive === 0) {
+    return { kind: 'today', dateStr };
   }
-  return { line: `${pluralize(daysLive, 'day')} since go-live (${dateStr}).` };
+  const n = Math.abs(daysLive);
+  const unit = n === 1 ? 'day' : 'days';
+  return daysLive < 0
+    ? { kind: 'future', num: n, label: `${unit} until go-live`, dateStr }
+    : { kind: 'past', num: n, label: `${unit} since go-live`, dateStr };
 }
 
 /* The training-completion input: a real headcount (0 to the tier's own
@@ -6774,23 +6760,47 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         <WeightNote weights={weights} onReset={onResetWeights} />
       </div>
 
-      {/* Compact, not hero-scale - hero treatment is reserved for
-          Stakeholder Impact alone. This tab's own finding is one merged
-          line at subheading scale; the five tiles below carry the weight. */}
-      <p className="tab-finding">{hero.line}</p>
+      {/* This tab's own hero figure: the single most load-bearing number on
+          it, how long the change has been live or how long until it is -
+          same Poppins ExtraLight / Aberdeen Blue / Verdigris-rule language
+          as the Stakeholder Impact hero, scaled to this tab. Plain text
+          instead when there is no go-live date to measure against at all. */}
+      {hero.kind === 'none' ? (
+        <p className="tab-finding">{hero.line}</p>
+      ) : (
+        <div className="go-live-hero">
+          <div className="go-live-hero-line">
+            {hero.kind === 'today' ? 'Go-live is today' : (
+              <><span className="go-live-hero-figure">{hero.num.toLocaleString()}</span> {hero.label}</>
+            )}
+          </div>
+          <div className="hero-rule" aria-hidden="true" />
+          <div className="go-live-hero-date">{hero.dateStr}</div>
+        </div>
+      )}
 
-      <div className="grid cols-5" style={{ marginBottom: 'var(--space-16)', marginTop: 'var(--space-16)' }}>
-        <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} countTo={metrics.signOnRate} countFormat={{ suffix: '%' }}
-              meta="People who have logged into the new system at least once. Shows whether the change has actually reached them, not just been announced to them." />
-        <Tile simulated label="Transactions completed" value={metrics.processesCompleted.toLocaleString()} countTo={metrics.processesCompleted}
-              meta="Real transactions people completed in the new system, not just logged into. Shows whether it's being used for real work, not sitting idle." />
-        <Tile simulated label="How-to guide access rate" value={`${metrics.jobAidAccessRate}%`} countTo={metrics.jobAidAccessRate} countFormat={{ suffix: '%' }}
-              meta="How-to guides that have actually been opened, not just issued. Shows whether people turn to them when they need help." />
-        <Tile simulated label="Comms click rate" value={`${metrics.commsClickRate}%`} countTo={metrics.commsClickRate} countFormat={{ suffix: '%' }}
-              meta="People who opened a go-live message and clicked into it. Shows whether the communications are landing, not just being sent." />
-        <Tile simulated label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} countTo={metrics.hrCaseVolume}
-              meta="Questions and complaints raised with HR about the change. A rising number means people are struggling." />
-      </div>
+      {hero.kind === 'future' ? (
+        <div className="card simulated" style={{ marginBottom: 'var(--space-16)' }}>
+          <div className="card-body">
+            <p className="sub" style={{ margin: 0 }}>
+              These metrics measure real usage after go-live, so there is nothing to show yet. Tracking starts on {hero.dateStr}.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="grid cols-5" style={{ marginBottom: 'var(--space-16)' }}>
+          <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} countTo={metrics.signOnRate} countFormat={{ suffix: '%' }}
+                rule="People who have logged into the new system at least once. Shows whether the change has actually reached them, not just been announced to them." />
+          <Tile simulated label="Transactions completed" value={metrics.processesCompleted.toLocaleString()} countTo={metrics.processesCompleted}
+                rule="Real transactions people completed in the new system, not just logged into. Shows whether it's being used for real work, not sitting idle." />
+          <Tile simulated label="How-to guide access rate" value={`${metrics.jobAidAccessRate}%`} countTo={metrics.jobAidAccessRate} countFormat={{ suffix: '%' }}
+                rule="How-to guides that have actually been opened, not just issued. Shows whether people turn to them when they need help." />
+          <Tile simulated label="Comms click rate" value={`${metrics.commsClickRate}%`} countTo={metrics.commsClickRate} countFormat={{ suffix: '%' }}
+                rule="People who opened a go-live message and clicked into it. Shows whether the communications are landing, not just being sent." />
+          <Tile simulated label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} countTo={metrics.hrCaseVolume}
+                rule="Questions and complaints raised with HR about the change. A rising number means people are struggling." />
+        </div>
+      )}
 
       <div className="card simulated" style={{ marginBottom: 'var(--space-16)' }} ref={barsRef}>
         <div className="card-head">
