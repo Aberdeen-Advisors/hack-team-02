@@ -4603,7 +4603,15 @@ function TabHeadline({ tab, text }) {
 const MAP_REF_H = 460;
 function mapFor(width, height) {
   const ratio = (width > 0 && height > 0) ? width / height : 1.5;
-  return { w: Math.round(MAP_REF_H * ratio), h: MAP_REF_H, l: 46, r: 20, t: 24, b: 42 };
+  // r widened from 20 to 32 (and the quad labels' own inward inset from 12
+  // to 18, below): text-anchor="end" positions a label's right edge at a
+  // fixed point regardless of how wide the text renders, which should be
+  // clip-proof in principle, but "ENABLE"/"REBUILD" render from CSS
+  // text-transform: uppercase on top of a mixed-case source string ("Enable")
+  // plus letter-spacing - both are cases some SVG engines have measured
+  // inconsistently against text-anchor. Real margin, not a tighter
+  // recalculation, is the fix that holds regardless of which engine is right.
+  return { w: Math.round(MAP_REF_H * ratio), h: MAP_REF_H, l: 46, r: 32, t: 24, b: 42 };
 }
 
 // Matches .dashboard-grid's own gap (var(--space-16)) in styles.css -
@@ -4696,10 +4704,10 @@ const HeatMap = React.memo(function HeatMap({ roles, selectedId, onSelect }) {
   };
 
   const quads = [
-    { tier: 'Reassure', x: x0, y: y1, w: xm - x0, h: ym - y1, tx: x0 + 12, ty: y1 + 22, anchor: 'start' },
-    { tier: 'Rebuild',  x: xm, y: y1, w: x1 - xm, h: ym - y1, tx: x1 - 12, ty: y1 + 22, anchor: 'end' },
-    { tier: 'Inform',   x: x0, y: ym, w: xm - x0, h: y0 - ym, tx: x0 + 12, ty: y0 - 12, anchor: 'start' },
-    { tier: 'Enable',   x: xm, y: ym, w: x1 - xm, h: y0 - ym, tx: x1 - 12, ty: y0 - 12, anchor: 'end' },
+    { tier: 'Reassure', x: x0, y: y1, w: xm - x0, h: ym - y1, tx: x0 + 16, ty: y1 + 22, anchor: 'start' },
+    { tier: 'Rebuild',  x: xm, y: y1, w: x1 - xm, h: ym - y1, tx: x1 - 18, ty: y1 + 22, anchor: 'end' },
+    { tier: 'Inform',   x: x0, y: ym, w: xm - x0, h: y0 - ym, tx: x0 + 16, ty: y0 - 12, anchor: 'start' },
+    { tier: 'Enable',   x: xm, y: ym, w: x1 - xm, h: y0 - ym, tx: x1 - 18, ty: y0 - 12, anchor: 'end' },
   ];
 
   useLayoutEffect(() => {
@@ -5176,6 +5184,14 @@ function headlineFinding(finding, agg) {
    risk axis already reads as a narrow band; more than 2:1 flattens it into
    a line) - so it shrinks toward 2:1 before it would ever push the page
    past one screen, rather than holding 1.5:1 and overflowing.
+   weightRowSpace is measured off the weighting panel's own <summary> only,
+   never its wrapping div - <summary> is the one part of a <details>
+   element that renders at a constant height whether the panel is open or
+   closed, so the dashboard's own height budget (and therefore the chart
+   and card columns) reads the COLLAPSED height always, regardless of
+   whatever state the panel is actually in right now. Expanding it must
+   never move or resize the two-column block above it - only grow the
+   page below, in normal flow.
    No dependency array: re-measures after every render, since headline
    text, the incomplete-roles banner and filters can all change the
    available space without the caller enumerating each one - cheap, since
@@ -5194,7 +5210,8 @@ function useDashboardLayout(gridRef, colRef, headRowRef, weightRowRef) {
       if (!colWidth) return;
       const gridTop = grid.getBoundingClientRect().top;
       const headRowHeight = headRow.getBoundingClientRect().height;
-      const weightRowSpace = wr.getBoundingClientRect().height + DASHBOARD_GAP;
+      const weightSummary = wr.querySelector('summary') || wr;
+      const weightRowSpace = weightSummary.getBoundingClientRect().height + DASHBOARD_GAP;
       const buffer = 12; // breathing room against subpixel rounding, so the
                           // bottom edge lands strictly inside the viewport
       const availablePlot = window.innerHeight - gridTop - weightRowSpace - buffer - headRowHeight;
@@ -5214,7 +5231,13 @@ function useDashboardLayout(gridRef, colRef, headRowRef, weightRowRef) {
     let ro;
     if (typeof ResizeObserver !== 'undefined') {
       ro = new ResizeObserver(measure);
-      [gridRef.current, colRef.current, headRowRef.current, weightRowRef.current].forEach((el) => el && ro.observe(el));
+      // The weighting panel's own wrapping div is deliberately NOT observed
+      // here - its size changes every time the panel opens or closes, which
+      // is exactly the change this layout must ignore (see measure()'s own
+      // comment above). Its <summary> is observed instead, watched via the
+      // grid ref's own querySelector inside measure() at call time.
+      const summaryEl = weightRowRef.current && weightRowRef.current.querySelector('summary');
+      [gridRef.current, colRef.current, headRowRef.current, summaryEl].forEach((el) => el && ro.observe(el));
     }
     return () => { window.removeEventListener('resize', measure); if (ro) ro.disconnect(); };
   });
@@ -8832,8 +8855,16 @@ function App() {
               <h1>{PRODUCT_NAME}</h1>
             </div>
             <div className="tb-context">
+              {/* Name only - the industry descriptor lives on the landing
+                  page's own project cards, so nothing is lost by dropping
+                  it here. It used to be appended after a separator, which
+                  was long enough to truncate on every project regardless
+                  of pill width; the name alone comfortably fits without
+                  truncating at any width this pill actually renders at
+                  (see the title attribute for the fuller "name · industry"
+                  form, still available on hover). */}
               <span className="project-tag" title={`${project.name}${project.industry ? ` · ${project.industry}` : ''}`}>
-                {project.name}{project.industry ? ` · ${project.industry}` : ''}
+                {project.name}
               </span>
               <span className="sub">
                 {pluralize(all.length, 'role')} · {pluralize(all.reduce((s, r) => s + (r.headcount || 0), 0), 'person', 'people')}

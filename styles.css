@@ -800,8 +800,18 @@ a { color: var(--aberdeen-blue); }
    useDashboardLayout; align-items: stretch (the grid default, stated
    explicitly) then makes both columns fill it exactly, which is what
    lands the Inform card's bottom edge and the chart's bottom edge
-   together regardless of which one would naturally be taller alone. */
-.dashboard-grid { display: grid; grid-template-columns: 3fr 7fr; gap: var(--space-16); align-items: stretch; }
+   together regardless of which one would naturally be taller alone.
+   grid-template-rows: minmax(0, 1fr), not the implicit default of auto -
+   an explicit height set directly on a grid CONTAINER does not, by
+   itself, make its auto-sized row track respect that height; an auto
+   track sizes to whatever its content asks for and the container simply
+   overflows its own set height if content wants more. minmax(0, 1fr)
+   makes the one row an actual flexible track that consumes exactly the
+   container's height, which is what makes the chart's real rendered
+   height agree with what this element was told to be - the container can
+   no longer silently grow taller than its own height and spill onto
+   whatever sits after it in the page (the weighting panel). */
+.dashboard-grid { display: grid; grid-template-columns: 3fr 7fr; grid-template-rows: minmax(0, 1fr); gap: var(--space-16); align-items: stretch; }
 /* Four equal-height rows, not a flex column distributing leftover space:
    "equal" is the point, not an incidental result of every card happening
    to have the same natural content height. minmax(0, 1fr), not a bare
@@ -825,7 +835,7 @@ a { color: var(--aberdeen-blue); }
      style, which a plain rule can't otherwise beat), and the plot falls
      back to a self-contained aspect-ratio box, sized from its own width,
      same as any other chart would be at a narrow viewport. */
-  .dashboard-grid { grid-template-columns: 1fr; height: auto !important; }
+  .dashboard-grid { grid-template-columns: 1fr; grid-template-rows: none; height: auto !important; }
   .dashboard-cards { grid-template-rows: none; }
   /* HeatMap measures .map-wrap's own rendered box and sizes its <svg> to
      match exactly (see the heat-map section below) - overriding the box
@@ -1167,9 +1177,16 @@ table.mini.milestones tr.past .done-mark { color: var(--flag); font-weight: 500;
 
 /* weight tuner - a full-width row below the two-column dashboard, closed
    by default. The collapsed <summary> is the only thing "above the fold"
-   ever has to budget for; the expanded body below it sizes purely to its
-   own content (no max-height, no overflow: hidden) so all three rows in
-   each axis are always fully visible, however tall that turns out to be. */
+   ever has to budget for (see useDashboardLayout in the script, which
+   measures the <summary> specifically, never this element, so expanding
+   never changes that budget and never moves or resizes the dashboard
+   above it); the expanded body below it sizes purely to its own content
+   (no max-height, no overflow: hidden) so all three rows in each axis are
+   always fully visible, however tall that turns out to be, pushing the
+   page taller in normal flow rather than overlaying anything.
+   background is var(--surface) - #FFFFFF, fully opaque, from the surface
+   token scale - deliberately, so this panel can never be seen through
+   even if something above it were to overflow its own box. */
 .tuner {
   background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius);
   box-shadow: var(--elev-2);
@@ -1478,9 +1495,13 @@ table.data td .incflag {
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .only-print { display: none; }
 
-@media (max-width: 767px) {
+/* 768px, not 767px: the single-row desktop header (brand + project pill +
+   roles/people count + actions) genuinely doesn't fit at 768px without
+   truncating something even after the project pill dropped its industry
+   suffix - so 768 gets the same stacked treatment as narrower phones
+   rather than a cramped, truncated attempt at the desktop row. */
+@media (max-width: 768px) {
   .topbar-inner, .main { padding-left: var(--space-16); padding-right: var(--space-16); }
-  .topbar .sub { display: none; }
 }
 
 /* GSAP-driven motion (scroll reveal, count-up, quadrant tweening, tilt,
@@ -1549,22 +1570,48 @@ table.data td .incflag {
   .link-btn { display: inline-flex; align-items: center; }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 768px) {
   /* ---- header: logo/title, project context and actions stack -------- */
   .topbar-row { flex-wrap: wrap; row-gap: var(--space-8); }
-  .tb-brand { flex: 1 1 100%; }
+  /* .tb-brand stays a row (logo, divider, name side by side), not a wrap
+     target itself - the fix is letting the name wrap within it, not
+     splitting the group across lines. At 30px the logo plus the product
+     name's own nowrap width genuinely don't fit inside 375-414px (roughly
+     439px needed against ~340-380px available) - nothing here could
+     shrink before this fix, which is what forced the whole page to
+     scroll horizontally. Trimming the logo modestly (30px -> 26px, still
+     clearly legible - compare .picker-head's own 30px, this is one step
+     down, not a token size) and letting the name wrap (white-space:
+     normal, default flex-shrink already lets it size down to its longest
+     single word) recovers enough width for both to coexist on one row
+     without either shrinking below legibility. */
+  .tb-brand { flex: 1 1 100%; align-items: flex-start; }
+  .brand-logo { height: 26px; }
+  .topbar h1 { white-space: normal; font-size: 18px; line-height: 1.15; }
   .tb-context {
     flex: 1 1 100%; flex-wrap: wrap; row-gap: 4px;
     padding-left: 0; margin-left: 0; border-left: none;
   }
+  /* No longer hidden: the roles/people count needs a defined place, not to
+     disappear - .tb-context already wraps, so it drops to its own line
+     under the pill when the two don't both fit on one. */
+  .topbar .sub { white-space: normal; }
   .tb-actions { flex: 1 1 100%; margin-left: 0; flex-wrap: wrap; }
 
   /* ---- tab bar: already horizontally scrollable (.tabs, unchanged) - a
      swipe snaps to a tab edge here, and App()'s own effect scrollIntoView()s
      the active tab whenever it changes programmatically (route restore, a
-     cross-reference), so it's never left scrolled out of view either way. */
+     cross-reference), so it's never left scrolled out of view either way.
+     The mask-image is the scroll affordance itself: a permanent fade at
+     the right edge, the same "there's more this way" cue a horizontally
+     scrolling row conventionally uses, visible before any touch happens
+     rather than only discoverable by accident. */
   .tab[aria-selected="true"] { scroll-snap-align: start; }
-  .tabs { scroll-snap-type: x proximity; }
+  .tabs {
+    scroll-snap-type: x proximity;
+    mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+  }
 
   /* ---- every KPI/tile grid collapses to one column, in source order -- */
   .cols-2, .cols-3, .cols-4, .cols-5 { grid-template-columns: 1fr; }
