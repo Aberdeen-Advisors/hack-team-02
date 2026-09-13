@@ -1153,7 +1153,8 @@ function draftEmail(role, milestoneIdx, goLiveDate) {
 /* Spoken script plus the three questions a manager should expect. Go-Live
    for desk-based roles; also attached early, at Kick-Off, for any role
    whose decision-rights score already triggers a manager briefing
-   elsewhere in the app (modifiersFor's own >= 4 threshold). */
+   elsewhere in the app (draftFacts' own decisionChanged >= 4 threshold,
+   also used by managerActions). */
 function draftManagerBriefing(role, goLiveDate, early) {
   const f = draftFacts(role);
   const design = trainingDesign(role);
@@ -1267,8 +1268,9 @@ function buildDraft(role, milestoneIdx, kind, goLiveDate, opts) {
 /* Every draft this one role gets at this one milestone: the primary kind
    its channel implies, plus an early manager briefing at Kick-Off for any
    role whose decision-rights score already flags it (mirrors the "Manager
-   briefing needed?" column and modifiersFor's own >= 4 threshold), since
-   that role's manager needs the heads-up before go-live, not just at it. */
+   briefing needed?" column and draftFacts' own decisionChanged >= 4
+   threshold), since that role's manager needs the heads-up before go-live,
+   not just at it. */
 function draftsForRoleMilestone(role, milestoneIdx, goLiveDate) {
   const kinds = role.deskless ? DRAFT_KIND_FLOOR : DRAFT_KIND_DESK;
   const out = [buildDraft(role, milestoneIdx, kinds[milestoneIdx], goLiveDate)];
@@ -1386,27 +1388,62 @@ function packageFor(role) {
   }
 }
 
-/* One modifier layered on top of the tier, for deskless roles - makes the
-   output specific about how delivery actually reaches the floor. A second
-   modifier used to fire here for any role with a large decision-rights
-   change ("Extra manager briefing"); its two bullets now live as dated
-   actions in managerActions below, where they belong as things to do
-   rather than as an exception rule. */
-function modifiersFor(role) {
-  const out = [];
-  if (role.deskless === true) {
-    out.push({
-      trigger: 'working on the floor, not at a desk',
-      title: 'Different delivery format (same hours, reformatted)',
-      items: [
-        'All required hours delivered on shift at the line, not in a classroom or online course - see Required hours in the delivery detail below',
-        'Printed how-to guides in local language, kept at the point of work',
-        'Email dropped from this role’s updates entirely',
-        'A QR code on the shift board carries every update instead',
-      ],
-    });
+const SMALL_NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+const numberWord = (n) => SMALL_NUMBER_WORDS[n] || String(n);
+
+/* What a constraint changes about delivery, for the handful of constraint
+   phrasings this app can confidently say something concrete about - the
+   same four facts "Different delivery format" used to state as a bundle,
+   whatever role.deskless happened to be, now attached to whichever
+   specific constraint actually caused each one. Anchored to the START of
+   the constraint text (not just "contains"), and length-limited on the
+   bare, single-fact phrasings: a constraint that already goes on to
+   explain its own nuance in the same sentence ("3 shifts - coordinators
+   cover only day shift", "Deskless for part of the shift; shared lab
+   terminals") must not also get a generic consequence stapled onto it
+   that could contradict what it just said. Returns null, not a weak
+   guess, for every constraint this can't confidently say something true
+   about - "constraint paired with consequence" doesn't mean inventing one
+   for constraints that don't have a clean, mechanical answer. */
+function deliveryConsequenceFor(constraint) {
+  const c = constraint.trim();
+  if (/^deskless\b/i.test(c) && c.length <= 12) {
+    return 'All required hours are delivered on shift at the line, not in a classroom or online course.';
   }
-  return out;
+  if (/^no corporate email\b/i.test(c)) {
+    return 'Updates go on the shift board by QR code instead of email.';
+  }
+  const shiftMatch = c.match(/^(\d+)\s+shifts?\b/i);
+  if (shiftMatch && c.length <= 12) {
+    return `Training runs ${numberWord(parseInt(shiftMatch[1], 10))} times per site, once per shift.`;
+  }
+  if (/\d+\s+languages/i.test(c)) {
+    return 'Printed guides in local language at the point of work.';
+  }
+  return null;
+}
+
+/* "What will affect delivery": every one of this role's own constraints,
+   paired with what it changes about delivery where that's knowable (see
+   deliveryConsequenceFor), constraint on the left, consequence on the
+   right - replacing what used to be two things that quietly duplicated
+   each other: the constraint chips stating "Deskless"/"No corporate
+   email" as plain facts, and a separate "Different delivery format" box
+   restating the same facts as prose underneath. role.deskless is a
+   structured field independent of whatever free text happens to be in
+   role.constraints - a handful of deskless roles (mostly in Bellcrest)
+   never spell out "Deskless" as its own constraint line at all, so if
+   nothing in this role's own constraints already surfaced the on-shift
+   consequence, one bare "Deskless" row is added rather than silently
+   losing that fact for exactly the roles least likely to have a desk to
+   read it from. */
+function deliveryPairsFor(role) {
+  const pairs = (role.constraints || []).map((c) => ({ constraint: c, consequence: deliveryConsequenceFor(c) }));
+  const alreadyCoversDeskless = pairs.some((p) => p.consequence != null);
+  if (role.deskless === true && !alreadyCoversDeskless) {
+    pairs.push({ constraint: 'Deskless', consequence: deliveryConsequenceFor('Deskless') });
+  }
+  return pairs;
 }
 
 /* "What the manager needs to do": the one thing the one-pager didn't
@@ -1668,13 +1705,13 @@ function resourcedPlan(scored) {
       group: 'Training',
       rows: [
         { n: rebuild.length + enableArchetypes.size, txt: 'training courses to build',
-          rule: `1 per Rebuild role (${rebuild.length}) + 1 shared per site type in Enable (${enableArchetypes.size})`,
+          rule: 'Training courses to build: each of the highest-support roles needs its own course. Lower-support roles can share one course per site type.',
           emptyNote: 'No Rebuild or Enable roles in this population: no training course to build.' },
         { n: Math.ceil(rebuildHeads / ASSUMPTIONS.sandboxSeatRatio), txt: 'practice seats',
-          rule: `1 seat per ${ASSUMPTIONS.sandboxSeatRatio} people in Rebuild roles (${rebuildHeads.toLocaleString()})`,
+          rule: `Practice seats: one seat per ${ASSUMPTIONS.sandboxSeatRatio} people in the highest-support roles, so groups rotate through hands-on practice before go-live.`,
           emptyNote: 'No Rebuild roles in this population: nothing to seat.' },
         { n: desklessFormats, txt: 'roles trained on shift',
-          rule: 'one per role with no desk or email: no inbox, so no channel that assumes one',
+          rule: 'Roles trained on shift: roles with no desk and no email. They get the same number of hours, delivered at the line rather than in a classroom.',
           emptyNote: 'No on-the-floor roles in this population.' },
       ],
     },
@@ -4450,6 +4487,20 @@ const TierBadge = React.memo(function TierBadge({ tier, large }) {
 // derived.
 // `countTo`/`countFormat` opt a tile into the count-up hero treatment: pass
 // the raw number and how to render it ({decimals, prefix, suffix}), and
+// Splits off a label's last word so the info icon (see Tile below) can be
+// glued to it in one non-breaking span - the icon is a separate inline
+// element with no literal space character before it, but browsers still
+// treat the boundary between it and the label text as a valid line-break
+// point, which is exactly what let it wrap onto its own line at some
+// tile widths. Binding it to the last word means the two either fit
+// together on the current line or wrap TOGETHER to the next one; the
+// label's own earlier words keep their normal, independent wrapping.
+function splitLastWord(text) {
+  const s = String(text || '');
+  const idx = s.lastIndexOf(' ');
+  return idx === -1 ? ['', s] : [s.slice(0, idx + 1), s.slice(idx + 1)];
+}
+
 // Tile both renders the exact final text (so it's correct with no JS, or
 // under reduced motion) and, when motion is allowed, animates the visible
 // digits up to it - and re-animates from wherever they currently sit
@@ -4471,11 +4522,15 @@ const Tile = React.memo(function Tile({ label, value, meta, rule, accent, emptyN
       </div>
     );
   }
+  const [labelHead, labelTail] = rule ? splitLastWord(label) : ['', label];
   return (
     <div className={'tile' + (accent ? ' accent' : '') + (simulated ? ' tile-simulated' : '')}>
       <div className="label">
-        {label}
-        {rule && <i className="info-ico" tabIndex={0} title={rule} aria-label={`How this is derived: ${rule}`}>ⓘ</i>}
+        {rule ? (
+          <>
+            {labelHead}<span className="label-tail">{labelTail}<i className="info-ico" tabIndex={0} title={rule} aria-label={`How this is derived: ${rule}`}>ⓘ</i></span>
+          </>
+        ) : label}
       </div>
       <div className="value">
         {animated ? <span ref={valueRef}>{formattedValue}</span> : formattedValue}
@@ -5096,78 +5151,25 @@ function WeightTuner({ weights, onChange, onReset, citeDeck }) {
   );
 }
 
-/* Whether Rebuild is a small slice of the population or most of it changes
-   the story entirely, and both are real findings depending on the project: a
-   manufacturer's ERP rollout can be 9 roles out of 5,000 people (Thornwood);
-   a hospital's EHR rollout can be most of the clinical staff (Bellcrest). A
-   single fixed "X% absorbs Y%, that concentration is the deliverable" line
-   is simply false on the second kind of project, so the framing itself has
-   to be picked from the shape of the distribution, not hard-coded.
-     concentrated (Rebuild's population share <= ~25%): few people carry most
-       of the effort - the targeting story, and the current template's story.
-     broad (>= ~50%): most of the population sits in Rebuild or Enable - a
-       capacity story, not a targeting one. Measured on Rebuild + Enable
-       combined, since that is the actual "most of the org is affected" claim.
-     between: neither extreme holds, so the finding states the two numbers
-       without editorializing either way. */
-function concentrationFinding(agg) {
-  const reb = agg.byTier.Rebuild;
-  const en = agg.byTier.Enable;
-  // A zero-Rebuild population falls out of the popShare math as "<=0.25",
-  // which would print a vacuous "0% of the population absorbs 0% of the
-  // effort" as if that were a finding rather than an absence of one.
-  const mode = reb.roles === 0 ? 'none'
-    : reb.popShare <= 0.25 ? 'concentrated' : reb.popShare >= 0.5 ? 'broad' : 'between';
-  return {
-    mode, reb, en,
-    ratio: reb.popShare > 0 ? reb.effortShare / reb.popShare : null,
-    highRoles: reb.roles + en.roles,
-    highPeople: reb.people + en.people,
-    highPopShare: reb.popShare + en.popShare,
-    highEffortShare: reb.effortShare + en.effortShare,
-  };
-}
-
-// Which tier, below Rebuild, is the heaviest one actually present - the
-// zero-Rebuild headline still needs to say something concrete rather than
-// just "nothing," and this is the same "heaviest intervention present" fact
-// the old prose used to state.
+// Which tier, below Rebuild, is the heaviest one actually present - used by
+// the explainer's own "which roles matter" answer when a project has no
+// Rebuild roles at all, to name something concrete rather than just
+// "nothing."
 function heaviestTierBelowRebuild(agg) {
   return TIER_ORDER.slice(1).find((t) => agg.byTier[t].roles > 0) || null;
 }
 
-/* The headline finding, as the one sentence in the tool that states a
-   conclusion rather than data - the hero of the tab, styled far larger than
-   anything else on it. Three real variants (concentrated / distributed /
-   in-between), plus the zero-Rebuild edge case, each producing a different
-   sentence because a different distribution genuinely is a different
-   finding (see concentrationFinding's own comment on why). A quiet second
-   line underneath carries the same two counting numbers the sentence just
-   used, in figures, plus - only when the sentence actually cites an effort
-   share - a single small link to where that weighting comes from. */
-function headlineFinding(finding, agg) {
-  const reb = finding.reb;
-  if (finding.mode === 'none') {
-    const heaviest = heaviestTierBelowRebuild(agg);
-    return {
-      sentence: 'No role in this population sits in Rebuild.',
-      support: heaviest ? `Heaviest tier present: ${heaviest}.` : 'No tier above Inform is present.',
-      showEffortLink: false,
-    };
-  }
-  if (finding.mode === 'broad') {
-    return {
-      sentence: `${pct(finding.highPopShare)} of the population sits in the two highest tiers: a whole-organization change, not a targeted one.`,
-      support: `${pluralize(finding.highRoles, 'role')} across Rebuild and Enable · ${finding.highPeople.toLocaleString()} of ${agg.totalPeople.toLocaleString()} people`,
-      showEffortLink: true,
-    };
-  }
-  const base = `${pct(reb.popShare)} of the population absorbs ${pct(reb.effortShare)} of the effort.`;
-  return {
-    sentence: finding.mode === 'between' ? `${base} Not a small targeted group, and not the whole organization either.` : base,
-    support: `${pluralize(reb.roles, 'Rebuild role')} · ${reb.people.toLocaleString()} of ${agg.totalPeople.toLocaleString()} people`,
-    showEffortLink: true,
-  };
+/* The Stakeholder Impact headline: one sentence, one fixed format, every
+   project - Rebuild's own share of headcount against its own share of
+   effort. This used to branch into different sentences depending on how
+   concentrated Rebuild's population was (a targeting story vs. a capacity
+   story vs. a plain restatement); one format that is always true, with
+   the two real numbers plugged in, says the same thing without pretending
+   three phrasings of "here is where the effort actually goes" are three
+   different findings. */
+function headlineFinding(agg) {
+  const reb = agg.byTier.Rebuild;
+  return `${pct(reb.popShare)} of the population absorbs ${pct(reb.effortShare)} of the effort.`;
 }
 
 /* The chart is the ONLY flexible element on this tab. Every other piece -
@@ -5260,7 +5262,7 @@ function useDashboardLayout(aboveGridRef, colRef, cardsRef, headRowRef, weightRo
 
 function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights, weightDeltas,
                           siteArchetypeBase, siteArchetypeCombos, comboExample, citeDeck,
-                          onOpenEffortWeights, sa, setSa, projectName }) {
+                          sa, setSa, projectName }) {
   const aboveGridRef = useRef(null);
   const chartColRef = useRef(null);
   const cardsRef = useRef(null);
@@ -5292,8 +5294,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
   const searchedIncomplete = useMemo(() => filteredIncomplete.filter((r) => matchesRoleSearch(r, search)), [filteredIncomplete, search]);
 
   const agg = useMemo(() => aggregate(filtered), [filtered]);
-  const finding = useMemo(() => concentrationFinding(agg), [agg]);
-  const { sentence, support, showEffortLink } = useMemo(() => headlineFinding(finding, agg), [finding, agg]);
+  const sentence = useMemo(() => headlineFinding(agg), [agg]);
 
   const siteFilterControl = siteScopeOptionCount > 1 && (
     <select id="f-sa" className="card-head-select no-print" aria-label="Filter by site type"
@@ -5332,15 +5333,6 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
           <div className="hero-headline">
             <h2 className="hero-sentence">{sentence}</h2>
             <div className="hero-rule" aria-hidden="true" />
-            <p className="hero-support">
-              {support}
-              {showEffortLink && (
-                <>
-                  {' · '}
-                  <button type="button" className="link-btn hero-link no-print" onClick={onOpenEffortWeights}>effort weighting →</button>
-                </>
-              )}
-            </p>
           </div>
 
           {filteredIncomplete.length > 0 && (
@@ -5480,7 +5472,12 @@ function onePagerText(role, citeDeck, goLiveDate) {
   L.push('');
   L.push(`PRESCRIBED (${role.tier})`);
   packageFor(role).forEach((p) => L.push(`  - ${p.text}: ${p.dose}`));
-  modifiersFor(role).forEach((m) => { L.push(`  ${m.title} [${m.trigger}]`); m.items.forEach((i) => L.push(`    - ${i}`)); });
+  const deliveryPairs = deliveryPairsFor(role);
+  if (deliveryPairs.length) {
+    L.push('');
+    L.push('WHAT WILL AFFECT DELIVERY');
+    deliveryPairs.forEach((p) => L.push(p.consequence ? `  - ${p.constraint} -> ${p.consequence}` : `  - ${p.constraint}`));
+  }
   const td = trainingDesign(role);
   L.push('');
   L.push('DELIVERY DETAIL (Aberdeen OCM delivery material; the tier -> tactic mapping is Aberdeen judgment)');
@@ -5509,16 +5506,18 @@ function onePagerText(role, citeDeck, goLiveDate) {
    states this role's own support duration, the Communication tab owns the
    milestones, and the Adoption tab owns measurement, so none of that is
    repeated on this page any more. */
+/* The drafts are the best output this tool produces and this is how
+   people actually reach them - a real primary button, sized and colored
+   as a genuine call to action from the same token scale every other
+   primary action in the app uses (see .btn.primary/.btn.lg), not a text
+   link sitting quietly inside a bordered box the way it used to. */
 function DeliveryDetail({ role, onOpenDrafts }) {
   return (
-    <div className="pkg-extra">
-      <h5>Message drafts for this role</h5>
-      <p className="sub" style={{ marginBottom: 0 }}>
-        <button type="button" className="link-btn no-print" onClick={() => onOpenDrafts && onOpenDrafts(role.id)}>
-          Open generated message drafts →
-        </button>
-        <span className="only-print">Generated message drafts for this role are in the Communication tab.</span>
-      </p>
+    <div style={{ marginTop: 'var(--space-16)' }}>
+      <button type="button" className="btn primary lg no-print" onClick={() => onOpenDrafts && onOpenDrafts(role.id)}>
+        Open message drafts for this role →
+      </button>
+      <p className="only-print sub">Generated message drafts for this role are in the Communication tab.</p>
     </div>
   );
 }
@@ -5552,7 +5551,7 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
     );
   }
   const pkg = packageFor(role);
-  const mods = modifiersFor(role);
+  const deliveryPairs = deliveryPairsFor(role);
   const actions = managerActions(role, goLiveDate);
 
   const copy = async () => {
@@ -5652,16 +5651,18 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
               </li>
             ))}
           </ul>
-          {mods.map((m, i) => (
-            <div className="mod" key={i}>
-              <h5>{m.title}: {m.trigger}</h5>
-              <ul>{m.items.map((it, j) => <li key={j}>{it}</li>)}</ul>
-            </div>
-          ))}
-          {(role.constraints || []).length > 0 && (
+          {deliveryPairs.length > 0 && (
             <div style={{ marginTop: 'var(--space-16)' }}>
               <h5 className="op-kicker">What will affect delivery</h5>
-              <div className="constraint-list">{role.constraints.map((c, i) => <span key={i}>{c}</span>)}</div>
+              <div className="delivery-effects">
+                {deliveryPairs.map((p, i) => (
+                  <div className="de-row" key={i}>
+                    <span className="de-constraint">{p.constraint}</span>
+                    {p.consequence && <span className="de-arrow" aria-hidden="true">→</span>}
+                    <span className="de-consequence">{p.consequence || ''}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           {(role.sourceRefs || []).length > 0 && (
@@ -6072,7 +6073,7 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
         <Tile label="Tasks removed" value={totals.removed} countTo={totals.removed} />
         <Tile label="Tasks changed" value={totals.changed} countTo={totals.changed} />
         <Tile label="Tasks new" value={totals.added} countTo={totals.added} />
-        <Tile label="Net full-time equivalent (FTE) change" value={signed(fte.net)} accent rule={fteDriver} />
+        <Tile label="Net full-time equivalent (FTE) change" value={signed(fte.net)} accent meta={fteDriver} />
       </div>
       <div className="filters no-print">
         <div className="field">
@@ -6100,16 +6101,12 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
    use, this view just presents them across the whole portfolio.
    =========================================================================== */
 
-/* Every assumption behind the trainer-days figure, in one sentence - the
-   info affordance on that tile, not a panel. Session sizes and the
-   trainer's own hours/day and prep time are the only numbers session math
-   and trainer-days math actually use (see sessionsForRole,
-   aggregateTrainingLoad); stating them here keeps them reachable without
-   giving them a section of their own. */
+/* What the trainer-days figure means, in plain language - not the session-
+   size assumptions it's built from (that used to be the whole tooltip; a
+   newcomer has no use for "12 people per in-person session," only for what
+   the final number represents and why it's the useful one). */
 const TRAINER_DAYS_ASSUMPTION =
-  `Assumes ${ASSUMPTIONS.sessionSize.instructorLed} people per in-person session, ${ASSUMPTIONS.sessionSize.virtual} per online session, `
-  + `${ASSUMPTIONS.sessionSize.onShift} per on-shift session (that one also multiplied by sites and by ${ASSUMPTIONS.shiftsPerOnShiftRole} shifts); `
-  + `${pluralize(ASSUMPTIONS.trainerHoursPerDay, 'hour')} of delivery per trainer per day, plus ${pluralize(ASSUMPTIONS.trainerPrepHoursPerSession, 'hour')} of prep per session.`;
+  'Trainer days: total delivery hours divided by what one trainer can deliver in a day, plus preparation time.';
 
 function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, goLiveDate, weights, onResetWeights, tierFilter, setTierFilter }) {
   const [search, setSearch] = useState('');
@@ -6145,7 +6142,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, goLi
           <Tile key={r.txt} label={r.txt} value={r.n} countTo={r.n} rule={r.rule} emptyNote={r.n === 0 ? r.emptyNote : null} />
         ))}
         <Tile label="How-to guides to produce" value={totalGuides} countTo={totalGuides}
-              rule="Scales with impact severity: 2 for low impact, 4-6 for medium, 7-10 for high - each role's own count set by exactly where it falls in its band, never a range to pick from. Delivery methods and how-to-guide volumes both come from Aberdeen's own OCM delivery material, not invented per project." />
+              rule="How-to guides to produce: short guides kept where the work happens. Roles whose work changes most get more of them." />
         <Tile label="Trainer days" value={overallLoad.trainerDays} countTo={overallLoad.trainerDays} rule={TRAINER_DAYS_ASSUMPTION} />
       </div>
 
@@ -6395,6 +6392,23 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
           <div className="card-body">
             <p className="sub" style={{ marginTop: 0 }}>{TIERS[g.tier].package.join(', ')}.</p>
             <table className="mini milestones">
+              {/* One shared column model across all four tier tables (see
+                  table.mini.milestones's own table-layout: fixed in
+                  styles.css) - each is otherwise its own independent table
+                  with no way to agree on widths with its siblings, which is
+                  exactly what let milestone, date, channel and Drafts sit
+                  at different x positions from one tier's table to the
+                  next. Channel is the one column with no width of its own:
+                  it takes whatever's left, and wraps if it must; the other
+                  three are fixed wide enough for their longest real value
+                  (milestone name, a full date, "Drafts →") so they never
+                  need to. */}
+              <colgroup>
+                <col style={{ width: 190 }} />
+                <col style={{ width: 116 }} />
+                <col />
+                <col style={{ width: 84 }} />
+              </colgroup>
               <tbody>
                 {g.timeline.map((s) => (
                   <tr key={s.label} className={s.past ? 'past' : ''}>
@@ -6631,14 +6645,57 @@ function adoptionHeroCopy(daysLive, goLiveDate) {
   return { line: `${pluralize(daysLive, 'day')} since go-live (${dateStr}).` };
 }
 
+/* The training-completion input: a real headcount (0 to the tier's own
+   people), never a percentage - the bar it sits above is the only place a
+   percentage appears anywhere on this card, computed from this number,
+   never printed as text. Keeps its own draft text apart from the last
+   committed value, so a keystroke that doesn't resolve to a valid whole
+   number in range (a decimal, a negative number, more than the tier
+   actually has) can show a plain inline message and refuse it, rather
+   than silently clamping it into a number the person never typed. */
+function CompletionInput({ tier, people, value, onCommit }) {
+  const [draft, setDraft] = useState(String(value));
+  const [error, setError] = useState(null);
+  const handleChange = (e) => {
+    const raw = e.target.value;
+    setDraft(raw);
+    const trimmed = raw.trim();
+    if (trimmed === '') { setError(null); return; }
+    if (!/^-?\d+$/.test(trimmed)) { setError('Whole numbers only.'); return; }
+    const n = parseInt(trimmed, 10);
+    if (n < 0) { setError('Cannot be negative.'); return; }
+    if (n > people) { setError(`Cannot exceed this tier's ${pluralize(people, 'person', 'people')}.`); return; }
+    setError(null);
+    onCommit(n);
+  };
+  return (
+    <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input type="number" step="1" value={draft} onChange={handleChange}
+               style={{ width: 72, textAlign: 'right' }}
+               aria-label={`${tier}: number of people who have completed training, out of ${people}`}
+               aria-invalid={error ? 'true' : undefined} />
+        <span className="hint">of {people.toLocaleString()}</span>
+      </span>
+      {error && <span className="qual-error" style={{ margin: 0 }}>{error}</span>}
+    </span>
+  );
+}
+
 function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance, goLiveDate, projectId, weights, onResetWeights }) {
   const agg = useMemo(() => aggregate(scored), [scored]);
   const daysLive = useMemo(() => daysSince(goLiveDate), [goLiveDate]);
   const tierStatus = useMemo(() => TIER_ORDER.map((t) => ({
     tier: t, count: agg.byTier[t].roles, people: agg.byTier[t].people, ...rescoreStatus(t, daysLive),
   })).filter((s) => s.count > 0), [agg, daysLive]);
+  // completion[t] is a real headcount, not a percentage - simulatedTrainingCompletion
+  // still thinks in percent-of-ceiling terms (that's the shape the simulation
+  // itself is written in), converted once here to a starting number of people
+  // against this tier's own real headcount.
   const [completion, setCompletion] = useState(() => TIER_ORDER.reduce((o, t) => {
-    o[t] = simulatedTrainingCompletion(t, daysLive); return o;
+    const pctDone = simulatedTrainingCompletion(t, daysLive);
+    o[t] = Math.round((pctDone / 100) * agg.byTier[t].people);
+    return o;
   }, {}));
   const metrics = useMemo(() => simulatedAdoptionMetrics(agg, daysLive), [agg, daysLive]);
   const hero = useMemo(() => adoptionHeroCopy(daysLive, goLiveDate), [daysLive, goLiveDate]);
@@ -6670,11 +6727,16 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
       <p className="tab-finding">{hero.line}</p>
 
       <div className="grid cols-5" style={{ marginBottom: 'var(--space-16)', marginTop: 'var(--space-16)' }}>
-        <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} countTo={metrics.signOnRate} countFormat={{ suffix: '%' }} meta="of in-scope headcount, at least once" />
-        <Tile simulated label="Processes opened & completed" value={metrics.processesCompleted.toLocaleString()} countTo={metrics.processesCompleted} />
-        <Tile simulated label="How-to guide access rate" value={`${metrics.jobAidAccessRate}%`} countTo={metrics.jobAidAccessRate} countFormat={{ suffix: '%' }} meta="of issued guides opened at least once" />
-        <Tile simulated label="Comms click rate" value={`${metrics.commsClickRate}%`} countTo={metrics.commsClickRate} countFormat={{ suffix: '%' }} meta="go-live communication click-through" />
-        <Tile simulated label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} countTo={metrics.hrCaseVolume} meta="Rebuild + Enable population, tapering as adoption matures" />
+        <Tile simulated label="Unique sign-ons" value={`${metrics.signOnRate}%`} countTo={metrics.signOnRate} countFormat={{ suffix: '%' }}
+              meta="People who have logged into the new system at least once. Shows whether the change has actually reached them, not just been announced to them." />
+        <Tile simulated label="Transactions completed" value={metrics.processesCompleted.toLocaleString()} countTo={metrics.processesCompleted}
+              meta="Real transactions people completed in the new system, not just logged into. Shows whether it's being used for real work, not sitting idle." />
+        <Tile simulated label="How-to guide access rate" value={`${metrics.jobAidAccessRate}%`} countTo={metrics.jobAidAccessRate} countFormat={{ suffix: '%' }}
+              meta="How-to guides that have actually been opened, not just issued. Shows whether people turn to them when they need help." />
+        <Tile simulated label="Comms click rate" value={`${metrics.commsClickRate}%`} countTo={metrics.commsClickRate} countFormat={{ suffix: '%' }}
+              meta="People who opened a go-live message and clicked into it. Shows whether the communications are landing, not just being sent." />
+        <Tile simulated label="HR case volume" value={metrics.hrCaseVolume.toLocaleString()} countTo={metrics.hrCaseVolume}
+              meta="Questions and complaints raised with HR about the change. A rising number means people are struggling." />
       </div>
 
       <div className="card simulated" style={{ marginBottom: 'var(--space-16)' }} ref={barsRef}>
@@ -6684,20 +6746,21 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
         <div className="card-body">
           {TIER_ORDER.filter((t) => agg.byTier[t].roles > 0).map((t) => {
             const presc = tierPrescription(t, scored);
+            const people = agg.byTier[t].people;
+            const donePct = Math.max(0, Math.min(100, (completion[t] / (people || 1)) * 100));
             return (
               <div key={t} style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-4)' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-8)' }}>
                     <i className="dot" style={{ '--dot': TIERS[t].hex }} /><b>{t}</b>
-                    <span className="hint">{pluralize(presc.hours, 'hour')} of training · {pluralize(presc.roleCount, 'role')} prescribed</span>
+                    <span className="hint">{pluralize(presc.hours, 'hour')} of training · {pluralize(presc.roleCount, 'role')} · {pluralize(people, 'person', 'people')}</span>
                   </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <input type="number" min="0" max="100" value={completion[t]}
-                           onChange={(e) => setCompletion((c) => ({ ...c, [t]: Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)) }))}
-                           style={{ width: 56, textAlign: 'right' }} aria-label={`${t} training completion percent`} />
-                  </span>
+                  <CompletionInput tier={t} people={people} value={completion[t]}
+                                    onCommit={(n) => setCompletion((c) => ({ ...c, [t]: n }))} />
                 </div>
-                <div className="bar"><i style={{ width: `${completion[t]}%`, background: TIERS[t].hex }} /></div>
+                {/* The bar is the only representation of the percentage anywhere
+                    on this card - completion[t]/people is never printed as text. */}
+                <div className="bar"><i style={{ width: `${donePct}%`, background: TIERS[t].hex }} /></div>
               </div>
             );
           })}
@@ -6742,8 +6805,8 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
    widget but is not one - there is no model call, no API key, nothing that
    can hallucinate or go quiet mid-demo. Every answer is a deterministic
    function of the active project's own already-scored roles (`aggregate`,
-   `concentrationFinding`, `TIERS`, `DOSES`, `THRESHOLD` - the same functions
-   and constants the rest of the app already renders from), so it is correct
+   `TIERS`, `DOSES`, `THRESHOLD` - the same functions and constants the
+   rest of the app already renders from), so it is correct
    for Thornwood, Bellcrest and Ashford without being written three times,
    and a free-text question that doesn't confidently match anything says so
    rather than guessing.
@@ -8826,10 +8889,6 @@ function App() {
     switchTab('comms');
   }, [switchTab]);
 
-  // The Stakeholder Impact tab's effort-share note is a real cross-reference,
-  // not prose: clicking it has to actually land on the panel that backs it.
-  const openEffortWeights = useCallback(() => switchTab('plan'), [switchTab]);
-
   const createRole = useCallback((role) => {
     setRaw((rs) => [...rs, role]);
     setSelectedId(role.id);
@@ -8934,7 +8993,6 @@ function App() {
                          weights={weights} onWeight={setWeight} onResetWeights={resetWeights} weightDeltas={weightDeltas}
                          siteArchetypeBase={project.siteArchetypeBase} siteArchetypeCombos={project.siteArchetypeCombos}
                          comboExample={comboExample} citeDeck={project.hasDeckReproduction}
-                         onOpenEffortWeights={openEffortWeights}
                          sa={filters.sa} setSa={setFilterSa} projectName={project.name} />
         )}
         {tab === 'redesign' && (
