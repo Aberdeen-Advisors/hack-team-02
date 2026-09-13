@@ -1347,20 +1347,18 @@ table.data td .incflag {
 .chart-box { position: relative; height: 380px; }
 
 /* The Training tab's wave schedule: a horizontal strip, left to right in
-   the order training actually starts. All four cards get the identical
-   treatment - same light Verdigris-derived wash, same border, same
-   elevation - on purpose: there is no "current" or "heaviest" wave here,
-   only the dot and the content differ. Not a tier hue: this tint reads as
-   "this whole schedule is one deliberate group", the same family
-   .note.warn already uses for "worth a look", not a fifth wash competing
-   with the four tier colors. */
+   the order training actually starts, one card per tier present. These
+   now share their entire visual treatment (tint, border, corner radius,
+   elevation, padding, tier-name type, hover tilt/shadow) with the
+   Stakeholder Impact tier cards via the .tile/.tier-tile/.tier-tile-wide
+   classes - see WaveCard in the script and .tier-tile above - so the two
+   stay in sync automatically if either changes later. Only .wave itself
+   is still this tab's own: it overrides tier-tile-wide's centered,
+   fixed-height layout with a narrower flex-basis so four fit across a
+   row instead of stacking wide and short like the dashboard's own four. */
 .wave-row { display: flex; gap: var(--space-12); flex-wrap: wrap; }
-.wave {
-  flex: 1 1 180px; min-width: 180px;
-  border: 1px solid var(--flag-line); border-radius: var(--radius-s);
-  padding: 12px 14px; background: var(--flag-wash);
-}
-.wave-tier { display: flex; align-items: center; gap: 7px; font-weight: 500; font-size: 14px; margin-bottom: 6px; }
+.wave { flex: 1 1 180px; min-width: 180px; justify-content: flex-start; }
+.wave-tier { margin-bottom: 6px; }
 .wave-dates { font-size: 12.5px; color: var(--ink-2); margin-bottom: 8px; }
 .wave-stats { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 

@@ -6143,6 +6143,33 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
 const TRAINER_DAYS_ASSUMPTION =
   'Trainer days: total delivery hours divided by what one trainer can deliver in a day, plus preparation time.';
 
+/* One delivery-wave card, sharing its visual treatment with the tier
+   summary cards on Stakeholder Impact (tile/tier-tile classes, --tier-color,
+   useTiltHover) rather than duplicating it in a second set of rules that
+   could drift out of sync - see .tier-tile in styles.css for the tint,
+   border, elevation and hover/tilt this reuses as-is. tier-tile-wide's own
+   .tier-metrics 2x2 grid is never used here; this card's actual content
+   (dates, then a stacked list of stats) stays exactly what it was. */
+const WaveCard = React.memo(function WaveCard({ w, goLiveDate }) {
+  const ref = useRef(null);
+  useTiltHover(ref);
+  return (
+    <div ref={ref} className="tile tier-tile tier-tile-wide wave" style={{ '--tier-color': TIERS[w.tier].hex }}>
+      <div className="tier-name wave-tier"><i className="dot" style={{ '--dot': TIERS[w.tier].hex }} />{w.tier}</div>
+      <div className="wave-dates">
+        {goLiveDate
+          ? `${fmtShortDate(w.startDate)} – ${fmtShortDate(w.endDate)}`
+          : `${fmtWeeksFromGoLive(-w.leadWeeks)} – ${fmtWeeksFromGoLive(0)}`}
+      </div>
+      <div className="wave-stats">
+        <span>{pluralize(w.headcount, 'person', 'people')}</span>
+        <span>{pluralize(w.sessions, 'session')}</span>
+        <span>{pluralize(w.trainerDays, 'trainer day')}</span>
+      </div>
+    </div>
+  );
+});
+
 function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, goLiveDate, weights, onResetWeights, tierFilter, setTierFilter }) {
   const [search, setSearch] = useState('');
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
@@ -6193,21 +6220,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, goLi
             <p className="sub" style={{ margin: 0 }}>No scored roles yet.</p>
           ) : (
             <div className="wave-row">
-              {waves.map((w) => (
-                <div key={w.tier} className="wave">
-                  <div className="wave-tier"><i className="dot" style={{ '--dot': TIERS[w.tier].hex }} />{w.tier}</div>
-                  <div className="wave-dates">
-                    {goLiveDate
-                      ? `${fmtShortDate(w.startDate)} – ${fmtShortDate(w.endDate)}`
-                      : `${fmtWeeksFromGoLive(-w.leadWeeks)} – ${fmtWeeksFromGoLive(0)}`}
-                  </div>
-                  <div className="wave-stats">
-                    <span>{pluralize(w.headcount, 'person', 'people')}</span>
-                    <span>{pluralize(w.sessions, 'session')}</span>
-                    <span>{pluralize(w.trainerDays, 'trainer day')}</span>
-                  </div>
-                </div>
-              ))}
+              {waves.map((w) => <WaveCard key={w.tier} w={w} goLiveDate={goLiveDate} />)}
             </div>
           )}
         </div>
