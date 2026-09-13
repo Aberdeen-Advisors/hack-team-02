@@ -5220,6 +5220,33 @@ function headlineFinding(agg) {
 const PLOT_MIN_HEIGHT = 220;
 const TOPBAR_HEIGHT = 88;    // mirrors --topbar-h in styles.css
 const MAIN_TOP_PADDING = 24; // mirrors --space-24, .main's own top padding
+
+/* Dev-only layout assertion. False in production always; flip on locally to
+   have the console confirm, after every real paint, that the chart bottom
+   and the Inform card bottom are level. Never runs unless this is hand-set. */
+const DEV_ASSERT_DASHBOARD_LAYOUT = false;
+function devAssertDashboardLayout(cardsRef, chartColRef) {
+  if (!DEV_ASSERT_DASHBOARD_LAYOUT) return;
+  const cards = cardsRef.current, col = chartColRef.current;
+  if (!cards || !col) return;
+  const svg = col.querySelector('svg.chart-plot') || col.querySelector('svg');
+  if (!svg) return;
+  const cardsBottom = cards.getBoundingClientRect().bottom;
+  const svgBox = svg.getBoundingClientRect();
+  const gap = Math.round(svgBox.bottom - cardsBottom);
+  const ratio = svgBox.height ? (svgBox.width / svgBox.height) : NaN;
+  // eslint-disable-next-line no-console
+  console.log('[dashboard-layout]', {
+    viewportHeight: window.innerHeight,
+    plotWidth: Math.round(svgBox.width),
+    plotHeight: Math.round(svgBox.height),
+    ratio: Math.round(ratio * 100) / 100,
+    gap,
+  });
+  if (gap !== 0) {
+    console.warn('[dashboard-layout] chart bottom and Inform card bottom are not level, gap =', gap, 'px');
+  }
+}
 function useDashboardLayout(aboveGridRef, colRef, cardsRef, headRowRef, weightRowRef) {
   const [layout, setLayout] = useState(null);
   useLayoutEffect(() => {
@@ -5237,9 +5264,24 @@ function useDashboardLayout(aboveGridRef, colRef, cardsRef, headRowRef, weightRo
       const buffer = 12; // breathing room against subpixel rounding, so the
                           // bottom edge lands strictly inside the viewport
       const availablePlot = window.innerHeight - fixedAboveGrid - weightRowSpace - buffer - headRowHeight;
-      const idealPlot = colWidth / 1.5;
+      // Fill to the cards' own height (never taller - that's what keeps the
+      // chart bottom and the Inform card bottom level), shrinking below it
+      // only if the viewport doesn't actually have that much room. No fixed
+      // 3:2 (or any other) target height here any more: on a tall viewport,
+      // a fixed colWidth / 1.5 ceiling was capping the plot short of the
+      // cards' own height and leaving a gap beneath it, since the cards
+      // kept stretching past that ceiling while the chart could not.
       const cardsCapPlot = Math.max(0, cardsHeight - headRowHeight);
-      const plotHeight = Math.max(PLOT_MIN_HEIGHT, Math.min(idealPlot, cardsCapPlot, availablePlot));
+      const fitPlot = Math.min(cardsCapPlot, availablePlot);
+      // The aspect ratio still isn't allowed to run away in either
+      // direction - roughly 1.2:1 to 2.2:1 - but as a CLAMP on the fitted
+      // value above, not as the value itself: only min()/max() ever
+      // narrows what fitPlot already decided, so a tall viewport with
+      // plenty of room is never held back by it.
+      const minPlotByRatio = colWidth / 2.2;
+      const maxPlotByRatio = colWidth / 1.2;
+      const ratioClamped = Math.max(minPlotByRatio, Math.min(maxPlotByRatio, fitPlot));
+      const plotHeight = Math.max(PLOT_MIN_HEIGHT, ratioClamped);
       const next = { colWidth: Math.round(colWidth), plotHeight: Math.round(plotHeight) };
       setLayout((prev) => (prev && prev.colWidth === next.colWidth && prev.plotHeight === next.plotHeight) ? prev : next);
     };
@@ -5269,6 +5311,17 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
   const headRowRef = useRef(null);
   const weightRowRef = useRef(null);
   const layout = useDashboardLayout(aboveGridRef, chartColRef, cardsRef, headRowRef, weightRowRef);
+
+  // Dev-only: confirm, after the browser has actually painted the new
+  // layout (rAF, not synchronously in the effect - the SVG's own size
+  // isn't committed to the DOM yet at that point), that the chart and the
+  // Inform card still end at the same pixel. No-ops entirely unless
+  // DEV_ASSERT_DASHBOARD_LAYOUT is hand-set to true.
+  useEffect(() => {
+    if (!DEV_ASSERT_DASHBOARD_LAYOUT || !layout) return;
+    const raf = requestAnimationFrame(() => devAssertDashboardLayout(cardsRef, chartColRef));
+    return () => cancelAnimationFrame(raf);
+  }, [layout]);
 
   // The Role x site table's own search, narrowing whatever the site-archetype
   // filter above already left. It never touches `filtered`/`filteredIncomplete`
