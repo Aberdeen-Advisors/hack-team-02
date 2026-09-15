@@ -5168,11 +5168,11 @@ function headlineFinding(agg) {
   return `${pct(reb.popShare)} of the population absorbs ${pct(reb.effortShare)} of the effort.`;
 }
 
-/* The two-column dashboard (tier cards + chart) always fills exactly the
-   vertical space left after the fixed chrome above and below it - nothing
-   here sizes to its own natural content height any more; the four cards
-   are stretched to fill that space, and the chart matches the resulting
-   column height exactly, not an aspect ratio.
+/* The chart is the ONLY flexible element on this tab. Every other piece -
+   the header, the headline, the tier cards - sizes to its own content and
+   is never compressed to force a fit; if the total doesn't fit the
+   viewport, the CHART shrinks, and if the chart is already at its own
+   sensible floor, the page scrolls.
 
    Every term is a HEIGHT or a fixed constant, never a position. It used to
    read gridRef.getBoundingClientRect().top to stand in for "how much space
@@ -5187,36 +5187,23 @@ function headlineFinding(agg) {
    measures the headline block's (plus the optional incomplete-roles
    banner's) real HEIGHT, which - unlike its position - never changes with
    scroll, only with its own content.
-
-   Sizing order:
-     1. blockHeight: viewport height, minus the topbar, the page's own top
-        padding, the headline block (aboveGridRef), and the collapsed
-        weighting row - measured off its own <summary> only, never its
-        wrapping div, since <summary> is the one part of a <details>
-        element that renders at a constant height whether the panel is
-        open or closed - plus the gap in front of it, plus a small
-        rounding buffer. This one number drives everything below it.
-     2. The cards column (cardsRef) is set to exactly blockHeight; its four
-        rows (grid-template-rows: minmax(auto, 1fr) in styles.css) divide
-        that height evenly between them - auto as a floor so a card's own
-        content can never clip, 1fr so headroom beyond that floor splits
-        evenly across all four.
-     3. The chart column gets the same blockHeight budget: headRowHeight
-        (its own label/filter row, real measured content) is fixed, so the
-        plot itself is blockHeight minus that row's height - the two
-        columns still end at the same pixel, since both total exactly
-        blockHeight from the same top edge.
-     4. No aspect-ratio clamp of any kind: the plot's shape is whatever
-        blockHeight and the column's own width produce. PLOT_MIN_HEIGHT is
-        an absolute floor only, for a viewport too short to show anything
-        useful at all - never a target ratio.
-
-   Below DASHBOARD_COLLAPSE_WIDTH (mirrors the media query in styles.css
-   that stacks cards above chart in one column) none of this applies:
-   layout resolves to null, the cards fall back to their natural stacked
-   height, and HeatMap falls back to its own self-contained aspect-ratio
-   box - stretching the cards column to a computed pixel height would only
-   make sense while it's actually a column next to the chart.
+     - cardsHeight (cardsRef) is the four tier cards' own real, natural,
+       uncompressed stacked height - the actual floor for the chart column:
+       the chart matches this height, or shrinks toward it, never the
+       reverse, and the cards are never resized to match the chart.
+     - headRowHeight (headRowRef) is the chart's own label/filter row,
+       sitting above the plot in the same column.
+     - weightRowSpace (weightRowRef) is the collapsed weighting panel below
+       the grid, plus the gap in front of it - measured off its own
+       <summary> only, never its wrapping div, since <summary> is the one
+       part of a <details> element that renders at a constant height
+       whether the panel is open or closed.
+   plotHeight is the least of: colWidth / 1.5 (a natural 3:2 rectangle),
+   the cards' own height minus the head-row (so the chart COLUMN's total
+   never exceeds the cards column's total), and whatever vertical room is
+   actually left in the viewport - floored at PLOT_MIN_HEIGHT, below which
+   it stops shrinking and the page scrolls instead of the chart
+   disappearing.
 
    Mount-only effect, no scroll listener anywhere: recomputes once on
    mount, then only on an actual window resize or when a ResizeObserver
@@ -5229,7 +5216,6 @@ function headlineFinding(agg) {
 const PLOT_MIN_HEIGHT = 220;
 const TOPBAR_HEIGHT = 88;    // mirrors --topbar-h in styles.css
 const MAIN_TOP_PADDING = 24; // mirrors --space-24, .main's own top padding
-const DASHBOARD_COLLAPSE_WIDTH = 1100; // mirrors the media query in styles.css
 
 /* Dev-only layout assertion. False in production always; flip on locally to
    have the console confirm, after every real paint, that the chart bottom
@@ -5264,30 +5250,36 @@ function useDashboardLayout(aboveGridRef, colRef, cardsRef, headRowRef, weightRo
       const above = aboveGridRef.current, col = colRef.current, cards = cardsRef.current,
             headRow = headRowRef.current, wr = weightRowRef.current;
       if (!above || !col || !cards || !headRow || !wr) return;
-      // Below the collapse width the grid is one column (cards, then
-      // chart) in normal flow - stretching the cards to a computed pixel
-      // height only makes sense while it's actually a column next to the
-      // chart, so this resolves to no layout at all rather than a wrong one.
-      if (window.innerWidth <= DASHBOARD_COLLAPSE_WIDTH) {
-        setLayout((prev) => (prev === null ? prev : null));
-        return;
-      }
       const colWidth = col.getBoundingClientRect().width;
       if (!colWidth) return;
       const fixedAboveGrid = TOPBAR_HEIGHT + MAIN_TOP_PADDING + above.getBoundingClientRect().height;
+      const cardsHeight = cards.getBoundingClientRect().height;
       const headRowHeight = headRow.getBoundingClientRect().height;
       const weightSummary = wr.querySelector('summary') || wr;
       const weightRowSpace = weightSummary.getBoundingClientRect().height + DASHBOARD_GAP;
       const buffer = 12; // breathing room against subpixel rounding, so the
                           // bottom edge lands strictly inside the viewport
-      // The two-column block's total height: both the cards column and the
-      // chart column (head row + plot) get exactly this many pixels, so
-      // their bottoms land on the same line by construction, not by luck.
-      const blockHeight = Math.max(0, window.innerHeight - fixedAboveGrid - weightRowSpace - buffer);
-      const plotHeight = Math.max(PLOT_MIN_HEIGHT, blockHeight - headRowHeight);
-      const next = { colWidth: Math.round(colWidth), blockHeight: Math.round(blockHeight), plotHeight: Math.round(plotHeight) };
-      setLayout((prev) => (prev && prev.colWidth === next.colWidth
-        && prev.blockHeight === next.blockHeight && prev.plotHeight === next.plotHeight) ? prev : next);
+      const availablePlot = window.innerHeight - fixedAboveGrid - weightRowSpace - buffer - headRowHeight;
+      // Fill to the cards' own height (never taller - that's what keeps the
+      // chart bottom and the Inform card bottom level), shrinking below it
+      // only if the viewport doesn't actually have that much room. No fixed
+      // 3:2 (or any other) target height here any more: on a tall viewport,
+      // a fixed colWidth / 1.5 ceiling was capping the plot short of the
+      // cards' own height and leaving a gap beneath it, since the cards
+      // kept stretching past that ceiling while the chart could not.
+      const cardsCapPlot = Math.max(0, cardsHeight - headRowHeight);
+      const fitPlot = Math.min(cardsCapPlot, availablePlot);
+      // The aspect ratio still isn't allowed to run away in either
+      // direction - roughly 1.2:1 to 2.2:1 - but as a CLAMP on the fitted
+      // value above, not as the value itself: only min()/max() ever
+      // narrows what fitPlot already decided, so a tall viewport with
+      // plenty of room is never held back by it.
+      const minPlotByRatio = colWidth / 2.2;
+      const maxPlotByRatio = colWidth / 1.2;
+      const ratioClamped = Math.max(minPlotByRatio, Math.min(maxPlotByRatio, fitPlot));
+      const plotHeight = Math.max(PLOT_MIN_HEIGHT, ratioClamped);
+      const next = { colWidth: Math.round(colWidth), plotHeight: Math.round(plotHeight) };
+      setLayout((prev) => (prev && prev.colWidth === next.colWidth && prev.plotHeight === next.plotHeight) ? prev : next);
     };
     measure();
     window.addEventListener('resize', measure);
@@ -5403,18 +5395,15 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
         </div>
 
         {/* 2. THE DASHBOARD: four tier cards, ranked top-to-bottom, on the
-            left (28%); the quadrant chart on the right (72%, no card
-            chrome - the plot itself is the object here). Both columns are
-            driven off the same useDashboardLayout blockHeight: the cards
-            are stretched to fill it exactly (dividing it evenly between
-            the four rows), and the chart takes that same height minus its
-            own head row - see that hook's own comment for why this is the
-            one thing that keeps the cards' bottom edge and the chart's
-            bottom edge level, by construction. Below the collapse width,
-            layout is null and this style is a no-op: the cards render at
-            their own natural stacked height instead. */}
+            left (30%); the quadrant chart on the right (70%, no card
+            chrome - the plot itself is the object here). The cards render
+            at their own natural height, always (see .dashboard-cards) -
+            the chart is the one flexible element, sized by
+            useDashboardLayout to match that height or shrink toward it,
+            never the reverse, which is what normally lands the Inform
+            card's bottom edge on the chart's. */}
         <div className="dashboard-grid">
-          <div className="dashboard-cards" ref={cardsRef} style={layout ? { height: layout.blockHeight } : undefined}>
+          <div className="dashboard-cards" ref={cardsRef}>
             {TIER_ORDER.map((t) => (
               <TierSummaryTile key={t} tier={t} b={agg.byTier[t]} flash={changedTiers.has(t)} />
             ))}
