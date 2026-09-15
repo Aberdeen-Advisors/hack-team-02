@@ -710,12 +710,14 @@ a { color: var(--aberdeen-blue); }
    squeezed into a quarter-width column the way a 4-across row was), and
    the info affordance pinned to the card's own top-right corner rather
    than sitting inline after the tier name. No height of its own - it
-   renders at its own natural content height, in one of .dashboard-cards'
-   four auto rows, and is never compressed below that to fit anything else
-   on the page. Sized tight anyway, on purpose: the chart column next to it
-   is the one flexible element (see useDashboardLayout in the script) and
-   these four cards' own combined natural height is its ceiling, so every
-   dimension here is smaller than it would be as a standalone card. */
+   sits in one of .dashboard-cards' four minmax(auto, 1fr) rows, which
+   stretches it to fill whatever share of the full dashboard height
+   useDashboardLayout assigns the cards column (see that hook's own
+   comment), never below its own natural content height. justify-content:
+   center on the card centers that content within whatever extra room the
+   row gives it, rather than leaving it pinned to the top with dead space
+   below. Sized tight anyway, on purpose: at a typical viewport this still
+   leaves each card noticeably taller than its own minimum content. */
 .tier-tile-wide {
   display: flex; flex-direction: column; justify-content: center; gap: var(--space-4);
   padding: 10px 16px;
@@ -818,31 +820,31 @@ a { color: var(--aberdeen-blue); }
 .above-fold { display: block; }
 
 /* The Stakeholder Impact tab's two-column dashboard: tier cards ranked
-   top-to-bottom on the left (30%), the chart on the right (70%) - fr
-   units, not literal percentages, so the 30/70 split is of the row's
-   actual content width net of the gap, not the row width plus an
-   overflowing gap on top of it.
-   align-items: start, not stretch: the cards column renders at its own
-   natural height (see .dashboard-cards) and the grid never stretches the
-   chart column to match it, nor the cards to match the chart - each
-   column is exactly as tall as its own content/explicit sizing says, no
-   more. No height set here at all any more: useDashboardLayout computes
-   a target height for the CHART alone (never taller than what the cards
-   column naturally needs, per its own rule below) and applies it directly
-   to the chart's own element, not to this shared row - so there is
-   nothing here for a mismatched height to overflow out of. */
-.dashboard-grid { display: grid; grid-template-columns: 3fr 7fr; gap: var(--space-16); align-items: start; }
-/* Four rows at their own natural (auto) height, never compressed - "equal
-   height" was a nice-to-have from an earlier pass; not clipping the tier
-   name or the second metrics row is not negotiable, and minmax(0, 1fr)
-   (which allows a row to shrink below its own content's min-content size
-   whenever the grid was shorter than these four cards' combined natural
-   height) is exactly what did that: combined with .tier-tile's own
-   overflow: hidden (now removed, see its own comment), a card that was
-   forced shorter than 112px of real content simply clipped 16px of it
-   off - the tier name at the top, the second metrics row at the bottom.
-   auto never shrinks a row below its content, so this can't recur. */
-.dashboard-cards { display: grid; grid-template-rows: repeat(4, auto); gap: var(--space-16); min-width: 0; }
+   top-to-bottom on the left (28%), the chart on the right (72%) - fr
+   units, not literal percentages, so the split is of the row's actual
+   content width net of the gap, not the row width plus an overflowing gap
+   on top of it.
+   align-items: start: both columns already total the same explicit height
+   (see useDashboardLayout in the script - the cards column gets
+   blockHeight directly, the chart column gets headRowHeight + plotHeight,
+   which sums to the same blockHeight), so there is nothing left for
+   align-items: stretch to do; start just avoids relying on grid's own
+   stretch behavior for something already pixel-exact. Below the collapse
+   width (see the media query below) neither column has an explicit height
+   at all, and this row is one column in normal flow instead. */
+.dashboard-grid { display: grid; grid-template-columns: 28fr 72fr; gap: var(--space-16); align-items: start; }
+/* Four rows sized minmax(auto, 1fr): auto is a floor so a card's own
+   content (the tier name, the second metrics row) can never clip - the
+   bug an earlier plain 1fr (which allows shrinking below min-content) or
+   a bare auto (which never grows) both had their own version of - and 1fr
+   means any height beyond that floor, coming from the explicit height
+   useDashboardLayout sets on this element's own style (blockHeight, always
+   well above the four cards' combined natural height at any realistic
+   viewport), splits evenly across all four rows so they fill it exactly
+   rather than leaving slack beneath the fourth card. Without an explicit
+   height set (below the collapse width), this template still resolves to
+   each row's own natural height, same as a plain repeat(4, auto) would. */
+.dashboard-cards { display: grid; grid-template-rows: repeat(4, minmax(auto, 1fr)); gap: var(--space-16); min-width: 0; }
 .dashboard-chart-col { display: flex; flex-direction: column; min-width: 0; }
 
 @media (max-width: 1100px) {
@@ -1094,17 +1096,14 @@ table.data td .rolename { font-weight: 500; }
 
 .bar { height: 6px; border-radius: 3px; background: var(--surface-sunk); border: 1px solid var(--hairline); overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--aberdeen-blue); }
-/* The anchor line under each sub-factor bar: what that score actually means. */
+/* The anchor line under each sub-factor bar: what that score actually means -
+   the band description carries the meaning on its own, so it sits directly
+   with its sub-factor with nothing else on the line. */
 .sf .sf-an {
-  grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--space-4) 7px;
+  grid-column: 1 / -1; display: flex; flex-wrap: wrap;
   align-items: baseline; font-size: 11.5px; line-height: 1.45;
 }
-.sf .sf-an-level {
-  flex: none; font-variant-numeric: tabular-nums; white-space: nowrap;
-  font-size: 10.5px; color: var(--ink-3);
-  background: var(--surface-sunk); border: 1px solid var(--hairline); border-radius: 3px; padding: 1px 6px;
-}
-.sf .sf-an .t { flex: 1 1 55%; min-width: 0; color: var(--ink-2); }
+.sf .sf-an .t { flex: 1 1 auto; min-width: 0; color: var(--ink-2); }
 /* flex-wrap so a long formula never gets squeezed off-screen by the
    result - .terms is allowed to shrink and wrap, the result never is. */
 .sf-total { display: flex; flex-wrap: wrap; column-gap: var(--space-8); row-gap: 2px; font-size: 12.5px; color: var(--ink-3); margin-top: 9px; padding-top: var(--space-8); border-top: 1px dashed var(--hairline); }
@@ -1373,20 +1372,28 @@ table.data td .incflag {
   letter-spacing: -.005em; margin-bottom: var(--space-16); font-variant-numeric: tabular-nums;
 }
 
-/* Adoption's own hero figure: how long the change has been live, or how
-   long until it is - the single most load-bearing number on the tab, so it
-   gets the same treatment as the Stakeholder Impact hero (Poppins
-   ExtraLight, Aberdeen Blue, a Verdigris rule beneath), not just plain
-   text. The digit itself runs bigger than its trailing unit label, which
-   sits on the same line at a calmer size; the date is a quiet secondary
-   line below the rule, never the loudest thing here. */
-.go-live-hero { margin-bottom: var(--space-16); }
-.go-live-hero-line {
-  font-size: 24px; font-weight: 200; color: var(--aberdeen-blue);
-  letter-spacing: -.01em; line-height: 1.2; font-variant-numeric: tabular-nums;
+/* Adoption's own status chip: where the project sits relative to go-live.
+   Inline-flex so it hugs its content instead of spanning the row, sitting
+   directly under the heading's own Verdigris rule rather than growing a
+   second one. Aberdeen Blue fill means its text is white or Verdigris only
+   (the brand's own rule for that background) - Gold, from the secondary
+   palette, marks the status dot alone, pre-go-live, never as text. Not
+   interactive: no hover or focus treatment. */
+.golive-chip {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--aberdeen-blue); border-radius: 999px;
+  padding: 8px 18px; margin-bottom: var(--space-12);
 }
-.go-live-hero-figure { font-size: 42px; }
-.go-live-hero-date { font-size: 13px; color: var(--ink-2); margin-top: var(--space-4); }
+.golive-chip-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex: none;
+  background: var(--verdigris);
+}
+.golive-chip-dot.gold { background: var(--chart-gold); }
+.golive-chip-status { color: #fff; font-weight: 500; font-size: 13px; }
+.golive-chip-divider { width: 1px; height: 14px; background: rgba(255, 255, 255, .3); flex: none; }
+.golive-chip-days { color: #fff; font-size: 13px; font-variant-numeric: tabular-nums; }
+.golive-chip-days strong { font-weight: 500; }
+.golive-chip-date { color: var(--verdigris); font-size: 13px; }
 
 .empty { text-align: center; padding: 60px 20px; color: var(--ink-2); }
 .empty h3 { font-size: 17px; margin-bottom: 6px; }
