@@ -420,11 +420,6 @@ a { color: var(--aberdeen-blue); }
 .wizard-step.current { color: #fff; background: var(--aberdeen-blue); border-color: var(--aberdeen-blue); }
 .wizard-step.done { color: var(--aberdeen-blue); border-color: var(--aberdeen-blue); background: var(--aberdeen-blue-wash); }
 
-.site-rows { display: grid; gap: 10px; }
-.site-row {
-  display: grid; grid-template-columns: 2fr 1.3fr 1fr auto; gap: var(--space-8); align-items: center;
-}
-
 .file-list { list-style: none; margin: var(--space-12) 0 0; padding: 0; display: grid; gap: 6px; }
 .file-list li {
   display: flex; align-items: center; gap: 10px; font-size: 13.5px;
@@ -434,16 +429,9 @@ a { color: var(--aberdeen-blue); }
 .file-list .fn { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-list .fs { color: var(--ink-3); font-size: 12px; }
 
-/* "What you'll need": one line per document, no explanatory paragraph -
-   matter-of-fact, so gathering these reads as the known, ordinary cost of
-   the work rather than a surprise. */
-.need-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13.5px; }
-.need-list li { color: var(--ink-2); }
-.need-list b { color: var(--ink); font-weight: 500; }
-
-/* Five named upload slots, each its own small card - a file that failed to
-   parse gets the same slot and the same remove control as one that
-   succeeded, just its own quiet error line instead of a size. */
+/* Required and optional upload slots, each its own small card - a file
+   that failed to parse gets the same slot and the same remove control as
+   one that succeeded, just its own quiet error line instead of a size. */
 .upload-slot-grid { display: grid; gap: var(--space-12); grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 .upload-slot {
   border: 1px solid var(--hairline); border-radius: var(--radius-s); background: var(--surface-sunk);
@@ -460,16 +448,6 @@ a { color: var(--aberdeen-blue); }
 .upload-slot-file .fn { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .upload-slot-file .fs { color: var(--ink-3); font-size: 11.5px; flex: none; }
 .upload-slot-err { flex: 1; color: var(--flag); font-size: 12px; }
-
-/* The input audit: the completeness cross-tab is the one finding that
-   doesn't need a single document uploaded to be useful, so it gets its own
-   emphasized line above the two document-dependent sections. */
-.audit-panel .audit-finding {
-  font-size: 14.5px; padding: 11px 13px; margin-bottom: var(--space-12);
-  background: var(--aberdeen-blue-wash); border: 1px solid var(--aberdeen-blue-line); border-radius: var(--radius-s);
-}
-.audit-section + .audit-section { margin-top: var(--space-12); }
-.audit-section h4 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); margin-bottom: 5px; }
 
 /* Source citations on a role's own page - same quiet, small-print treatment
    as the constraint list beside it, extending that same provenance idea
@@ -506,15 +484,6 @@ a { color: var(--aberdeen-blue); }
 .draft-row-head .stat-val { font-size: 12.5px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .draft-row-body { padding: var(--space-4) var(--space-16) var(--space-16); border-top: 1px solid var(--hairline); display: grid; gap: 14px; }
 
-.score-badge {
-  flex: none; font-size: 11px; font-weight: 500; letter-spacing: .01em; white-space: nowrap;
-  padding: 3px 10px; border-radius: 999px; border: 1px solid transparent;
-}
-.score-badge.loading { color: var(--ink-3); background: var(--surface-sunk); border-color: var(--hairline); }
-.score-badge.none { color: var(--ink-3); background: var(--surface-sunk); border-color: var(--hairline); }
-.score-badge.ai { color: var(--live); background: var(--live-wash); border-color: var(--live-line); }
-.score-badge.placeholder { color: var(--flag); background: var(--flag-wash); border-color: var(--flag-line); }
-
 /* Re-score cycle status: named by its label text, not by hue. Deliberately
    shares no color with --t-rebuild/-enable/-reassure/-inform (the tier
    palette below) so a status pill can never be misread as a tier marker. */
@@ -526,8 +495,6 @@ a { color: var(--aberdeen-blue); }
 .status-pill.ontrack  { color: var(--ink-2); background: var(--surface-sunk); border-color: var(--hairline); }
 .status-pill.duesoon  { color: var(--flag); background: var(--flag-wash); border-color: var(--flag-line); }
 .status-pill.overdue  { color: #fff; background: var(--ink); border-color: var(--ink); font-weight: 600; }
-
-.ai-rationale { font-size: 12px; color: var(--ink-2); margin-top: 5px; line-height: 1.4; }
 
 .view-head { margin-bottom: 14px; }
 /* Section heading: ExtraLight per the type scale, Aberdeen Blue, with a

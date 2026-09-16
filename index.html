@@ -4977,7 +4977,7 @@ function columnsFor(comboExample) {
       render: (r, incomplete) => incomplete ? 'N/A' : r.scores.risk.toFixed(1),
       cellTitle: (r, incomplete) => incomplete ? null : axisFormula(RISK_FACTORS, r.risk, r.scores.risk) },
     { key: 'tier', label: 'Tier', width: 132,
-      render: (r, incomplete) => incomplete ? <span className="incflag">incomplete</span> : <TierBadge tier={r.tier} /> },
+      render: (r, incomplete) => incomplete ? <span className="incflag">{r.needsInput ? 'needs input' : 'incomplete'}</span> : <TierBadge tier={r.tier} /> },
   ];
 }
 
@@ -5987,7 +5987,7 @@ const RedesignRow = React.memo(function RedesignRow({ role, onSelect }) {
           <span className="stat"><i className="stat-lbl">new</i><b className="stat-val">+{role.tasksNew || 0}</b></span>
           <span className="stat"><i className="stat-lbl">FTE</i><b className="stat-val">{signed(fte)}</b></span>
         </span>
-        {role.complete ? <TierBadge tier={role.tier} /> : <span className="incflag">incomplete</span>}
+        {role.complete ? <TierBadge tier={role.tier} /> : <span className="incflag">{role.needsInput ? 'needs input' : 'incomplete'}</span>}
         <span className="drx" aria-hidden="true">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
@@ -7725,59 +7725,32 @@ function matchCsvHeader(raw) {
   return Object.keys(CSV_HEADER_ALIASES).find((key) => CSV_HEADER_ALIASES[key].includes(norm)) || null;
 }
 
-/* Returns draft role records (raw strings, not yet resolved against the
-   engagement profile's site list, that happens where the profile is in
-   scope) plus any warnings worth surfacing rather than silently dropping. */
-function rolesFromCSV(text) {
-  const rows = parseCSV(text);
-  const warnings = [];
-  if (!rows.length) return { roles: [], warnings: ['The file has no rows.'] };
-
-  const header = rows[0].map(matchCsvHeader);
-  const recognized = header.filter(Boolean).length;
-  const useFallbackOrder = recognized === 0;
-  if (useFallbackOrder) warnings.push('No recognized header row, assuming the template\'s column order: Role name, Site, Headcount, Description.');
-  const fallbackOrder = ['role', 'site', 'headcount', 'summary'];
-
-  const roles = [];
-  for (let i = 1; i < rows.length; i++) {
-    const cells = rows[i];
-    const rec = {};
-    if (useFallbackOrder) {
-      fallbackOrder.forEach((key, idx) => { rec[key] = (cells[idx] || '').trim(); });
-    } else {
-      header.forEach((key, idx) => { if (key) rec[key] = (cells[idx] || '').trim(); });
-    }
-    if (!rec.role) { warnings.push(`Row ${i + 1}: no role name, skipped.`); continue; }
-    roles.push({
-      role: rec.role, site: rec.site || '',
-      headcount: rec.headcount || '', summary: rec.summary || '',
-    });
-  }
-  return { roles, warnings };
-}
-
 /* ===========================================================================
    12b. INPUT AUDIT: client-side document parsing (no backend, no API keys)
    run against whatever is uploaded during project creation, checked against
-   the roles being scored - coverage, mentions, completeness, source
-   citations. The documents inform this audit; they never write a role's
-   change description themselves. That stays with the practitioner - stated
-   once, plainly, on screen (see RoleDataStep), not implied.
+   the roles read from the roles spreadsheet - mentions and file status. The
+   documents inform this audit; they never write a role's change description
+   themselves - that stays with the practitioner, and isn't asked for yet
+   (see the wizard's own banner comment on what's deferred).
    =========================================================================== */
 
-// The five source documents an assessment like this is normally built from,
-// and who actually hands each one over - shown up front (see
-// WhatYoullNeedPanel) so gathering them reads as the known, ordinary cost of
-// this work, and reused here as the five named upload slots.
-const UPLOAD_SLOTS = [
-  { key: 'solutionDesign',   label: 'Solution design / to-be process maps',      source: 'the implementation partner' },
-  { key: 'currentStateSops', label: 'Current-state SOPs or job descriptions',    source: 'process owners' },
-  { key: 'roleHeadcount',    label: 'Role and headcount extract',                source: 'HR' },
-  { key: 'siteList',         label: 'Site list with shift patterns',             source: 'operations' },
-  { key: 'programPlan',      label: 'Program plan with the go-live date',        source: 'the PMO' },
-];
 const UPLOAD_ACCEPT = '.pdf,.docx,.xlsx,.csv';
+const SPREADSHEET_ACCEPT = '.xlsx,.csv';
+
+// Two required, five optional - who hands each one over, and what format it
+// has to be in. `multi` (Anything else) is the one slot that takes more than
+// one file; every other slot holds exactly one. Shown directly as the
+// upload grid in UploadsStep - one line above the slots covers what the
+// tool does with them, not a sentence per slot (see UploadSlot itself).
+const UPLOAD_SLOTS = [
+  { key: 'rolesHeadcount',    label: 'Roles and headcount',                                        source: 'HR',                          required: true,  accept: SPREADSHEET_ACCEPT },
+  { key: 'futureStateDesign', label: 'Future state design document',                                source: 'the implementation partner',  required: true,  accept: UPLOAD_ACCEPT },
+  { key: 'currentState',      label: 'Current state documents',                                     source: 'process owners',              required: false, accept: UPLOAD_ACCEPT },
+  { key: 'siteShiftPatterns', label: 'Site and shift patterns',                                     source: 'operations',                  required: false, accept: UPLOAD_ACCEPT },
+  { key: 'programPlan',       label: 'Program plan with the go-live date',                          source: 'the PMO',                     required: false, accept: UPLOAD_ACCEPT },
+  { key: 'exampleImpact',     label: 'Example impact records, two or three roles written by hand',  source: 'you',                          required: false, accept: UPLOAD_ACCEPT },
+  { key: 'anythingElse',      label: 'Anything else',                                               source: 'wherever you have it',        required: false, accept: UPLOAD_ACCEPT, multi: true },
+];
 
 /* Loads a CDN script at most once, however many callers ask for it while the
    first load is still in flight. Rejects, never throws synchronously - the
@@ -7861,120 +7834,100 @@ async function extractUploadedFile(file) {
   throw new Error(`".${ext}" isn't one of the supported formats (pdf, docx, xlsx, csv)`);
 }
 
-/* Coverage: the one upload slot that's genuinely structured data (a role and
-   headcount extract) diffed against the roles actually being scored, both
-   directions. A column-to-column comparison, not a text search - the one
-   finding in this audit reliable enough to state as definite. */
-function auditCoverage(rows, namedRoles) {
-  if (!rows || rows.length < 1) return null;
-  const header = rows[0].map(matchCsvHeader);
-  const roleColIdx = header.indexOf('role');
-  const hasHeader = roleColIdx !== -1;
-  const colIdx = hasHeader ? roleColIdx : 0;
-  const dataRows = hasHeader ? rows.slice(1) : rows;
-  const hrNamesRaw = dataRows.map((r) => String((r || [])[colIdx] || '').trim()).filter(Boolean);
-  if (!hrNamesRaw.length) return null;
-
-  const norm = (s) => s.trim().toLowerCase();
-  const hrByNorm = new Map(hrNamesRaw.map((n) => [norm(n), n]));
-  const scoredByNorm = new Map(namedRoles.map((d) => [norm(d.role), d.role]));
-
-  const inHrNotScored = [...hrByNorm.entries()].filter(([n]) => !scoredByNorm.has(n)).map(([, name]) => name);
-  const scoredNotInHr = [...scoredByNorm.entries()].filter(([n]) => !hrByNorm.has(n)).map(([, name]) => name);
-  return { hrCount: hrByNorm.size, scoredCount: scoredByNorm.size, inHrNotScored, scoredNotInHr };
+/* The roles spreadsheet is always read with SheetJS - xlsx natively, csv by
+   handing its text to SheetJS's own CSV reader (window.XLSX.read with type:
+   'string'), not the bespoke parseCSV above, so both formats go through the
+   one real parser and come back in exactly the same shape: rows[0] is the
+   header row, every row after it one role. */
+async function parseRolesSpreadsheet(file) {
+  await ensureXlsx();
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const wb = ext === 'csv'
+    ? window.XLSX.read(await file.text(), { type: 'string' })
+    : window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  return window.XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1 });
 }
 
-/* Whether each scored role's name turns up anywhere in the uploaded
-   documents, and where - a plain case-insensitive substring search per
-   document. Reliable enough to flag "never mentioned" as worth a look,
-   without pretending the tool has read and understood the documents. Also
-   the source of the citations shown on that role's own page (see
-   OnePager) - one scan answers both the audit's "mentions" finding and the
-   provenance the one-pager surfaces. */
-function auditMentions(namedRoles, uploads) {
+/* Best guess at which column is which, from the header row's own text -
+   reuses the same aliases matchCsvHeader already knows (role/site/
+   headcount/summary), ignoring a 'summary' match since this sheet isn't
+   expected to carry a description column. Never guaranteed right: the
+   column-mapping selects in AuditStep read this as a starting point, not a
+   final answer, and the person reviewing the audit can always override it. */
+function guessRoleColumns(headerRow) {
+  const guess = { role: null, site: null, headcount: null };
+  (headerRow || []).forEach((cell, i) => {
+    const key = matchCsvHeader(cell);
+    if (key && key !== 'summary' && guess[key] == null) guess[key] = i;
+  });
+  return guess;
+}
+
+/* Turns the raw 2-D array (header row plus data rows) into role records
+   using whatever column mapping is currently in effect - the guess above,
+   or whatever the person fixed it to. A row with no role name is dropped;
+   site/headcount are kept as whatever text was in that cell, unparsed. */
+function rolesFromMappedRows(rows, columnMap) {
+  if (!rows || rows.length < 2 || columnMap.role == null) return [];
+  return rows.slice(1)
+    .map((r) => ({
+      role: String((r || [])[columnMap.role] || '').trim(),
+      site: columnMap.site != null ? String((r || [])[columnMap.site] || '').trim() : '',
+      headcount: columnMap.headcount != null ? String((r || [])[columnMap.headcount] || '').trim() : '',
+    }))
+    .filter((r) => r.role);
+}
+
+// "PDF", "Word", "Excel", "CSV" - the plain names behind each extension an
+// upload slot accepts, shown as that slot's own file-types caption (see
+// UploadSlot/UploadSlotMulti) rather than a raw ".pdf,.docx" string.
+const ACCEPT_TYPE_LABELS = { pdf: 'PDF', docx: 'Word', xlsx: 'Excel', csv: 'CSV' };
+function describeAccept(accept) {
+  return accept.split(',').map((s) => s.replace('.', '').trim())
+    .map((ext) => ACCEPT_TYPE_LABELS[ext] || ext.toUpperCase()).join(', ');
+}
+
+/* Every uploaded file across every slot, single or multi, flattened to one
+   list - what AuditStep's own file list and counts read. slotLabel is
+   carried along so a multi-file slot's own files are each still
+   identifiable by which slot they came in through. */
+function collectFileStatuses(uploads) {
+  return UPLOAD_SLOTS.flatMap((slot) => {
+    const val = uploads[slot.key];
+    if (slot.multi) return (val || []).map((f) => ({ slotLabel: slot.label, ...f }));
+    return val ? [{ slotLabel: slot.label, ...val }] : [];
+  });
+}
+
+/* Whether each role read from the spreadsheet turns up anywhere in the
+   OTHER uploaded documents - a plain case-insensitive substring search per
+   file, same technique the one-pager's own citations use later. The roles
+   spreadsheet itself is deliberately excluded: every role obviously
+   "mentions" itself in the listing it was read from, which would make this
+   check meaningless. Reliable enough to flag "never mentioned" as worth a
+   look, without pretending the tool has read and understood the documents. */
+function mentionScan(roleNames, uploads) {
   const docs = UPLOAD_SLOTS
-    .map((slot) => uploads[slot.key])
+    .filter((slot) => slot.key !== 'rolesHeadcount')
+    .flatMap((slot) => (slot.multi ? (uploads[slot.key] || []) : [uploads[slot.key]]))
     .filter((u) => u && u.status === 'done' && u.text);
-  const byDraftId = {};
-  namedRoles.forEach((d) => {
-    const needle = d.role.trim().toLowerCase();
+  const refsByIndex = roleNames.map((name) => {
+    const needle = name.trim().toLowerCase();
+    if (!needle) return [];
     const refs = [];
-    if (needle) {
-      docs.forEach((u) => {
-        const hay = u.text.toLowerCase();
-        const idx = hay.indexOf(needle);
-        if (idx === -1) return;
-        const start = Math.max(0, idx - 60);
-        const end = Math.min(u.text.length, idx + needle.length + 60);
-        const snippet = (start > 0 ? '…' : '') + u.text.slice(start, end).replace(/\s+/g, ' ').trim() + (end < u.text.length ? '…' : '');
-        refs.push({ fileName: u.name, snippet });
-      });
-    }
-    byDraftId[d.draftId] = refs;
-  });
-  return byDraftId;
-}
-
-/* How much real change detail a role actually carries: a narrative, and how
-   fully it is scored. Not the same six-factor score itself - this rates the
-   INPUT, not the finding. */
-function completenessScore(draft) {
-  const narrative = (draft.summary || '').trim();
-  const narrativeScore = narrative.length > 60 ? 1 : narrative.length > 0 ? 0.4 : 0;
-  const scoreCompleteness = 1 - missingFactors(draft).length / 6;
-  const basics = (draft.site ? 0.5 : 0) + (draft.headcount ? 0.5 : 0);
-  return (narrativeScore * 0.5) + (scoreCompleteness * 0.35) + (basics * 0.15);
-}
-
-/* Crosses each role's completeness against its tier and effort share, so
-   the finding names which tier is carrying both the least input detail and
-   the most consequence - the audit auditing its own inputs, not just
-   counting blanks. Always available, with or without any document
-   uploaded: it reads the roles being scored, not the documents. */
-function auditCompleteness(namedRoles) {
-  if (!namedRoles.length) return null;
-  const rated = namedRoles.map((d) => {
-    const missing = missingFactors(d);
-    const tier = missing.length === 0 ? assignTier(impactSeverity(d.impact), adoptionRisk(d.risk)) : null;
-    return { draftId: d.draftId, role: d.role.trim(), headcount: Math.max(0, parseInt(d.headcount, 10) || 0), tier, score: completenessScore(d) };
-  });
-  const sorted = [...rated].sort((a, b) => a.score - b.score);
-  const thinCount = Math.max(1, Math.ceil(rated.length / 3));
-  const thinIds = new Set(sorted.slice(0, thinCount).map((r) => r.draftId));
-
-  const thinPerTier = {};
-  rated.forEach((r) => { if (r.tier && thinIds.has(r.draftId)) thinPerTier[r.tier] = (thinPerTier[r.tier] || 0) + 1; });
-  const worstTier = Object.keys(thinPerTier).sort((a, b) => thinPerTier[b] - thinPerTier[a])[0] || null;
-
-  let headline = null;
-  if (worstTier) {
-    const tierRoles = rated.filter((r) => r.tier === worstTier);
-    const thinInTier = thinPerTier[worstTier];
-    const totalWeight = rated.reduce((s, r) => s + (r.tier ? r.headcount * (EFFORT_WEIGHT_PER_TIER[r.tier] || 0) : 0), 0) || 1;
-    const shareByTier = {};
-    TIER_ORDER.forEach((t) => {
-      shareByTier[t] = rated.filter((r) => r.tier === t).reduce((s, r) => s + r.headcount * (EFFORT_WEIGHT_PER_TIER[t] || 0), 0) / totalWeight;
+    docs.forEach((u) => {
+      const hay = u.text.toLowerCase();
+      const idx = hay.indexOf(needle);
+      if (idx === -1) return;
+      const start = Math.max(0, idx - 60);
+      const end = Math.min(u.text.length, idx + needle.length + 60);
+      const snippet = (start > 0 ? '…' : '') + u.text.slice(start, end).replace(/\s+/g, ' ').trim() + (end < u.text.length ? '…' : '');
+      refs.push({ fileName: u.name, snippet });
     });
-    const worstTierShare = shareByTier[worstTier];
-    const isLargest = TIER_ORDER.every((t) => shareByTier[t] <= worstTierShare);
-    headline = `${thinInTier} of your ${tierRoles.length} ${worstTier} role${tierRoles.length === 1 ? '' : 's'} `
-      + `${thinInTier === 1 ? 'has' : 'have'} the least change detail, and ${isLargest ? 'they carry the largest share of the effort' : `${worstTier} carries ${pct(worstTierShare)} of the effort`}.`;
-  }
-  return { rated: sorted, thinIds, worstTier, headline };
-}
-
-/* The one place all four parts of the audit come together, degrading
-   cleanly with no roles and no documents - every piece is null/empty
-   rather than a false claim when there's nothing yet to check. */
-function auditInputs(draftRoles, uploads) {
-  const namedRoles = draftRoles.filter((d) => d.role.trim());
-  const hrUpload = uploads.roleHeadcount;
-  const coverage = (hrUpload && hrUpload.status === 'done' && hrUpload.rows) ? auditCoverage(hrUpload.rows, namedRoles) : null;
-  const anyDocDone = UPLOAD_SLOTS.some((s) => uploads[s.key] && uploads[s.key].status === 'done');
-  const mentionsByDraftId = anyDocDone ? auditMentions(namedRoles, uploads) : null;
-  const unmentioned = mentionsByDraftId ? namedRoles.filter((d) => (mentionsByDraftId[d.draftId] || []).length === 0) : [];
-  const completeness = auditCompleteness(namedRoles);
-  return { roleCount: namedRoles.length, coverage, anyDocDone, mentionsByDraftId, unmentioned, completeness };
+    return refs;
+  });
+  return { docCount: docs.length, refsByIndex };
 }
 
 /* The real Aberdeen A-mark, inlined (not redrawn) from assets/brand/icon-
@@ -8073,229 +8026,104 @@ function ProjectPicker({ projects, onSelect, onStartNew }) {
 }
 
 /* ===========================================================================
-   12. NEW PROJECT WIZARD: two steps: an engagement profile a client would
-   hand over at kickoff, then role and change data (CSV or one at a time),
-   with an assisted-scoring pass in front of the same six manual sliders.
-   Nothing here touches scoreRole/assignTier/THRESHOLD, every role this
+   12. NEW PROJECT WIZARD: three steps - upload documents, review what was
+   read, then the project opens. No AI derivation here yet: nothing reads a
+   document and writes a role's impact or risk score, or its change
+   narrative. That is deliberately deferred (see the project's own CLAUDE.md
+   if this comment has drifted from it); this pass only gets roles named,
+   sited and headcounted from a spreadsheet, with every other document
+   collected and checked for whether it mentions each role, ready for the
+   derivation pass that comes next.
+   Nothing here touches scoreRole/assignTier/THRESHOLD - every role this
    produces is scored by the same deterministic engine as every other entry
-   path, exactly like AddRoleView's roles are.
+   path, exactly like AddRoleView's roles are. A role with no impact/risk
+   set yet reads exactly like any other incomplete role everywhere in the
+   app, with one addition: `needsInput: true`, set only on roles this wizard
+   creates, never on the three example projects' seed data, that swaps the
+   generic "incomplete" flag for "needs input" in the two places a role's
+   status renders as a flag rather than a tier badge (RoleTable's own tier
+   column and RedesignRow) - see those two call sites for the exact branch.
    =========================================================================== */
 
 function slugify(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-/* A role's "Site" text is matched against the named sites from the engagement
-   profile so its siteArchetype comes from that site's declared type; unmatched
-   text is kept as-is rather than dropped, so nothing is silently lost. */
-function resolveSiteArchetype(siteText, sites) {
-  const norm = String(siteText || '').trim().toLowerCase();
-  if (!norm) return { archetype: '', matched: false };
-  const hit = (sites || []).find((s) => s.name.trim().toLowerCase() === norm);
-  if (hit) return { archetype: hit.type, matched: true };
-  return { archetype: siteText.trim(), matched: false };
-}
-
-const BLANK_SITE_ROW = () => ({ key: 'site-' + Math.random().toString(36).slice(2, 9), name: '', type: 'HQ', headcount: '' });
-const BLANK_PROFILE = () => ({
-  companyName: '', industry: '', hqLocation: '', totalEmployees: '',
-  platform: '', goLiveDate: '', sponsorName: '', sponsorTitle: '',
-  sites: [BLANK_SITE_ROW()],
-});
-const BLANK_DRAFT_SCORES = () => ({
+const BLANK_ROLE_SCORES = () => ({
   impact: { taskShare: null, frequencyVolume: null, errorConsequence: null },
   risk: { decisionRights: null, capabilityDelta: null, localReadiness: null },
 });
 
-/* Shown once, at the very start of project creation, so gathering these
-   five documents reads as the known, ordinary cost of this work - not a
-   surprise sprung on the practitioner partway through. Matter-of-fact: one
-   line per document, who it comes from, no explanatory paragraph. */
-function WhatYoullNeedPanel() {
-  return (
-    <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
-      <div className="card-head"><h3>What you'll need</h3></div>
-      <div className="card-body">
-        <ul className="need-list">
-          {UPLOAD_SLOTS.map((s) => (
-            <li key={s.key}><b>{s.label}</b>, from {s.source}</li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
+/* Step 1. Project name (the one piece of identity nothing else here can
+   supply) plus the upload grid, required slots first. One line above the
+   grid states what the tool does with these documents; no sentence per
+   slot beyond its own label/source/file-types (see UploadSlot). */
+function UploadsStep({ projectName, onProjectNameChange, uploads, onUploadFile, onAddMultiFile, onRemoveUpload, onRemoveMultiFile, onNext, onCancel }) {
+  const required = UPLOAD_SLOTS.filter((s) => s.required);
+  const optional = UPLOAD_SLOTS.filter((s) => !s.required);
+  const canContinue = projectName.trim().length > 0;
 
-function EngagementProfileStep({ profile, onChange, onNext, onCancel }) {
-  const set = (patch) => onChange({ ...profile, ...patch });
-  const setSite = (key, patch) => onChange({ ...profile, sites: profile.sites.map((s) => (s.key === key ? { ...s, ...patch } : s)) });
-  const addSite = () => onChange({ ...profile, sites: [...profile.sites, BLANK_SITE_ROW()] });
-  const removeSite = (key) => onChange({ ...profile, sites: profile.sites.length > 1 ? profile.sites.filter((s) => s.key !== key) : profile.sites });
-  const canContinue = profile.companyName.trim().length > 0;
+  const renderSlot = (slot) => (
+    slot.multi ? (
+      <UploadSlotMulti key={slot.key} slot={slot} files={uploads[slot.key] || []}
+                        onAddFile={(f) => onAddMultiFile(slot.key, f)}
+                        onRemove={(i) => onRemoveMultiFile(slot.key, i)} />
+    ) : (
+      <UploadSlot key={slot.key} slot={slot} upload={uploads[slot.key]}
+                  onFile={(f) => onUploadFile(slot.key, f)} onRemove={() => onRemoveUpload(slot.key)} />
+    )
+  );
 
   return (
     <>
       <div className="view-head">
-        <h2>New project: engagement profile</h2>
-        <p className="lede">
-          The details a client would hand over at kickoff. Company name is the only field required to continue,
-          everything else sharpens the picture and can be filled in later.
-        </p>
+        <h2>New project: uploads</h2>
       </div>
 
-      <WhatYoullNeedPanel />
-
-      <div className="card">
-        <div className="card-head"><h3>About the engagement</h3></div>
+      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-body">
-          <div className="form-grid">
-            <div className="field">
-              <label htmlFor="ep-company">Company name</label>
-              <input id="ep-company" type="text" value={profile.companyName} required
-                     onChange={(e) => set({ companyName: e.target.value })} placeholder="e.g. Northfield Manufacturing" />
-            </div>
-            <div className="field">
-              <label htmlFor="ep-industry">Industry</label>
-              <input id="ep-industry" type="text" value={profile.industry}
-                     onChange={(e) => set({ industry: e.target.value })} placeholder="e.g. Industrial equipment" />
-            </div>
-            <div className="field">
-              <label htmlFor="ep-hq">HQ location</label>
-              <input id="ep-hq" type="text" value={profile.hqLocation}
-                     onChange={(e) => set({ hqLocation: e.target.value })} placeholder="e.g. Columbus, OH" />
-            </div>
-            <div className="field">
-              <label htmlFor="ep-emp">Total employees in scope</label>
-              <input id="ep-emp" type="number" min="1" value={profile.totalEmployees}
-                     onChange={(e) => set({ totalEmployees: e.target.value })} placeholder="e.g. 1200" />
-            </div>
-            <div className="field">
-              <label htmlFor="ep-platform">Technology / platform being deployed</label>
-              <input id="ep-platform" type="text" value={profile.platform}
-                     onChange={(e) => set({ platform: e.target.value })} placeholder="e.g. SAP S/4HANA" />
-            </div>
-            <div className="field">
-              <label htmlFor="ep-golive">Target go-live date</label>
-              <input id="ep-golive" type="date" value={profile.goLiveDate}
-                     onChange={(e) => set({ goLiveDate: e.target.value })} />
-            </div>
-            <div className="field">
-              <label htmlFor="ep-sponsor-name">Engagement sponsor: name</label>
-              <input id="ep-sponsor-name" type="text" value={profile.sponsorName}
-                     onChange={(e) => set({ sponsorName: e.target.value })} placeholder="e.g. Dana Whitfield" />
-            </div>
-            <div className="field">
-              <label htmlFor="ep-sponsor-title">Engagement sponsor: title</label>
-              <input id="ep-sponsor-title" type="text" value={profile.sponsorTitle}
-                     onChange={(e) => set({ sponsorTitle: e.target.value })} placeholder="e.g. VP Operations" />
-            </div>
+          <div className="field">
+            <label htmlFor="np-name">Project name</label>
+            <input id="np-name" type="text" required value={projectName}
+                   onChange={(e) => onProjectNameChange(e.target.value)} placeholder="e.g. Northfield Manufacturing" />
           </div>
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 'var(--space-16)' }}>
-        <div className="card-head">
-          <h3>Sites</h3>
-          <span className="hint">One row per physical site: name, type and headcount</span>
-        </div>
-        <div className="card-body">
-          <div className="site-rows">
-            {profile.sites.map((s, i) => (
-              <div className="site-row" key={s.key}>
-                <input type="text" aria-label={`Site ${i + 1} name`} placeholder={`Site ${i + 1} name`} value={s.name}
-                       onChange={(e) => setSite(s.key, { name: e.target.value })} />
-                <select aria-label={`Site ${i + 1} type`} value={s.type} onChange={(e) => setSite(s.key, { type: e.target.value })}>
-                  {SITE_TYPES.map((t) => <option key={t}>{t}</option>)}
-                </select>
-                <input type="number" aria-label={`Site ${i + 1} headcount`} min="0" placeholder="Headcount" value={s.headcount}
-                       onChange={(e) => setSite(s.key, { headcount: e.target.value })} />
-                <button type="button" className="btn" onClick={() => removeSite(s.key)} disabled={profile.sites.length === 1}
-                        aria-label={`Remove site ${i + 1}`}>✕</button>
-              </div>
-            ))}
-          </div>
-          <button type="button" className="btn" style={{ marginTop: 10 }} onClick={addSite}>+ Add another site</button>
-        </div>
+      <p className="lede">The tool works out how each role's work changes from your documents. You do not fill that in role by role.</p>
+
+      <h4 style={{ marginBottom: 'var(--space-8)' }}>Required</h4>
+      <div className="upload-slot-grid" style={{ marginBottom: 'var(--space-16)' }}>
+        {required.map(renderSlot)}
+      </div>
+
+      <h4 style={{ marginBottom: 'var(--space-8)' }}>Optional</h4>
+      <div className="upload-slot-grid">
+        {optional.map(renderSlot)}
       </div>
 
       <div className="btn-row" style={{ marginTop: 18 }}>
-        <button type="button" className="btn primary lg" disabled={!canContinue} onClick={onNext}>Continue to role data →</button>
+        <button type="button" className="btn primary lg" disabled={!canContinue} onClick={onNext}>Continue to review →</button>
         <button type="button" className="btn" onClick={onCancel}>← Cancel, back to projects</button>
       </div>
     </>
   );
 }
 
-function DraftRoleRow({ draft, onUpdate, onRemove }) {
-  const [open, setOpen] = useState(false);
-  const missing = missingFactors(draft);
-  const complete = missing.length === 0;
-  const setSub = (axis, key, v) => onUpdate({ [axis]: { ...draft[axis], [key]: v } });
-
-  let statusBadge;
-  if (draft.scoreStatus === 'loading') statusBadge = <span className="score-badge loading">Scoring…</span>;
-  else if (draft.scoreStatus === 'none') statusBadge = <span className="score-badge none">No description: set manually</span>;
-  else if (draft.scoreSource === 'anthropic') statusBadge = <span className="score-badge ai">AI-suggested: review before finalizing</span>;
-  else if (draft.scoreSource === 'fallback') statusBadge = <span className="score-badge placeholder">Placeholder: no model available</span>;
-  else statusBadge = <span className="score-badge none">Not scored yet</span>;
-
-  return (
-    <div className={'draft-row' + (complete ? '' : ' incomplete')}>
-      <button type="button" className="draft-row-head" onClick={() => setOpen((o) => !o)}>
-        <span className="drn">{draft.role || '(untitled role)'}</span>
-        <span className="drm">{draft.site || draft.siteArchetype || 'N/A'} · {draft.headcount ? pluralize(parseInt(draft.headcount, 10) || 0, 'person', 'people') : 'N/A'}</span>
-        {statusBadge}
-        <span className="drx" aria-hidden="true">{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div className="draft-row-body">
-          <div className="field full">
-            <label>Description of what changes</label>
-            <textarea value={draft.summary} onChange={(e) => onUpdate({ summary: e.target.value })} />
-          </div>
-          <div className="grid cols-2">
-            <div>
-              <h4>Impact severity</h4>
-              <div className="slider-grid">
-                {IMPACT_FACTORS.map((fa) => (
-                  <div key={fa.key}>
-                    <Slider factor={fa} weightFactors={IMPACT_FACTORS} value={draft.impact[fa.key]} onChange={(v) => setSub('impact', fa.key, v)} citeDeck={false} />
-                    {draft.rationale && draft.rationale[fa.key] && <p className="ai-rationale">{draft.rationale[fa.key]}</p>}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h4>Adoption risk</h4>
-              <div className="slider-grid">
-                {RISK_FACTORS.map((fa) => (
-                  <div key={fa.key}>
-                    <Slider factor={fa} weightFactors={RISK_FACTORS} value={draft.risk[fa.key]} onChange={(v) => setSub('risk', fa.key, v)} citeDeck={false} />
-                    {draft.rationale && draft.rationale[fa.key] && <p className="ai-rationale">{draft.rationale[fa.key]}</p>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="btn-row">
-            <button type="button" className="btn" onClick={onRemove}>Remove this role</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* One named document slot: label, who it comes from, and once a file is
-   picked, its own parse status - reading, done, or a plain per-file error
-   that never blocks the rest of the wizard. Nothing here is mandatory. */
+/* One named document slot: label, who it comes from, its accepted file
+   types, and once a file is picked, its own parse status - reading, done,
+   or a plain per-file error that never blocks the rest of the wizard.
+   Nothing here is mandatory to fill, `slot.required` only changes the
+   heading it renders under in UploadsStep. No instructional sentence
+   anywhere on this card - the label, source and file types are the whole
+   of it. */
 function UploadSlot({ slot, upload, onFile, onRemove }) {
   const inputRef = useRef(null);
   return (
     <div className="upload-slot">
       <div className="upload-slot-head">
         <span className="upload-slot-label">{slot.label}</span>
-        <span className="upload-slot-source">from {slot.source}</span>
+        <span className="upload-slot-source">from {slot.source} · {describeAccept(slot.accept)}</span>
       </div>
       {!upload && (
         <button type="button" className="btn" onClick={() => inputRef.current && inputRef.current.click()}>Choose file…</button>
@@ -8315,242 +8143,156 @@ function UploadSlot({ slot, upload, onFile, onRemove }) {
           <button type="button" className="btn" onClick={onRemove} aria-label={`Remove ${upload.name}`}>✕</button>
         </div>
       )}
-      <input ref={inputRef} type="file" accept={UPLOAD_ACCEPT} style={{ display: 'none' }}
+      <input ref={inputRef} type="file" accept={slot.accept} style={{ display: 'none' }}
              aria-label={`Upload: ${slot.label}`}
              onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) onFile(f); }} />
     </div>
   );
 }
 
-/* The audit itself - coverage, mentions, completeness - degrading cleanly
-   with no roles and no documents rather than asserting a false finding. The
-   completeness cross-tab gets top billing (see the "primary" finding): it's
-   the one part of this that doesn't need a single document uploaded to be
-   useful, and it's the most useful thing on the screen. */
-function InputAuditPanel({ audit }) {
-  if (!audit || audit.roleCount === 0) {
-    return (
-      <div className="card audit-panel" style={{ marginTop: 'var(--space-16)' }}>
-        <div className="card-head"><h3>Input audit</h3></div>
-        <div className="card-body"><p className="sub" style={{ margin: 0 }}>Add at least one role above to run the audit.</p></div>
-      </div>
-    );
-  }
+/* The one multi-file slot (Anything else): same head/status pattern as
+   UploadSlot, repeated once per file instead of once for the whole slot,
+   with its own "add another" affordance rather than a single "choose
+   file" that would otherwise get replaced on a second pick. */
+function UploadSlotMulti({ slot, files, onAddFile, onRemove }) {
+  const inputRef = useRef(null);
   return (
-    <div className="card audit-panel" style={{ marginTop: 'var(--space-16)' }}>
-      <div className="card-head"><h3>Input audit</h3></div>
-      <div className="card-body">
-        {audit.completeness && audit.completeness.headline && (
-          <div className="audit-finding">
-            <b>{audit.completeness.headline}</b>
-          </div>
-        )}
-
-        <div className="audit-section">
-          <h4>Coverage against HR</h4>
-          {!audit.coverage ? (
-            <p className="sub">Upload a role and headcount extract to check coverage against HR.</p>
-          ) : audit.coverage.inHrNotScored.length === 0 && audit.coverage.scoredNotInHr.length === 0 ? (
-            <p className="sub">Every role in the HR extract is scored here, and every role scored here is in the HR extract.</p>
-          ) : (
-            <>
-              {audit.coverage.inHrNotScored.length > 0 && (
-                <p className="sub">In HR, not scored here: {audit.coverage.inHrNotScored.join(', ')}.</p>
-              )}
-              {audit.coverage.scoredNotInHr.length > 0 && (
-                <p className="sub">Scored here, not in HR: {audit.coverage.scoredNotInHr.join(', ')}.</p>
-              )}
-            </>
-          )}
-        </div>
-
-        <div className="audit-section">
-          <h4>Mentioned in the uploaded documents</h4>
-          {!audit.anyDocDone ? (
-            <p className="sub">No documents uploaded yet, so this can't be checked.</p>
-          ) : audit.unmentioned.length === 0 ? (
-            <p className="sub">Every role is mentioned somewhere in the uploaded documents.</p>
-          ) : (
-            <p className="sub">
-              Not mentioned anywhere: {audit.unmentioned.map((d) => d.role).join(', ')}. Their change description may be unsupported.
-            </p>
-          )}
-        </div>
+    <div className="upload-slot">
+      <div className="upload-slot-head">
+        <span className="upload-slot-label">{slot.label}</span>
+        <span className="upload-slot-source">from {slot.source} · {describeAccept(slot.accept)}</span>
       </div>
+      <button type="button" className="btn" onClick={() => inputRef.current && inputRef.current.click()}>
+        {files.length ? 'Add another file…' : 'Choose files…'}
+      </button>
+      {files.map((f, i) => (
+        <div className="upload-slot-file" key={i}>
+          <span className="fn">{f.name}</span>
+          {f.status === 'reading' && <span className="hint">Reading…</span>}
+          {f.status === 'done' && <span className="fs">{Math.max(1, Math.round(f.size / 1024))} KB</span>}
+          {f.status === 'error' && <span className="upload-slot-err">{f.error}</span>}
+          <button type="button" className="btn" onClick={() => onRemove(i)} aria-label={`Remove ${f.name}`}>✕</button>
+        </div>
+      ))}
+      <input ref={inputRef} type="file" accept={slot.accept} multiple style={{ display: 'none' }}
+             aria-label={`Upload: ${slot.label}`}
+             onChange={(e) => { const fs = Array.from(e.target.files || []); e.target.value = ''; fs.forEach(onAddFile); }} />
     </div>
   );
 }
 
-function RoleDataStep({ profile, draftRoles, onAddDrafts, onUpdateDraft, onRemoveDraft, uploads, onUploadFile, onRemoveUpload, onBack, onFinish }) {
-  const [manual, setManual] = useState({ role: '', site: '', headcount: '', summary: '' });
-  const [csvWarnings, setCsvWarnings] = useState([]);
-  const [csvFileName, setCsvFileName] = useState('');
-  const fileInputRef = useRef(null);
-
-  const handleCsvChange = async (e) => {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = ''; // let the same filename be re-picked later
-    if (!file) return;
-    setCsvFileName(file.name);
-    const text = await file.text();
-    const { roles, warnings } = rolesFromCSV(text);
-    setCsvWarnings(warnings);
-    onAddDrafts(roles);
-  };
-
-  const submitManual = (e) => {
-    e.preventDefault();
-    if (!manual.role.trim()) return;
-    onAddDrafts([manual]);
-    setManual({ role: '', site: manual.site, headcount: '', summary: '' });
-  };
-
-  // Every slot's file is read client-side the moment it's picked - no
-  // backend, no API key - and a file that can't be parsed says so against
-  // that one slot without blocking anything else in the wizard.
-  const handleSlotFile = (key, file) => {
-    onUploadFile(key, { name: file.name, size: file.size, status: 'reading', text: '', rows: null, error: null });
-    extractUploadedFile(file).then(({ text, rows }) => {
-      onUploadFile(key, { name: file.name, size: file.size, status: 'done', text, rows, error: null });
-    }).catch((err) => {
-      onUploadFile(key, { name: file.name, size: file.size, status: 'error', text: '', rows: null, error: (err && err.message) || 'could not be read' });
-    });
-  };
-
-  const audit = useMemo(() => auditInputs(draftRoles, uploads), [draftRoles, uploads]);
-
-  const pendingCount = draftRoles.filter((d) => d.scoreStatus === 'loading').length;
-  const incompleteCount = draftRoles.filter((d) => missingFactors(d).length > 0).length;
+/* Step 2. Counts and short lists only, no prose: what the roles spreadsheet
+   produced, whether the column guess needs fixing, which files parsed and
+   which failed, and which roles never turn up in anything else uploaded.
+   "Create project" is never disabled - a thin project is still a real one,
+   and every gap here is exactly the same gap the project opens showing. */
+function AuditStep({ projectName, parsedRoles, roleColumnMap, roleHeaderRow, onColumnMapChange, uploads, onBack, onCreate }) {
+  const totalHeadcount = parsedRoles.reduce((s, r) => s + (Math.max(0, parseInt(r.headcount, 10)) || 0), 0);
+  const sites = new Set(parsedRoles.map((r) => r.site.trim()).filter(Boolean));
+  const files = useMemo(() => collectFileStatuses(uploads), [uploads]);
+  const failedFiles = files.filter((f) => f.status === 'error');
+  const mentions = useMemo(() => mentionScan(parsedRoles.map((r) => r.role), uploads), [parsedRoles, uploads]);
+  const unmentioned = parsedRoles.filter((_, i) => (mentions.refsByIndex[i] || []).length === 0);
+  const columnFields = [
+    { key: 'role', label: 'Role name column' },
+    { key: 'site', label: 'Site column' },
+    { key: 'headcount', label: 'Headcount column' },
+  ];
 
   return (
     <>
       <div className="view-head">
-        <h2>Role & change data</h2>
-        <p className="lede">
-          Bring roles in from a CSV, add them one at a time, or both, they land in the same review list below. Give
-          each one a free-text description of what changes and the assistant proposes the six sub-factor scores
-          against the same anchor ladders the manual sliders use. Every proposed score is editable before you finish.
-        </p>
+        <h2>New project: review</h2>
+        <p className="lede">{projectName || 'New project'}</p>
       </div>
 
-      <div className="grid cols-2">
-        <div className="card">
-          <div className="card-head"><h3>a) Upload a CSV</h3></div>
-          <div className="card-body">
-            <p className="sub" style={{ marginBottom: 10 }}>
-              Columns: Role name, Site, Headcount, Description of what changes.
-            </p>
-            <div className="btn-row">
-              <button type="button" className="btn" onClick={() => fileInputRef.current && fileInputRef.current.click()}>
-                Choose CSV file…
-              </button>
-              <a className="btn" href="data/role-import-template.csv" download>Download CSV template</a>
-            </div>
-            <input ref={fileInputRef} type="file" accept=".csv,text/csv" aria-label="Import roles from CSV file"
-                   style={{ display: 'none' }} onChange={handleCsvChange} />
-            {csvFileName && <p className="sub" style={{ marginTop: 'var(--space-8)' }}>Last imported: {csvFileName}</p>}
-            {csvWarnings.length > 0 && (
-              <div className="note warn" style={{ marginTop: 10 }}>
-                <b>{csvWarnings.length} note{csvWarnings.length === 1 ? '' : 's'} from the import</b>
-                <span className="sub">{csvWarnings.join(' ')}</span>
-              </div>
+      <div className="grid cols-3" style={{ marginBottom: 'var(--space-16)' }}>
+        <Tile label="Roles found" value={parsedRoles.length} countTo={parsedRoles.length} />
+        <Tile label="Total headcount" value={totalHeadcount.toLocaleString()} countTo={totalHeadcount} />
+        <Tile label="Sites found" value={sites.size} countTo={sites.size} />
+      </div>
+
+      {roleHeaderRow && (
+        <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
+          <div className="card-head">
+            <h3>Columns read from the roles file</h3>
+            {(roleColumnMap.role == null || roleColumnMap.headcount == null) && (
+              <span className="hint">Couldn't confidently guess every column - check these</span>
             )}
           </div>
-        </div>
-
-        <div className="card">
-          <div className="card-head"><h3>b) Or add one role at a time</h3></div>
           <div className="card-body">
-            <form onSubmit={submitManual} className="form-grid">
-              <div className="field full">
-                <label htmlFor="rd-role">Role name</label>
-                <input id="rd-role" type="text" required value={manual.role}
-                       onChange={(e) => setManual((m) => ({ ...m, role: e.target.value }))} placeholder="e.g. Warehouse Supervisor" />
-              </div>
-              <div className="field">
-                <label htmlFor="rd-site">Site</label>
-                <input id="rd-site" type="text" list="rd-site-list" value={manual.site}
-                       onChange={(e) => setManual((m) => ({ ...m, site: e.target.value }))} placeholder="e.g. Columbus HQ" />
-                <datalist id="rd-site-list">{profile.sites.filter((s) => s.name.trim()).map((s) => <option key={s.key} value={s.name} />)}</datalist>
-              </div>
-              <div className="field">
-                <label htmlFor="rd-hc">Headcount</label>
-                <input id="rd-hc" type="number" min="1" value={manual.headcount}
-                       onChange={(e) => setManual((m) => ({ ...m, headcount: e.target.value }))} placeholder="e.g. 12" />
-              </div>
-              <div className="field full">
-                <label htmlFor="rd-desc">Description of what changes</label>
-                <textarea id="rd-desc" value={manual.summary}
-                          onChange={(e) => setManual((m) => ({ ...m, summary: e.target.value }))}
-                          placeholder="Free text: this is what the scoring assistant reads to propose the six sub-factor scores." />
-              </div>
-              <div className="field full">
-                <button className="btn primary" type="submit" disabled={!manual.role.trim()}>+ Add role to the list below</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-
-      <div className="card" style={{ marginTop: 'var(--space-16)' }}>
-        <div className="card-head"><h3>Source documents</h3></div>
-        <div className="card-body">
-          <div className="upload-slot-grid">
-            {UPLOAD_SLOTS.map((slot) => (
-              <UploadSlot key={slot.key} slot={slot} upload={uploads[slot.key]}
-                          onFile={(file) => handleSlotFile(slot.key, file)}
-                          onRemove={() => onRemoveUpload(slot.key)} />
-            ))}
-          </div>
-          <p className="footnote" style={{ marginTop: 'var(--space-12)' }}>
-            Uploaded documents are used to check coverage and completeness, not to write role change descriptions - those stay with you.
-          </p>
-        </div>
-      </div>
-
-      <InputAuditPanel audit={audit} />
-
-      <div className="card" style={{ marginTop: 'var(--space-16)' }}>
-        <div className="card-head">
-          <h3>Roles ({draftRoles.length})</h3>
-          {pendingCount > 0 && <span className="hint">{pendingCount} being scored…</span>}
-        </div>
-        <div className="card-body">
-          {draftRoles.length === 0 ? (
-            <p className="sub">No roles yet. Upload a CSV or add one above.</p>
-          ) : (
-            <div className="draft-list">
-              {draftRoles.map((d) => (
-                <DraftRoleRow key={d.draftId} draft={d} onUpdate={(patch) => onUpdateDraft(d.draftId, patch)}
-                              onRemove={() => onRemoveDraft(d.draftId)} />
+            <div className="form-grid">
+              {columnFields.map((f) => (
+                <div className="field" key={f.key}>
+                  <label htmlFor={`np-col-${f.key}`}>{f.label}</label>
+                  <select id={`np-col-${f.key}`} value={roleColumnMap[f.key] == null ? '' : roleColumnMap[f.key]}
+                          onChange={(e) => onColumnMapChange(f.key, e.target.value === '' ? null : parseInt(e.target.value, 10))}>
+                    <option value="">(none)</option>
+                    {roleHeaderRow.map((h, i) => <option key={i} value={i}>{h || `Column ${i + 1}`}</option>)}
+                  </select>
+                </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
+        <div className="card-head">
+          <h3>Files</h3>
+          <span className="hint">{pluralize(files.length, 'file')} uploaded, {pluralize(files.length - failedFiles.length, 'file')} parsed{failedFiles.length ? `, ${pluralize(failedFiles.length, 'file')} failed` : ''}</span>
+        </div>
+        <div className="card-body">
+          {files.length === 0 ? (
+            <p className="sub" style={{ margin: 0 }}>No files uploaded.</p>
+          ) : (
+            <ul className="qual-list">
+              {files.map((f, i) => (
+                <li className="qual-item" key={i}>
+                  <span>{f.slotLabel}: {f.name}</span>
+                  <span className={f.status === 'error' ? 'upload-slot-err' : 'sub'}>{f.status === 'error' ? f.error : 'Parsed'}</span>
+                </li>
+              ))}
+            </ul>
           )}
-          {incompleteCount > 0 && (
-            <p className="footnote">
-              {incompleteCount} role{incompleteCount === 1 ? '' : 's'} {incompleteCount === 1 ? 'is' : 'are'} missing one or
-              more sub-factors and will land on the heat map as <b>incomplete</b>, no score, no tier, until finished.
-            </p>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
+        <div className="card-head"><h3>Not mentioned in any document</h3></div>
+        <div className="card-body">
+          {parsedRoles.length === 0 ? (
+            <p className="sub" style={{ margin: 0 }}>No roles found yet.</p>
+          ) : mentions.docCount === 0 ? (
+            <p className="sub" style={{ margin: 0 }}>No documents uploaded to check.</p>
+          ) : unmentioned.length === 0 ? (
+            <p className="sub" style={{ margin: 0 }}>Every role is mentioned somewhere in the uploaded documents.</p>
+          ) : (
+            <p className="sub" style={{ margin: 0 }}>{unmentioned.map((r) => r.role).join(', ')}.</p>
           )}
         </div>
       </div>
 
       <div className="btn-row" style={{ marginTop: 18 }}>
-        <button type="button" className="btn primary lg" disabled={draftRoles.length === 0} onClick={onFinish}>
-          Finish → open the portfolio
-        </button>
-        <button type="button" className="btn" onClick={onBack}>← Back to profile</button>
+        <button type="button" className="btn primary lg" onClick={onCreate}>Create project</button>
+        <button type="button" className="btn" onClick={onBack}>← Back to uploads</button>
       </div>
     </>
   );
 }
 
+// Deskless site keywords, drawn from SITE_TYPES rather than repeated as a
+// second literal list: a parsed role's free-text site mentioning one of
+// these gets the same deskless-channel treatment (training/comms via the
+// floor, not a desk) AddRoleView already gives a role at a declared site
+// of that type.
+const DESKLESS_SITE_KEYWORDS = SITE_TYPES.filter((t) => t !== 'HQ' && t !== 'Office');
+
 function NewProjectWizard({ onFinish, onCancel }) {
-  const [step, setStep] = useState('profile');
-  const [profile, setProfile] = useState(BLANK_PROFILE);
-  const [draftRoles, setDraftRoles] = useState([]);
-  const [uploads, setUploads] = useState(() => Object.fromEntries(UPLOAD_SLOTS.map((s) => [s.key, null])));
-  const draftSeqRef = useRef(0);
+  const [step, setStep] = useState('uploads'); // 'uploads' | 'review'
+  const [projectName, setProjectName] = useState('');
+  const [uploads, setUploads] = useState(() => Object.fromEntries(UPLOAD_SLOTS.map((s) => [s.key, s.multi ? [] : null])));
+  const [roleColumnMap, setRoleColumnMap] = useState({ role: null, site: null, headcount: null });
 
   const setUpload = useCallback((key, value) => {
     setUploads((u) => ({ ...u, [key]: value }));
@@ -8558,96 +8300,103 @@ function NewProjectWizard({ onFinish, onCancel }) {
   const removeUpload = useCallback((key) => {
     setUploads((u) => ({ ...u, [key]: null }));
   }, []);
-
-  const runSuggest = useCallback((draft) => {
-    setDraftRoles((ds) => ds.map((d) => (d.draftId === draft.draftId ? { ...d, scoreStatus: 'loading' } : d)));
-    suggestScoresForRole({
-      name: draft.role, siteArchetype: draft.siteArchetype,
-      headcount: parseInt(draft.headcount, 10) || undefined, summary: draft.summary,
-    }).then((data) => {
-      setDraftRoles((ds) => ds.map((d) => (d.draftId === draft.draftId ? {
-        ...d, scoreStatus: 'done', scoreSource: data.source || 'anthropic',
-        impact: { ...data.impact }, risk: { ...data.risk }, rationale: data.rationale || {},
-      } : d)));
+  const addMultiFile = useCallback((key, file) => {
+    const fileId = 'f-' + Math.random().toString(36).slice(2, 9);
+    setUploads((u) => ({ ...u, [key]: [...(u[key] || []), { fileId, name: file.name, size: file.size, status: 'reading', text: '', error: null }] }));
+    extractUploadedFile(file).then(({ text }) => {
+      setUploads((u) => ({ ...u, [key]: (u[key] || []).map((f) => (f.fileId === fileId ? { ...f, status: 'done', text } : f)) }));
+    }).catch((err) => {
+      setUploads((u) => ({ ...u, [key]: (u[key] || []).map((f) => (f.fileId === fileId ? { ...f, status: 'error', error: (err && err.message) || 'could not be read' } : f)) }));
     });
   }, []);
+  const removeMultiFile = useCallback((key, index) => {
+    setUploads((u) => ({ ...u, [key]: (u[key] || []).filter((_, i) => i !== index) }));
+  }, []);
 
-  const addDrafts = useCallback((rawList) => {
-    const made = rawList.map((raw) => {
-      draftSeqRef.current += 1;
-      const { archetype } = resolveSiteArchetype(raw.site, profile.sites);
-      return {
-        draftId: 'draft-' + draftSeqRef.current,
-        role: raw.role || '', site: raw.site || '',
-        siteArchetype: archetype, headcount: raw.headcount || '', summary: raw.summary || '',
-        scoreStatus: (raw.summary || '').trim() ? 'pending' : 'none',
-        scoreSource: null, rationale: {},
-        ...BLANK_DRAFT_SCORES(),
-      };
+  // Every slot's file is read client-side the moment it's picked - no
+  // backend, no API key - and a file that can't be parsed says so against
+  // that one slot without blocking anything else in the wizard. The roles
+  // spreadsheet is the one exception: it goes through parseRolesSpreadsheet
+  // (always SheetJS, xlsx or csv) instead of the generic text extractor,
+  // because this is the one upload whose actual cell values matter, not
+  // just its text - and a fresh guess at which column is which is taken the
+  // moment it parses.
+  const handleSlotFile = useCallback((key, file) => {
+    setUpload(key, { name: file.name, size: file.size, status: 'reading', text: '', rows: null, error: null });
+    if (key === 'rolesHeadcount') {
+      parseRolesSpreadsheet(file).then((rows) => {
+        setUpload(key, { name: file.name, size: file.size, status: 'done', text: '', rows, error: null });
+        setRoleColumnMap(guessRoleColumns(rows[0] || []));
+      }).catch((err) => {
+        setUpload(key, { name: file.name, size: file.size, status: 'error', text: '', rows: null, error: (err && err.message) || 'could not be read' });
+      });
+      return;
+    }
+    extractUploadedFile(file).then(({ text, rows }) => {
+      setUpload(key, { name: file.name, size: file.size, status: 'done', text, rows, error: null });
+    }).catch((err) => {
+      setUpload(key, { name: file.name, size: file.size, status: 'error', text: '', rows: null, error: (err && err.message) || 'could not be read' });
     });
-    setDraftRoles((ds) => [...ds, ...made]);
-    made.filter((d) => d.scoreStatus === 'pending').forEach(runSuggest);
-  }, [profile.sites, runSuggest]);
+  }, [setUpload]);
 
-  const updateDraft = useCallback((draftId, patch) => {
-    setDraftRoles((ds) => ds.map((d) => (d.draftId === draftId ? { ...d, ...patch } : d)));
-  }, []);
-  const removeDraft = useCallback((draftId) => {
-    setDraftRoles((ds) => ds.filter((d) => d.draftId !== draftId));
+  const roleRows = uploads.rolesHeadcount && uploads.rolesHeadcount.rows;
+  const roleHeaderRow = roleRows ? (roleRows[0] || []) : null;
+  const parsedRoles = useMemo(() => (roleRows ? rolesFromMappedRows(roleRows, roleColumnMap) : []), [roleRows, roleColumnMap]);
+  const setColumnMap = useCallback((field, value) => {
+    setRoleColumnMap((m) => ({ ...m, [field]: value }));
   }, []);
 
-  const finish = useCallback(() => {
-    const named = draftRoles.filter((d) => d.role.trim());
-    // Same scan the audit's "mentioned in documents" finding reads - reused
-    // here so a role's citations (which file, what it says nearby) travel
-    // with it into the real project, not just the wizard session.
-    const mentionsByDraftId = auditMentions(named, uploads);
-    const roles = named.map((d, i) => {
-      const archetype = d.siteArchetype || d.site || '(unspecified)';
-      const deskless = ['Plant', 'Distribution Center', 'Field-Commercial'].includes(archetype);
-      const headcount = Math.max(1, parseInt(d.headcount, 10) || 1);
-      const sourceRefs = mentionsByDraftId[d.draftId] || [];
+  const create = useCallback(() => {
+    // Same scan the audit's "not mentioned" finding reads - reused here so
+    // a role's citations (which file, what it says nearby) travel with it
+    // into the real project, not just the wizard session.
+    const mentions = mentionScan(parsedRoles.map((r) => r.role), uploads);
+    const roles = parsedRoles.map((r, i) => {
+      const site = r.site.trim();
+      const deskless = DESKLESS_SITE_KEYWORDS.some((t) => site.toLowerCase().includes(t.toLowerCase()));
+      const headcount = Math.max(1, parseInt(r.headcount, 10) || 1);
       return {
-        id: 'wizard-' + slugify(d.role) + '-' + i + '-' + Date.now().toString(36),
-        role: d.role.trim(),
-        siteArchetype: archetype,
+        id: 'wizard-' + slugify(r.role) + '-' + i + '-' + Date.now().toString(36),
+        role: r.role,
+        siteArchetype: site || '(unspecified)',
         siteCount: 1,
         headcount,
         deskless,
         isNewRole: false,
-        summary: d.summary.trim() || 'Added via the new-project wizard; description pending.',
-        impact: { ...d.impact }, risk: { ...d.risk },
-        before: ['Current-state task list to be captured in the site workshop'],
-        after: ['To-be task list to be captured from the process design'],
+        summary: '',
+        ...BLANK_ROLE_SCORES(),
+        before: [], after: [],
         tasksRemoved: 0, tasksChanged: 0, tasksNew: 0, fteDelta: 0,
         constraints: deskless ? ['Works on the floor, not at a desk'] : [],
-        addedLive: true,
-        sourceRefs,
+        // Set only by this wizard, never present on the three example
+        // projects' seed data - see the banner comment above for every
+        // place this swaps the generic "incomplete" flag for this one.
+        needsInput: true,
+        sourceRefs: mentions.refsByIndex[i] || [],
       };
     });
 
-    const employeeCount = parseInt(profile.totalEmployees, 10) || roles.reduce((s, r) => s + r.headcount, 0);
+    const employeeCount = roles.reduce((s, r) => s + r.headcount, 0);
+    const siteArchetypeBase = [...new Set(roles.map((r) => r.siteArchetype))];
 
     onFinish({
       id: 'new-' + Date.now().toString(36),
       kind: 'new',
-      name: profile.companyName.trim() || 'New project',
-      industry: profile.industry.trim(),
+      name: projectName.trim() || 'New project',
+      industry: '',
       employeeCount,
-      oneLiner: profile.platform.trim() ? `${profile.platform.trim()} rollout, scored live.` : 'Custom engagement, scored live.',
+      oneLiner: 'Custom engagement, scored live.',
       dataPath: null,
       seed: roles,
-      siteArchetypeBase: SITE_TYPES,
+      siteArchetypeBase,
       siteArchetypeCombos: [],
       hasDeckReproduction: false,
-      goLiveDate: profile.goLiveDate || '',
+      goLiveDate: '',
       // A brand-new engagement has no external source naming any of its
-      // roles - every one of them is captured live in this wizard.
+      // roles - every one of them is read live from this wizard's uploads.
       seedMeta: { sourceNamedRoleCount: 0 },
-      engagementProfile: profile,
-      referenceFiles: UPLOAD_SLOTS.filter((s) => uploads[s.key]).map((s) => ({ slot: s.label, name: uploads[s.key].name })),
     });
-  }, [draftRoles, profile, uploads, onFinish]);
+  }, [parsedRoles, uploads, projectName, onFinish]);
 
   return (
     <div className="picker-page wizard-page">
@@ -8656,17 +8405,19 @@ function NewProjectWizard({ onFinish, onCancel }) {
         <h1>Start new project</h1>
       </header>
       <div className="wizard-steps">
-        <span className={'wizard-step' + (step === 'profile' ? ' current' : ' done')}>1. Engagement profile</span>
-        <span className={'wizard-step' + (step === 'roles' ? ' current' : '')}>2. Role & change data</span>
+        <span className={'wizard-step' + (step === 'uploads' ? ' current' : ' done')}>1. Uploads</span>
+        <span className={'wizard-step' + (step === 'review' ? ' current' : '')}>2. Review</span>
       </div>
-      {step === 'profile' && (
-        <EngagementProfileStep profile={profile} onChange={setProfile} onNext={() => setStep('roles')} onCancel={onCancel} />
+      {step === 'uploads' && (
+        <UploadsStep projectName={projectName} onProjectNameChange={setProjectName}
+                     uploads={uploads} onUploadFile={handleSlotFile}
+                     onAddMultiFile={addMultiFile} onRemoveUpload={removeUpload} onRemoveMultiFile={removeMultiFile}
+                     onNext={() => setStep('review')} onCancel={onCancel} />
       )}
-      {step === 'roles' && (
-        <RoleDataStep profile={profile} draftRoles={draftRoles} onAddDrafts={addDrafts}
-                      onUpdateDraft={updateDraft} onRemoveDraft={removeDraft}
-                      uploads={uploads} onUploadFile={setUpload} onRemoveUpload={removeUpload}
-                      onBack={() => setStep('profile')} onFinish={finish} />
+      {step === 'review' && (
+        <AuditStep projectName={projectName} parsedRoles={parsedRoles}
+                   roleColumnMap={roleColumnMap} roleHeaderRow={roleHeaderRow} onColumnMapChange={setColumnMap}
+                   uploads={uploads} onBack={() => setStep('uploads')} onCreate={create} />
       )}
     </div>
   );
