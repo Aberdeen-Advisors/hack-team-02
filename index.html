@@ -340,6 +340,7 @@ const NOTE = {
       + 'Each one is tagged Aberdeen standard, where established Aberdeen or client-plan band text exists, or Aberdeen judgment, where it does not. They are not equally well grounded, and each one says which it is: '
       + 'new skills needed carries Aberdeen’s own wording at 1, 3 and 5 (Aberdeen standard); frequency and volume is Aberdeen judgment end to end, because no source in the evidence base measures it.',
   effortShare: 'A role needing role redesign, hands-on practice and weeks of manager support costs far more per person than one needing a broadcast, so effort is weighted by the support each group gets, not split evenly by headcount.',
+  fteDelta: 'The capacity this change frees up or takes away, measured in full-time people. Freed capacity can be redeployed, absorb growth, or reduce headcount.',
 };
 
 function noteThreshold() {
@@ -6055,7 +6056,7 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
         <Tile label="Tasks removed" value={role.tasksRemoved} countTo={role.tasksRemoved} />
         <Tile label="Tasks changed" value={role.tasksChanged} countTo={role.tasksChanged} />
         <Tile label="Tasks new" value={role.tasksNew} countTo={role.tasksNew} />
-        <Tile label="Full-time equivalent (FTE) delta" value={signed(role.fteDelta)} />
+        <Tile label="Full-time equivalent (FTE) delta" value={signed(role.fteDelta)} rule={NOTE.fteDelta} />
       </div>
 
       {/* c. + d. THE NARRATIVE, then before/after side by side - the most
@@ -6510,7 +6511,7 @@ function RedesignView({ all, selectedId, onSelect, weights, onResetWeights, tier
         <Tile label="Tasks removed" value={totals.removed} countTo={totals.removed} />
         <Tile label="Tasks changed" value={totals.changed} countTo={totals.changed} />
         <Tile label="Tasks new" value={totals.added} countTo={totals.added} />
-        <Tile label="Net full-time equivalent (FTE) change" value={signed(fteNet)} accent />
+        <Tile label="Net full-time equivalent (FTE) change" value={signed(fteNet)} accent rule={NOTE.fteDelta} />
       </div>
       <div className="filters no-print">
         <div className="field">
