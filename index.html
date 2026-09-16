@@ -338,7 +338,7 @@ const NOTE = {
           ? 'The source deck states the 1–5 scale and never defines a single point on it, so each ladder had to be built to fill that gap. '
           : 'No external source for this project defines a single point on the 1–5 scale, so each ladder had to be built to fill that gap. ')
       + 'Each one is tagged Aberdeen standard, where established Aberdeen or client-plan band text exists, or Aberdeen judgment, where it does not. They are not equally well grounded, and each one says which it is: '
-      + 'capability delta carries Aberdeen’s own wording at 1, 3 and 5 (Aberdeen standard); frequency and volume is Aberdeen judgment end to end, because no source in the evidence base measures it.',
+      + 'new skills needed carries Aberdeen’s own wording at 1, 3 and 5 (Aberdeen standard); frequency and volume is Aberdeen judgment end to end, because no source in the evidence base measures it.',
 };
 
 function noteThreshold() {
@@ -349,15 +349,21 @@ function noteThreshold() {
 
 
 const IMPACT_FACTORS = [
-  { key: 'taskShare',        weight: 0.45, label: 'Share of daily tasks changing',           hint: 'How much of the daily task set is affected' },
-  { key: 'frequencyVolume',  weight: 0.25, label: 'Frequency and volume of the task',        hint: 'How often the affected work is performed, and at what volume' },
-  { key: 'errorConsequence', weight: 0.30, label: 'Consequence of error',                    hint: 'Safety, financial control, service level' },
+  { key: 'taskShare',        weight: 0.45, label: 'Share of daily tasks changing',
+    hint: "How much of this role's normal day changes. A role where most of the work is different scores high." },
+  { key: 'frequencyVolume',  weight: 0.25, label: 'Frequency and volume of the task',
+    hint: 'How often the changed work happens. Something done many times a shift scores higher than something done once a month.' },
+  { key: 'errorConsequence', weight: 0.30, label: 'Consequence of error',
+    hint: 'What happens if someone gets it wrong. A mistake that stops a production line or breaks a financial control scores high.' },
 ];
 
 const RISK_FACTORS = [
-  { key: 'decisionRights',  weight: 0.40, label: 'Change in decision rights',    hint: '“I used to approve this, and now the system does”' },
-  { key: 'capabilityDelta', weight: 0.35, label: 'Capability delta',             hint: 'Skill required vs. current' },
-  { key: 'localReadiness',  weight: 0.25, label: 'Local readiness gap',          hint: 'Site leadership capacity, change fatigue, digital maturity, whether people have a desk and email (5 = least ready)' },
+  { key: 'decisionRights',  weight: 0.40, label: 'Change in decision rights',
+    hint: "Whether decisions this role used to make are now made by the system, or now need someone else's approval." },
+  { key: 'capabilityDelta', weight: 0.35, label: 'New skills needed',
+    hint: 'How much of what they need to learn is genuinely new, rather than a variation on something they already do.' },
+  { key: 'localReadiness',  weight: 0.25, label: 'Site readiness',
+    hint: 'How prepared their site is. Competing projects, whether their manager can lead the change, and whether they have reliable system access.' },
 ];
 
 /* ---------------------------------------------------------------------------
@@ -4290,13 +4296,18 @@ async function loadRolesForProject(project) {
    vocabulary, and hasDeckReproduction - which gates every citation that
    traces to Team 2's original deck: the unit-of-analysis note and the
    Rebuild super-user ratio (Stakeholder Impact tab and the one-pager), the
-   weights/anchors provenance footnotes (also Training and Communication,
-   as `citeDeck`), and the add-a-role site-scope capacity hint. Those
-   citations would be misleading for a dataset with no corresponding deck,
-   so they only show for the consumer-products example. PlanView still
-   receives this same flag as `showDeckProvenance` and still reads nothing
-   from it - that one prop is genuinely dead; do not describe it here as
-   showing anything.
+   anchors provenance footnotes (Training and Communication, as `citeDeck`),
+   the add-a-role form's own weights/anchors provenance sentence (still
+   `NOTE.weights`/`NOTE.anchors`), the per-sub-factor ANCHORS origin/note
+   text (AxisBreakdown, Slider), and the add-a-role site-scope capacity
+   hint. Those citations would be misleading for a dataset with no
+   corresponding deck, so they only show for the consumer-products example.
+   The Stakeholder Impact weight tuner's own tooltip is plain, un-gated
+   copy now (no deck, no default, no provenance) and no longer takes
+   `citeDeck` at all - do not re-thread it there. PlanView still receives
+   this same flag as `showDeckProvenance` and still reads nothing from it -
+   that one prop is genuinely dead; do not describe it here as showing
+   anything.
    =========================================================================== */
 
 const PROJECTS = [
@@ -5095,7 +5106,7 @@ const RoleTable = React.memo(function RoleTable({ roles, incomplete, selectedId,
    overflow: hidden, no inner scroll - so every slider row is always fully
    visible; expanding it can only push the role table further down, never
    move the dashboard above it. */
-function WeightTuner({ weights, onChange, onReset, citeDeck }) {
+function WeightTuner({ weights, onChange, onReset }) {
   const isDefault = weightsAreDefault(weights);
   const eff = (factors, f) => {
     const sum = factors.reduce((s, x) => s + Math.max(0, weights[x.key]), 0);
@@ -5104,18 +5115,24 @@ function WeightTuner({ weights, onChange, onReset, citeDeck }) {
   const axis = (title, factors) => (
     <div className="wt-axis">
       <h5>{title}</h5>
-      {factors.map((f) => (
-        <div className="wt-row" key={f.key}>
-          <span className="lbl" title={f.hint}>{f.label}</span>
-          <input type="range" min="0" max="1" step="0.05" value={weights[f.key]}
-                 aria-label={`Weight: ${f.label}`}
-                 onChange={(e) => onChange(f.key, parseFloat(e.target.value))} />
-          <span className="v num">{eff(factors, f).toFixed(2)}</span>
-        </div>
-      ))}
+      {factors.map((f) => {
+        const [labelHead, labelTail] = splitLastWord(f.label);
+        return (
+          <div className="wt-row" key={f.key}>
+            <span className="lbl">
+              {labelHead}<span className="label-tail">{labelTail}<i className="info-ico" tabIndex={0} title={f.hint}
+                 aria-label={`${f.label}: ${f.hint}`}>ⓘ</i></span>
+            </span>
+            <input type="range" min="0" max="1" step="0.05" value={weights[f.key]}
+                   aria-label={`Weight: ${f.label}`}
+                   onChange={(e) => onChange(f.key, parseFloat(e.target.value))} />
+            <span className="v num">{eff(factors, f).toFixed(2)}</span>
+          </div>
+        );
+      })}
     </div>
   );
-  const noteText = `${NOTE.weights(citeDeck)} Weights are normalized per axis, so every score stays on the 1–5 scale, and the tiering moves in front of the room. Effective weight shown to the right of each slider; each axis always sums to 1.00.`;
+  const noteText = "These six factors combine into the two scores. Move a slider to change how much each one counts, and everything recalculates, including the training and communication plans.";
   return (
     <details className="tuner no-print">
       <summary>
@@ -5212,7 +5229,7 @@ function devAssertDashboardLayout(cardsRef, chartColRef) {
 }
 
 function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights, weightDeltas,
-                          siteArchetypeBase, siteArchetypeCombos, comboExample, citeDeck,
+                          siteArchetypeBase, siteArchetypeCombos, comboExample,
                           sa, setSa, projectName }) {
   const chartColRef = useRef(null);
   const cardsRef = useRef(null);
@@ -5348,7 +5365,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
             An opaque background (see .tuner in styles.css) so an open
             panel is never seen through to whatever now sits behind it. */}
         <div>
-          <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} citeDeck={citeDeck} />
+          <WeightTuner weights={weights} onChange={onWeight} onReset={onResetWeights} />
         </div>
       </div>
 
@@ -8988,7 +9005,7 @@ function App() {
           <PortfolioView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
                          weights={weights} onWeight={setWeight} onResetWeights={resetWeights} weightDeltas={weightDeltas}
                          siteArchetypeBase={project.siteArchetypeBase} siteArchetypeCombos={project.siteArchetypeCombos}
-                         comboExample={comboExample} citeDeck={project.hasDeckReproduction}
+                         comboExample={comboExample}
                          sa={filters.sa} setSa={setFilterSa} projectName={project.name} />
         )}
         {tab === 'redesign' && (
