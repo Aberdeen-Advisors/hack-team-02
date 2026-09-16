@@ -339,6 +339,7 @@ const NOTE = {
           : 'No external source for this project defines a single point on the 1–5 scale, so each ladder had to be built to fill that gap. ')
       + 'Each one is tagged Aberdeen standard, where established Aberdeen or client-plan band text exists, or Aberdeen judgment, where it does not. They are not equally well grounded, and each one says which it is: '
       + 'new skills needed carries Aberdeen’s own wording at 1, 3 and 5 (Aberdeen standard); frequency and volume is Aberdeen judgment end to end, because no source in the evidence base measures it.',
+  effortShare: 'A role needing role redesign, hands-on practice and weeks of manager support costs far more per person than one needing a broadcast, so effort is weighted by the support each group gets, not split evenly by headcount.',
 };
 
 function noteThreshold() {
@@ -608,6 +609,11 @@ function scoreRole(role) {
    so every tier below carries hypercareWeeks and only the duration scales. The
    8 weeks at Rebuild is our own deck's number (slide 13); the step-down across
    the other three tiers is ours.
+
+   curriculumHours DOES DOUBLE DUTY: besides driving the Training tab's own
+   hours figures, it is the ONLY input EFFORT_WEIGHT_PER_TIER (below) is
+   built from - the Stakeholder Impact tier cards' "Effort share" and that
+   tab's own headline sentence move with it too, not just Training.
    =========================================================================== */
 
 const DOSES = {
@@ -1296,30 +1302,23 @@ const ASSUMPTIONS = {
 
 const TIER_ORDER = ['Rebuild', 'Enable', 'Reassure', 'Inform'];
 
-/* EFFORT_WEIGHTS: the relative effort to support one person in each tier,
-   the only input "Share of change effort" is built from (aggregate() below).
-   Same shape and same status as IMPACT_FACTORS/RISK_FACTORS: a named,
-   inspectable weight per key, not a number buried inside a function. Shown
-   with its arithmetic on the Adoption tab's "Change effort weighting" panel,
-   which is what the Stakeholder Impact tab's effort-share note links to.
-
-   Provenance, Aberdeen judgment end to end: the source deck states
-   Thornwood's final split (55% / 27% / 13% / 5%) but no method for deriving
-   it from headcount, and Aberdeen's OCM material states no per-tier effort
-   figures at all. These weights were built from what each tier's own
-   package actually takes to run: Rebuild (role redesign, sandbox training,
-   an on-site super-user, manager coaching) takes the most effort per head
-   and is the 1.0 reference every other tier is weighted against. Calibrated
-   so Thornwood's dataset reproduces the deck's split within a rounding
-   point; the same four weights apply unchanged to every project, same as
-   the sub-factor weights above. */
-const EFFORT_WEIGHTS = [
-  { tier: 'Rebuild',  weight: 1.0 },
-  { tier: 'Enable',   weight: 0.26 },
-  { tier: 'Reassure', weight: 0.115 },
-  { tier: 'Inform',   weight: 0.032 },
-];
-const EFFORT_WEIGHT_PER_TIER = EFFORT_WEIGHTS.reduce((o, b) => { o[b.tier] = b.weight; return o; }, {});
+/* EFFORT_WEIGHT_PER_TIER: the relative effort to support one person in each
+   tier, the only input "Share of change effort" is built from (aggregate()
+   below) - computed, not a second, independently-tuned set of numbers.
+   Rebuild needs role redesign, hands-on sandbox practice and weeks of
+   manager coaching; Inform needs a broadcast. DOSES[tier].curriculumHours
+   (the same "required training hours per person" the Training tab computes
+   and displays) already carries exactly that difference, so each tier's
+   weight here is just its own curriculumHours as a ratio to Rebuild's -
+   Rebuild is 1.0 by construction (its own hours divided by themselves), not
+   a chosen reference point. Change a tier's dose in DOSES and this ratio,
+   the Stakeholder Impact tier cards' effort share, and that tab's own
+   headline sentence all move with it - see the "Effort share" tooltip on
+   the tier cards for the plain-language version of this. */
+const EFFORT_WEIGHT_PER_TIER = TIER_ORDER.reduce((o, t) => {
+  o[t] = DOSES[t].curriculumHours / DOSES.Rebuild.curriculumHours;
+  return o;
+}, {});
 
 /* Literal hex, not var(--t-*), these feed SVG fill attributes, and must
    mirror the --t-* custom properties in styles.css exactly. Aberdeen brand's
@@ -4595,10 +4594,14 @@ function useTiltHover(ref) {
 // are a 2x2 grid, not a single row - four short labels ("Roles", "People",
 // "% of pop.", "Effort share") always have room to sit on one line at this
 // width, where a 4-across row was cramped enough to truncate "Effort share".
+// "Effort share" carries its own info icon (glued to "share", its last
+// word, via splitLastWord/.label-tail, the same trick Tile's own rule icon
+// uses) explaining why it isn't just "% of pop." again - see NOTE.effortShare.
 const TierSummaryTile = React.memo(function TierSummaryTile({ tier: t, b, flash }) {
   const ref = useRef(null);
   useTiltHover(ref);
   const pkg = TIERS[t].package.join(', ') + '.';
+  const [effortLabelHead, effortLabelTail] = splitLastWord('Effort share');
   return (
     <div ref={ref} className={'tile tier-tile tier-tile-wide' + (flash ? ' tile-flash' : '')} style={{ '--tier-color': TIERS[t].hex }}>
       <i className="info-ico tier-info" tabIndex={0} title={pkg} aria-label={`${t} package: ${pkg}`}>ⓘ</i>
@@ -4610,7 +4613,13 @@ const TierSummaryTile = React.memo(function TierSummaryTile({ tier: t, b, flash 
         <div className="tm"><span className="tm-lbl">Roles</span><b className="tm-val"><CountUpText value={b.roles} /></b></div>
         <div className="tm"><span className="tm-lbl">People</span><b className="tm-val"><CountUpText value={b.people} /></b></div>
         <div className="tm"><span className="tm-lbl">% of pop.</span><b className="tm-val">{pct(b.popShare)}</b></div>
-        <div className="tm"><span className="tm-lbl">Effort share</span><b className="tm-val">{pct(b.effortShare)}</b></div>
+        <div className="tm">
+          <span className="tm-lbl">
+            {effortLabelHead}<span className="label-tail">{effortLabelTail}<i className="info-ico" tabIndex={0} title={NOTE.effortShare}
+               aria-label={`Effort share: ${NOTE.effortShare}`}>ⓘ</i></span>
+          </span>
+          <b className="tm-val">{pct(b.effortShare)}</b>
+        </div>
       </div>
     </div>
   );
@@ -6175,12 +6184,7 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, goLi
           <thead>
             <tr>
               <th>Role</th><th>Tier</th>
-              <th className="n">
-                Total required hours
-                <i className="info-ico" tabIndex={0}
-                   title="Required hours come from tier alone (DOSES[tier].curriculumHours), never from complexity or whether the role works at a desk. Working on the floor changes the delivery format - on shift, hands-on - not the number of hours."
-                   aria-label="How required hours are set: from tier alone, never complexity or whether the role works at a desk; working on the floor changes the delivery format, not the number of hours.">ⓘ</i>
-              </th>
+              <th className="n">Total required hours</th>
               <th>How it's delivered</th>
               <th title="What shaped the delivery format, not the volume">Delivery constraint</th>
             </tr>
@@ -6473,55 +6477,6 @@ function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck,
   );
 }
 
-/* The panel the Stakeholder Impact tab's effort-share note links to. Turns
-   EFFORT_WEIGHTS + headcount into the same byTier[t].effortShare numbers the
-   tier cards show, with every intermediate step printed, so a reader can
-   reproduce any one of those percentages by hand from this page alone. */
-function EffortWeightingPanel({ agg }) {
-  const totalWeighted = TIER_ORDER.reduce((s, t) => s + agg.byTier[t].weight, 0) || 1;
-  return (
-    <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
-      <div className="card-head">
-        <h3>Change effort weighting</h3>
-      </div>
-      <div className="card-body">
-        <div className="table-scroll" style={{ marginBottom: 10 }}>
-          <table className="mini">
-            <thead>
-              <tr><th>Tier</th><th className="num">Effort weight</th><th className="num">People</th><th className="num">People × weight</th><th className="num">Share of effort</th></tr>
-            </thead>
-            <tbody>
-              {TIER_ORDER.map((t) => {
-                const b = agg.byTier[t];
-                return (
-                  <tr key={t}>
-                    <th scope="row"><i className="dot" style={{ '--dot': TIERS[t].hex, marginRight: 6 }} />{t}</th>
-                    <td className="num">{EFFORT_WEIGHT_PER_TIER[t]}</td>
-                    <td className="num">{b.people.toLocaleString()}</td>
-                    <td className="num">{b.weight.toFixed(1)}</td>
-                    <td className="num">{pct(b.effortShare)}</td>
-                  </tr>
-                );
-              })}
-              <tr style={{ borderTop: '1px solid var(--hairline)', fontWeight: 500 }}>
-                <th scope="row">Total</th>
-                {/* Effort weight is a per-tier multiplier, not an additive
-                    quantity - there is no real number to sum here, so the
-                    cell is genuinely empty rather than filled with a
-                    placeholder dash that would read as a value. */}
-                <td className="num"></td>
-                <td className="num">{agg.totalPeople.toLocaleString()}</td>
-                <td className="num">{totalWeighted.toFixed(1)}</td>
-                <td className="num">100%</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* Qualitative feedback, editable and persisted per project (localStorage,
    keyed by project id, so Thornwood/Bellcrest/Ashford never share a list).
    Every read and write is wrapped in try/catch and degrades to plain
@@ -6805,8 +6760,6 @@ function PlanView({ scored, incomplete, selectedId, onSelect, showDeckProvenance
           ))}
         </div>
       </div>
-
-      <EffortWeightingPanel agg={agg} />
 
       <QualitativeFeedbackPanel projectId={projectId} seed={metrics.qualitative} />
     </>
