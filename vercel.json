@@ -8,6 +8,9 @@
     },
     "api/suggest-scores.js": {
       "maxDuration": 60
+    },
+    "api/derive.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [

@@ -3,10 +3,11 @@
  * Local standalone server — replaces the Vercel deployment.
  *
  * Serves index.html, styles.css, data/, vendor/ (and anything else under the
- * repo root) as static files, and reuses api/generate.js and
- * api/suggest-scores.js UNCHANGED as the handlers for POST /api/generate and
- * POST /api/suggest-scores, so neither function's prompts/schema/fallback
- * logic is ever duplicated or forked between the Vercel and local paths.
+ * repo root) as static files, and reuses api/generate.js, api/suggest-
+ * scores.js and api/derive.js UNCHANGED as the handlers for POST
+ * /api/generate, POST /api/suggest-scores and POST /api/derive, so none of
+ * those functions' prompts/schema/fallback logic is ever duplicated or
+ * forked between the Vercel and local paths.
  *
  * ANTHROPIC_API_KEY is read from .env and lives only in process.env on this
  * process. It is used server-side inside api/generate.js's call to the
@@ -56,6 +57,7 @@ loadEnvFile(path.join(ROOT, '.env'));
 const apiHandlers = {
   '/api/generate': require('./api/generate.js'),
   '/api/suggest-scores': require('./api/suggest-scores.js'),
+  '/api/derive': require('./api/derive.js'),
 };
 
 /* --------------------------------------------------------------- statics */

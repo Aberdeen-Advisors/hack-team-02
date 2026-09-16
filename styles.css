@@ -514,6 +514,18 @@ a { color: var(--aberdeen-blue); }
    from the scoring bands to whatever the uploaded documents say. */
 .source-ref-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; color: var(--ink-2); }
 .source-ref-list b { color: var(--ink); font-weight: 500; }
+/* The review screen's own citation line - same quiet treatment as the
+   one-pager's source-ref-list above, just a single line, not a list. */
+.source-note { font-size: 13px; color: var(--ink-2); margin: 0 0 var(--space-8); }
+.source-note b { color: var(--ink); font-weight: 500; }
+
+/* Drafted vs. needs input, on the review screen's own row head - the
+   "confirmed / live" accent family (Aberdeen Blue) for a real AI proposal,
+   a plain neutral pill for the ones with nothing to show yet. Never a tier
+   hue: this is a review-workflow state, not a tier. */
+.review-state { flex: none; font-size: 11px; font-weight: 500; letter-spacing: .02em; text-transform: uppercase; padding: 2px 9px; border-radius: 999px; border: 1px solid transparent; }
+.review-state.drafted { color: var(--live); background: var(--live-wash); border-color: var(--live-line); }
+.review-state.needs-input { color: var(--ink-3); background: var(--surface-sunk); border-color: var(--hairline); }
 
 .draft-list { display: grid; gap: var(--space-8); }
 .draft-row {

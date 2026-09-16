@@ -4986,7 +4986,7 @@ function columnsFor(comboExample) {
       render: (r, incomplete) => incomplete ? 'N/A' : r.scores.risk.toFixed(1),
       cellTitle: (r, incomplete) => incomplete ? null : axisFormula(RISK_FACTORS, r.risk, r.scores.risk) },
     { key: 'tier', label: 'Tier', width: 132,
-      render: (r, incomplete) => incomplete ? <span className="incflag">{r.needsInput ? 'needs input' : 'incomplete'}</span> : <TierBadge tier={r.tier} /> },
+      render: (r, incomplete) => incomplete ? <span className="incflag">{r.draft ? 'drafted' : r.needsInput ? 'needs input' : 'incomplete'}</span> : <TierBadge tier={r.tier} /> },
   ];
 }
 
@@ -5996,7 +5996,7 @@ const RedesignRow = React.memo(function RedesignRow({ role, onSelect }) {
           <span className="stat"><i className="stat-lbl">new</i><b className="stat-val">+{role.tasksNew || 0}</b></span>
           <span className="stat"><i className="stat-lbl">FTE</i><b className="stat-val">{signed(fte)}</b></span>
         </span>
-        {role.complete ? <TierBadge tier={role.tier} /> : <span className="incflag">{role.needsInput ? 'needs input' : 'incomplete'}</span>}
+        {role.complete ? <TierBadge tier={role.tier} /> : <span className="incflag">{role.draft ? 'drafted' : role.needsInput ? 'needs input' : 'incomplete'}</span>}
         <span className="drx" aria-hidden="true">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
@@ -7980,22 +7980,24 @@ function ProjectPicker({ projects, onSelect, onStartNew }) {
 
 /* ===========================================================================
    12. NEW PROJECT WIZARD: three steps - basics, upload documents, review
-   what was read, then the project opens. No AI derivation here yet:
-   nothing reads a document and writes a role's impact or risk score, or
-   its change narrative. That is deliberately deferred (see the project's
-   own CLAUDE.md if this comment has drifted from it); this pass only gets
-   roles named, sited and headcounted from a spreadsheet, with every other
-   document collected and checked for whether it mentions each role, ready
-   for the derivation pass that comes next.
+   what was read, then the project opens. No AI derivation runs inside this
+   wizard: nothing here reads a document and writes a role's impact or risk
+   score, or its change narrative. That happens afterward, in the
+   background, once the project is already open - see the AI DERIVATION
+   banner below for that whole pass. This wizard's own job stops at roles
+   named, sited and headcounted from a spreadsheet, with every other
+   document collected and passed along as evidence for that later pass.
    Nothing here touches scoreRole/assignTier/THRESHOLD - every role this
    produces is scored by the same deterministic engine as every other entry
    path, exactly like AddRoleView's roles are. A role with no impact/risk
    set yet reads exactly like any other incomplete role everywhere in the
    app, with one addition: `needsInput: true`, set only on roles this wizard
-   creates, never on the three example projects' seed data, that swaps the
-   generic "incomplete" flag for "needs input" in the two places a role's
-   status renders as a flag rather than a tier badge (RoleTable's own tier
-   column and RedesignRow) - see those two call sites for the exact branch.
+   creates, never on the three example projects' seed data. Combined with
+   the optional `draft` field the derivation pass adds (also never present
+   on the three examples), this is what swaps the generic "incomplete" flag
+   for "needs input" or "drafted" in the two places a role's status renders
+   as a flag rather than a tier badge (RoleTable's own tier column and
+   RedesignRow) - see those two call sites for the exact branch.
    Employee count and site count are deliberately not asked for in Basics -
    both are derived from the roles spreadsheet and shown back in Review.
    =========================================================================== */
@@ -8436,6 +8438,24 @@ const WIZARD_STEPS = [
   { key: 'review', label: 'Review' },
 ];
 
+/* What the derivation pass (see the AI DERIVATION banner below, run after
+   the project opens, never in this wizard) is allowed to read: every
+   successfully parsed document except the roles spreadsheet itself (that's
+   structured headcount data, not prose describing what changes) and the
+   example impact records, which travel separately as style calibration,
+   never as evidence about any specific role. */
+function collectDerivationDocs(uploads) {
+  return UPLOAD_SLOTS
+    .filter((slot) => slot.key !== 'rolesHeadcount' && slot.key !== 'exampleImpact')
+    .flatMap((slot) => (slot.multi ? (uploads[slot.key] || []) : [uploads[slot.key]]))
+    .filter((u) => u && u.status === 'done' && u.text)
+    .map((u) => ({ name: u.name, text: u.text }));
+}
+function collectExampleRecords(uploads) {
+  const u = uploads.exampleImpact;
+  return (u && u.status === 'done' && u.text) ? [{ name: u.name, text: u.text }] : [];
+}
+
 function NewProjectWizard({ onFinish, onCancel }) {
   const [step, setStep] = useState('basics'); // 'basics' | 'uploads' | 'review'
   const [basics, setBasics] = useState(BLANK_BASICS);
@@ -8557,6 +8577,20 @@ function NewProjectWizard({ onFinish, onCancel }) {
         systems: basics.systems.trim(),
         languages: basics.languages.trim(),
       },
+      // What the AI derivation pass (see that banner below) reads once the
+      // project opens: every parsed document as evidence, the example
+      // impact records as style calibration only, and a little context for
+      // grounding. Absent on the three example projects, since they never
+      // go through this wizard and their roles are pre-scored already.
+      derivation: {
+        documents: collectDerivationDocs(uploads),
+        examples: collectExampleRecords(uploads),
+        context: {
+          whatIsChanging: basics.whatIsChanging.trim(),
+          systems: basics.systems.trim(),
+          industry: basics.industry.trim(),
+        },
+      },
     });
   }, [parsedRoles, uploads, basics, onFinish]);
 
@@ -8588,6 +8622,267 @@ function NewProjectWizard({ onFinish, onCancel }) {
                     uploads={uploads} onBack={() => setStep('uploads')} onCreate={create} />
       )}
     </div>
+  );
+}
+
+/* ===========================================================================
+   12c. AI DERIVATION: runs after a project opens, never inside the wizard
+   above. Every role a wizard-created project starts with is "needs input"
+   (see the NEW PROJECT WIZARD banner) - this pass calls POST /api/derive
+   once per such role, in the background, with a small concurrency limit so
+   a 38-role project does not fire 38 requests at once. Each call is
+   independent: one role's failure or timeout never blocks another's, and
+   both come back as the same "needsInput" result a genuine no-evidence
+   answer would (see api/derive.js - the whole safety model lives there,
+   not here). A role that resolves to a real answer gets a `draft` -
+   everything the model proposed, held separately from the role's own
+   scoring fields - and stays exactly as incomplete/needsInput as before
+   until a practitioner accepts it on the review screen (ReviewView below).
+   Accepting copies the draft into the role's real fields; nothing here
+   ever writes to role.impact/role.risk directly. */
+
+// Anchor bands are the same six ladders AxisBreakdown/Slider already show a
+// human - reused verbatim as the model's own grounding, never a second,
+// independently-written copy of the band text.
+const ANCHOR_BANDS_FOR_API = Object.keys(ANCHORS).reduce((o, k) => {
+  o[k] = { bands: ANCHORS[k].bands };
+  return o;
+}, {});
+
+async function deriveRoleFromApi(role, project) {
+  try {
+    const res = await fetch('/api/derive', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        role: { name: role.role, siteArchetype: role.siteArchetype, headcount: role.headcount },
+        documents: (project.derivation && project.derivation.documents) || [],
+        examples: (project.derivation && project.derivation.examples) || [],
+        context: (project.derivation && project.derivation.context) || {},
+        anchors: ANCHOR_BANDS_FOR_API,
+      }),
+    });
+    if (!res.ok) return { state: 'needsInput' };
+    return await res.json();
+  } catch (e) {
+    return { state: 'needsInput' };
+  }
+}
+
+// Merges an /api/derive result into a role record as a pending `draft` -
+// never into impact/risk/before/after themselves. A needsInput result (or
+// any shape that isn't a real draft) leaves the role exactly as it was.
+function applyDerivationResult(role, result) {
+  if (!result || result.state !== 'drafted') return role;
+  return {
+    ...role,
+    draft: {
+      summary: result.summary || '',
+      before: Array.isArray(result.before) ? result.before : [],
+      after: Array.isArray(result.after) ? result.after : [],
+      tasksRemoved: result.tasksRemoved || 0,
+      tasksChanged: result.tasksChanged || 0,
+      tasksNew: result.tasksNew || 0,
+      impact: result.impact || {},
+      risk: result.risk || {},
+      rationale: result.rationale || {},
+      constraints: Array.isArray(result.constraints) ? result.constraints : [],
+      source: (result.sourceFileName || result.sourceQuote)
+        ? { fileName: result.sourceFileName || '', snippet: result.sourceQuote || '' }
+        : null,
+    },
+  };
+}
+
+/* One role's draft, expanded: its proposed summary, source citation,
+   before/after lists, and Accept / Edit / Reject. A role with no draft
+   (documents did not cover it) gets the same shape with a plain "no
+   evidence" message and only an Edit affordance, so a practitioner can
+   still complete it by hand without leaving this screen. */
+function ReviewRow({ role, onAccept, onReject, onSaveEdit }) {
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const hasDraft = !!role.draft;
+
+  const save = (patch) => { onSaveEdit(role.id, patch); setEditing(false); setOpen(true); };
+
+  return (
+    <div className={'draft-row' + (hasDraft ? '' : ' incomplete')}>
+      <button type="button" className="draft-row-head" onClick={() => setOpen((o) => !o)}>
+        <span className="drn">{role.role}</span>
+        <span className="drm">{role.siteArchetype} · {pluralize(role.headcount, 'person', 'people')}</span>
+        <span className={'review-state' + (hasDraft ? ' drafted' : ' needs-input')}>{hasDraft ? 'Drafted' : 'Needs input'}</span>
+        <span className="drx" aria-hidden="true">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="draft-row-body">
+          {editing ? (
+            <ReviewEditForm role={role} onSave={save} onCancel={() => setEditing(false)} />
+          ) : hasDraft ? (
+            <>
+              <p className="op-summary">{role.draft.summary}</p>
+              {role.draft.source && role.draft.source.fileName && (
+                <p className="source-note">
+                  <b>Source:</b> {role.draft.source.fileName}
+                  {role.draft.source.snippet ? <>: &ldquo;{role.draft.source.snippet}&rdquo;</> : null}
+                </p>
+              )}
+              <div className="grid cols-2">
+                <div>
+                  <h4>Before</h4>
+                  <ul className="tasklist">{role.draft.before.map((b, i) => <li key={i}>{b}</li>)}</ul>
+                </div>
+                <div>
+                  <h4>After</h4>
+                  <ul className="tasklist">{role.draft.after.map((a, i) => <li key={i}>{a}</li>)}</ul>
+                </div>
+              </div>
+              <div className="btn-row">
+                <button type="button" className="btn primary" onClick={() => onAccept(role.id)}>Accept</button>
+                <button type="button" className="btn" onClick={() => setEditing(true)}>Edit</button>
+                <button type="button" className="btn" onClick={() => onReject(role.id)}>Reject</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="sub">The uploaded documents do not describe what changes for this role. Nothing was drafted.</p>
+              <div className="btn-row">
+                <button type="button" className="btn" onClick={() => setEditing(true)}>Enter by hand</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Editing a draft (or entering a needs-input role by hand) reuses the same
+   Slider component AddRoleView uses for the six sub-factors, so a
+   practitioner sees the identical anchor ladders either way. Before/after/
+   constraints are plain one-item-per-line text, not a repeatable-row
+   builder: simpler, and every value here is about to become editable again
+   from the role's own one-pager anyway. Saving always accepts - there is
+   no "save without accepting" state, since an edited draft has already had
+   a human look at it. */
+function ReviewEditForm({ role, onSave, onCancel }) {
+  const d = role.draft || {};
+  const linesToList = (s) => s.split('\n').map((x) => x.trim()).filter(Boolean);
+  const [summary, setSummary] = useState(d.summary || role.summary || '');
+  const [beforeText, setBeforeText] = useState((d.before && d.before.length ? d.before : role.before || []).join('\n'));
+  const [afterText, setAfterText] = useState((d.after && d.after.length ? d.after : role.after || []).join('\n'));
+  const [constraintsText, setConstraintsText] = useState((d.constraints && d.constraints.length ? d.constraints : role.constraints || []).join('\n'));
+  const [impact, setImpact] = useState({ ...BLANK_ROLE_SCORES().impact, ...(isScore(d.impact && d.impact.taskShare) ? d.impact : role.impact) });
+  const [risk, setRisk] = useState({ ...BLANK_ROLE_SCORES().risk, ...(isScore(d.risk && d.risk.decisionRights) ? d.risk : role.risk) });
+
+  const save = () => {
+    onSave({
+      summary: summary.trim(),
+      before: linesToList(beforeText),
+      after: linesToList(afterText),
+      constraints: linesToList(constraintsText),
+      impact, risk,
+      tasksRemoved: d.tasksRemoved ?? role.tasksRemoved ?? 0,
+      tasksChanged: d.tasksChanged ?? role.tasksChanged ?? 0,
+      tasksNew: d.tasksNew ?? role.tasksNew ?? 0,
+      source: d.source || null,
+    });
+  };
+
+  return (
+    <div>
+      <div className="field full">
+        <label>Summary</label>
+        <textarea value={summary} onChange={(e) => setSummary(e.target.value)} />
+      </div>
+      <div className="grid cols-2">
+        <div className="field">
+          <label>Before (one per line)</label>
+          <textarea value={beforeText} onChange={(e) => setBeforeText(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>After (one per line)</label>
+          <textarea value={afterText} onChange={(e) => setAfterText(e.target.value)} />
+        </div>
+      </div>
+      <div className="field full">
+        <label>Constraints (one per line)</label>
+        <textarea value={constraintsText} onChange={(e) => setConstraintsText(e.target.value)} />
+      </div>
+      <div className="grid cols-2">
+        <div>
+          <h4>Impact severity</h4>
+          <div className="slider-grid">
+            {IMPACT_FACTORS.map((fa) => (
+              <Slider key={fa.key} factor={fa} weightFactors={IMPACT_FACTORS} value={impact[fa.key]}
+                      onChange={(v) => setImpact((s) => ({ ...s, [fa.key]: v }))} citeDeck={false} />
+            ))}
+          </div>
+        </div>
+        <div>
+          <h4>Adoption risk</h4>
+          <div className="slider-grid">
+            {RISK_FACTORS.map((fa) => (
+              <Slider key={fa.key} factor={fa} weightFactors={RISK_FACTORS} value={risk[fa.key]}
+                      onChange={(v) => setRisk((s) => ({ ...s, [fa.key]: v }))} citeDeck={false} />
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="btn-row">
+        <button type="button" className="btn primary" onClick={save}>Save and accept</button>
+        <button type="button" className="btn" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+/* The review screen itself: every role still needing a decision, needs-
+   input ones first (per spec, so the gaps get attention before the easy
+   accepts), a two-tile summary of drafted vs. needs-input by both role
+   count and headcount share, and a bulk accept for every drafted role at
+   once. Not one of ALL_TABS (same precedent as AddRoleView's 'add' tab):
+   reachable only via the topbar's own pending-review pill, and only ever
+   relevant for a project that came through the wizard. */
+function ReviewView({ roles, onAccept, onReject, onSaveEdit, onBulkAccept }) {
+  const drafted = [...roles.filter((r) => r.draft)].sort((a, b) => b.headcount - a.headcount);
+  const needsInput = [...roles.filter((r) => !r.draft)].sort((a, b) => b.headcount - a.headcount);
+  const ordered = [...needsInput, ...drafted];
+  const totalHeadcount = roles.reduce((s, r) => s + (r.headcount || 0), 0) || 1;
+  const draftedHeadcount = drafted.reduce((s, r) => s + (r.headcount || 0), 0);
+  const needsInputHeadcount = needsInput.reduce((s, r) => s + (r.headcount || 0), 0);
+
+  return (
+    <>
+      <div className="view-head">
+        <h2>Review drafted roles</h2>
+      </div>
+
+      {roles.length === 0 ? (
+        <p className="sub">Every role has been reviewed. Nothing left here.</p>
+      ) : (
+        <>
+          <div className="grid cols-2" style={{ marginBottom: 'var(--space-16)' }}>
+            <Tile label="Drafted" value={drafted.length} countTo={drafted.length}
+                  meta={`${pct(draftedHeadcount / totalHeadcount)} of headcount`} />
+            <Tile label="Needs input" value={needsInput.length} countTo={needsInput.length}
+                  meta={`${pct(needsInputHeadcount / totalHeadcount)} of headcount`} />
+          </div>
+
+          {drafted.length > 0 && (
+            <div className="btn-row" style={{ marginBottom: 'var(--space-12)' }}>
+              <button type="button" className="btn primary" onClick={onBulkAccept}>Accept all {pluralize(drafted.length, 'drafted role')}</button>
+            </div>
+          )}
+
+          <div className="draft-list">
+            {ordered.map((role) => (
+              <ReviewRow key={role.id} role={role} onAccept={onAccept} onReject={onReject} onSaveEdit={onSaveEdit} />
+            ))}
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -8730,6 +9025,66 @@ function App() {
   // analysis explainer - null if no role here spans more than one archetype.
   const comboExample = useMemo(() => exampleComboScope(all), [all]);
 
+  // Every role this session's AI derivation pass still owes a decision to -
+  // drafted (has a proposal, pending accept/edit/reject) or plain needs
+  // input (no draft yet, or rejected back to it). Always empty for the
+  // three example projects: their roles never carry `needsInput` at all.
+  const reviewRoles = useMemo(() => incomplete.filter((r) => r.needsInput), [incomplete]);
+
+  // AI DERIVATION: runs once per wizard-created project, the moment its
+  // roles are actually loaded into `raw` - never inside the wizard itself.
+  // derivationStartedRef guards against starting twice for the same
+  // project (this effect re-runs on every `raw` change, since each
+  // resolved role writes back into `raw`; the guard is what keeps that
+  // from restarting the whole queue). A concurrency-limited pool of
+  // workers pulls from a fixed snapshot of the roles that needed input at
+  // the moment derivation started - new needs-input roles never appear on
+  // their own after that, so there is nothing later to miss.
+  const derivationStartedRef = useRef(null);
+  const [derivationProgress, setDerivationProgress] = useState(null); // { total, done, active } | null
+  useEffect(() => {
+    if (!project || project.kind !== 'new' || !project.derivation) return undefined;
+    if (derivationStartedRef.current === project.id) return undefined;
+    const pending = raw.filter((r) => r.needsInput && !r.draft);
+    if (!pending.length) return undefined;
+    derivationStartedRef.current = project.id;
+
+    if (!project.derivation.documents.length) {
+      // Only the roles/headcount spreadsheet was uploaded. Every role would
+      // predictably come back "needs input" from the model anyway, so settle
+      // the whole batch immediately rather than spending N calls on it.
+      setDerivationProgress({ total: pending.length, done: pending.length, active: false });
+      return undefined;
+    }
+
+    setDerivationProgress({ total: pending.length, done: 0, active: true });
+
+    let cancelled = false;
+    const CONCURRENCY = 3;
+    let idx = 0;
+    const runNext = () => {
+      if (cancelled || idx >= pending.length) return Promise.resolve();
+      const role = pending[idx];
+      idx += 1;
+      return deriveRoleFromApi(role, project)
+        .then((result) => {
+          if (cancelled) return;
+          setRaw((rs) => rs.map((r) => (r.id === role.id ? applyDerivationResult(r, result) : r)));
+        })
+        .catch(() => {})
+        .then(() => {
+          if (cancelled) return;
+          setDerivationProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+        })
+        .then(runNext);
+    };
+    Promise.all(Array.from({ length: Math.min(CONCURRENCY, pending.length) }, runNext)).then(() => {
+      if (!cancelled) setDerivationProgress((p) => (p ? { ...p, active: false } : p));
+    });
+
+    return () => { cancelled = true; };
+  }, [project, raw]);
+
   // Weight changes are the tool's most impressive trick and, un-surfaced,
   // its most invisible one: every downstream figure re-tiers, but nothing
   // says so. applyAndDiff snapshots the whole roster's key figures before
@@ -8829,6 +9184,54 @@ function App() {
     syncRoute({ tab: 'role', returnTab: 'portfolio', selectedId: role.id }, 'push');
   }, [syncRoute]);
 
+  // Accepting (plain, or with edits) is the only place a draft's proposed
+  // values ever get written into a role's real scoring fields - copying
+  // `values` (the draft, or an edited patch of the same shape) over,
+  // clearing `draft`, and clearing `needsInput` so the role scores exactly
+  // like any other from this point on. Rejecting only clears the draft:
+  // the role stays needsInput, exactly as if nothing had ever been
+  // proposed for it, ready for another pass or a by-hand entry later.
+  const applyAccept = useCallback((id, values) => {
+    setRaw((rs) => rs.map((r) => {
+      if (r.id !== id) return r;
+      const v = values || r.draft;
+      if (!v) return r;
+      return {
+        ...r,
+        needsInput: false,
+        draft: null,
+        summary: v.summary || r.summary,
+        before: v.before || r.before,
+        after: v.after || r.after,
+        tasksRemoved: v.tasksRemoved ?? r.tasksRemoved,
+        tasksChanged: v.tasksChanged ?? r.tasksChanged,
+        tasksNew: v.tasksNew ?? r.tasksNew,
+        impact: v.impact || r.impact,
+        risk: v.risk || r.risk,
+        constraints: v.constraints || r.constraints,
+        sourceRefs: v.source ? [v.source] : r.sourceRefs,
+      };
+    }));
+  }, []);
+  const acceptRole = useCallback((id) => applyAccept(id, null), [applyAccept]);
+  const saveEditAndAccept = useCallback((id, patch) => applyAccept(id, patch), [applyAccept]);
+  const rejectRole = useCallback((id) => {
+    setRaw((rs) => rs.map((r) => (r.id === id ? { ...r, draft: null } : r)));
+  }, []);
+  const bulkAcceptDrafts = useCallback(() => {
+    setRaw((rs) => rs.map((r) => {
+      if (!r.draft) return r;
+      const v = r.draft;
+      return {
+        ...r, needsInput: false, draft: null,
+        summary: v.summary || r.summary, before: v.before || r.before, after: v.after || r.after,
+        tasksRemoved: v.tasksRemoved ?? r.tasksRemoved, tasksChanged: v.tasksChanged ?? r.tasksChanged, tasksNew: v.tasksNew ?? r.tasksNew,
+        impact: v.impact || r.impact, risk: v.risk || r.risk, constraints: v.constraints || r.constraints,
+        sourceRefs: v.source ? [v.source] : r.sourceRefs,
+      };
+    }));
+  }, []);
+
   // Entering a project (from the picker, or leaving one via the header) always
   // resets session state, a previous project's weights, selection or live-added
   // roles must never bleed into the next one.
@@ -8886,6 +9289,17 @@ function App() {
               </span>
             </div>
             <div className="tb-actions">
+              {/* Only ever true for a wizard-created project mid- or
+                  post-derivation - never the three examples, which have no
+                  needsInput roles and no derivationProgress to begin with. */}
+              {project.kind === 'new' && (derivationProgress || reviewRoles.length > 0) && (
+                <span className="weight-alert">
+                  {derivationProgress && derivationProgress.active
+                    ? `Drafting roles… ${derivationProgress.done}/${derivationProgress.total}`
+                    : `${pluralize(reviewRoles.filter((r) => r.draft).length, 'role')} drafted, ${pluralize(reviewRoles.filter((r) => !r.draft).length, 'role')} need input`}
+                  <button type="button" className="link-btn" onClick={() => switchTab('review')}>Review</button>
+                </span>
+              )}
               {!weightsAreDefault(weights) && (
                 <span className="weight-alert">
                   Custom weighting active
@@ -8954,6 +9368,10 @@ function App() {
                     citeDeck={project.hasDeckReproduction} goLiveDate={project.goLiveDate} onOpenDrafts={openDraftsFor} />
         )}
         {tab === 'add' && <AddRoleView onCreate={createRole} project={project} comboExample={comboExample} />}
+        {tab === 'review' && (
+          <ReviewView roles={reviewRoles} onAccept={acceptRole} onReject={rejectRole}
+                      onSaveEdit={saveEditAndAccept} onBulkAccept={bulkAcceptDrafts} />
+        )}
       </main>
 
       <AskAssistant project={project} tab={tab} scored={scored} incomplete={incomplete} weights={weights} onOpenRole={openRole} />
