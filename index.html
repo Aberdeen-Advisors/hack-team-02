@@ -1880,14 +1880,14 @@ function packageFor(role) {
       { text: 'Role redesign',       dose: `${pluralize(role.tasksRemoved + role.tasksChanged + role.tasksNew, 'task')} re-mapped, 1 workshop per site` },
       { text: 'Practice environment', dose: `${pluralize(d.sandboxDays, 'day')}, ${pluralize(Math.max(1, Math.ceil(role.headcount * d.sandboxSeatsPerHead)), 'seat')}${role.deskless ? ', rotated into shift time' : ''}` },
       { text: 'Role-based training', dose: method, modules: t.modules },
-      { text: 'How-to guides', dose: `${t.aids.count}`, hint: aidsHint, titles: t.titles },
+      { text: 'How-to guides', dose: `${t.aids.count}`, hint: aidsHint },
       { text: 'Trained colleague',  dose: `${d.superUsersPerSite} per site (${sites})${role.deskless ? ', shadowing on the floor' : ''}`, hint: `About 1 trained colleague per ${d.superUserRatio} people` },
       { text: 'Manager coaching',    dose: `${pluralize(d.managerCoachingSessions, 'session')} over ${pluralize(d.floorCoachingWeeks, 'week')}` },
       { text: 'Support after go-live', dose: `${pluralize(d.hypercareWeeks, 'week')}` },
     ];
     case 'Enable': return [
       { text: 'Role-based training',   dose: method, modules: t.modules },
-      { text: 'How-to guides', dose: `${t.aids.count}`, hint: aidsHint, titles: t.titles },
+      { text: 'How-to guides', dose: `${t.aids.count}`, hint: aidsHint },
       { text: 'Peer champions',  dose: `${pluralize(Math.max(1, Math.ceil(role.headcount / d.superUserRatio)), 'champion')}${role.deskless ? ', coaching on shift' : ''}`, hint: `About 1 champion per ${d.superUserRatio} people` },
       { text: 'Support after go-live', dose: `${pluralize(d.hypercareWeeks, 'week')}` },
     ];
@@ -5966,66 +5966,6 @@ function AxisBreakdown({ name, factors, values, score, newRole, citeDeck }) {
   );
 }
 
-function onePagerText(role, citeDeck, goLiveDate) {
-  const L = [];
-  L.push(`${role.role}: ${role.tier}`);
-  L.push(`${role.siteArchetype} · ${pluralize(role.siteCount, 'site')} · ${pluralize(role.headcount, 'person', 'people')}${role.deskless ? ' · on the floor' : ''}`);
-  L.push('');
-  L.push(role.summary || '');
-  L.push('');
-  L.push(`Impact severity ${role.scores.impact.toFixed(1)} = ` + IMPACT_FACTORS.map((f) => `${effWeight(IMPACT_FACTORS, f).toFixed(2)}x${role.impact[f.key].toFixed(1)} (${f.label})`).join(' + '));
-  L.push(`Adoption risk   ${role.scores.risk.toFixed(1)} = ` + RISK_FACTORS.map((f) => `${effWeight(RISK_FACTORS, f).toFixed(2)}x${role.risk[f.key].toFixed(1)} (${f.label})`).join(' + '));
-  L.push(`Threshold ${THRESHOLD.toFixed(1)} on both axes, inclusive (exactly ${THRESHOLD.toFixed(1)} counts as above) -> ${role.tier}`);
-  L.push('');
-  L.push('WHAT EACH SCORE MEANS (1-5 anchors, with their provenance)');
-  ALL_FACTORS.forEach((f) => {
-    const v = (IMPACT_FACTORS.includes(f) ? role.impact : role.risk)[f.key];
-    const a = anchorFor(f.key, v, citeDeck);
-    if (!a) return;
-    const forced = role.isNewRole && f.key === 'taskShare';
-    L.push(`  ${f.label} ${v.toFixed(1)}: anchor ${a.n}${a.exact ? '' : ' (nearest)'}: ${a.text}${forced ? ' -- net-new role (rule applied automatically)' : ''}`);
-    L.push(`    provenance: ${forced ? 'rule, not data entry' : a.origin}`);
-  });
-  L.push('');
-  L.push(`Tasks: ${role.tasksRemoved} removed · ${role.tasksChanged} changed · ${role.tasksNew} new · full-time equivalent (FTE) delta ${signed(role.fteDelta)}`);
-  if (fteConsequenceLine(role.fteDelta)) L.push(`  ${fteConsequenceLine(role.fteDelta)}`);
-  L.push('');
-  L.push('BEFORE'); (role.before || []).forEach((b) => L.push(`  - ${b}`));
-  L.push('AFTER');  (role.after || []).forEach((b) => L.push(`  - ${b}`));
-  L.push('');
-  L.push(`PRESCRIBED (${role.tier})`);
-  packageFor(role).forEach((p) => {
-    L.push(`  - ${p.text}: ${p.dose}`);
-    if (p.modules) p.modules.forEach((m, mi) => L.push(`      ${mi + 1}. ${m.text} (${pluralize(m.hours, 'hr')})`));
-    if (p.titles && p.titles.length) p.titles.forEach((title, ti) => L.push(`      ${ti + 1}. ${title}`));
-  });
-  const deliveryPairs = deliveryPairsFor(role);
-  if (deliveryPairs.length) {
-    L.push('');
-    L.push('WHAT WILL AFFECT DELIVERY');
-    deliveryPairs.forEach((p) => L.push(`  - ${p.constraint} -> ${p.consequence}`));
-  }
-  const td = trainingDesign(role);
-  L.push('');
-  L.push('DELIVERY DETAIL (Aberdeen OCM delivery material; the tier -> tactic mapping is Aberdeen judgment)');
-  L.push(`  Training: ${trainingDoseLine(role)}, selected for ${td.why}`);
-  L.push(`  How-to guides: ${td.aids.count} (${td.aids.band} band), ${td.jobAidMethod.duration} each`);
-  L.push('  Message drafts for this role: see the Communication tab.');
-  // NOTE.ratio cites a specific deck slide for the 1:15 Rebuild ratio - true
-  // only for a Rebuild role on a project with a deck to cite (Thornwood).
-  // Enable's 1:40 champion ratio, and every non-deck project, has no such
-  // citation to make.
-  if (role.tier === 'Rebuild' && citeDeck) L.push(`  ${NOTE.ratio}`);
-  const actions = managerActions(role, goLiveDate);
-  if (actions.length) {
-    L.push('');
-    L.push('WHAT THE MANAGER NEEDS TO DO');
-    actions.forEach((a) => L.push(`  - ${a.when}: ${a.text}`));
-  }
-  L.push(''); L.push(`Aberdeen Advisors · ${PRODUCT_NAME} · illustrative figures, synthetic data`);
-  return L.join('\n');
-}
-
 /* The one line of delivery detail the plan block above doesn't already say:
    where to find this role's generated message drafts. Communications
    milestones, support escalation and measurement cadence used to be
@@ -6052,8 +5992,6 @@ function DeliveryDetail({ role, onOpenDrafts }) {
 
 function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts }) {
   const label = backLabel || 'Stakeholder Impact';
-  const [copied, setCopied] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
   const [showScore, setShowScore] = useState(false);
   if (!role) {
     return (
@@ -6082,35 +6020,11 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
   const deliveryPairs = deliveryPairsFor(role);
   const actions = managerActions(role, goLiveDate);
 
-  const copy = async () => {
-    const txt = onePagerText(role, citeDeck, goLiveDate);
-    try { await navigator.clipboard.writeText(txt); }
-    catch (e) {
-      const ta = document.createElement('textarea');
-      ta.value = txt; document.body.appendChild(ta); ta.select();
-      document.execCommand('copy'); document.body.removeChild(ta);
-    }
-    setCopied(true); setTimeout(() => setCopied(false), 2200);
-  };
-
-  const copyLink = async () => {
-    const href = window.location.href;
-    try { await navigator.clipboard.writeText(href); }
-    catch (e) {
-      const ta = document.createElement('textarea');
-      ta.value = href; document.body.appendChild(ta); ta.select();
-      document.execCommand('copy'); document.body.removeChild(ta);
-    }
-    setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2200);
-  };
-
   return (
     <>
       <div className="btn-row no-print" style={{ marginBottom: 14 }}>
         <button className="btn" onClick={onBack}>← {label}</button>
         <div style={{ marginLeft: 'auto' }} />
-        <button className="btn" onClick={copyLink}>{linkCopied ? '✓ Link copied' : 'Copy link'}</button>
-        <button className="btn" onClick={copy}>{copied ? '✓ Copied' : 'Copy one-pager'}</button>
         <button className="btn" onClick={() => window.print()}>Print / PDF</button>
       </div>
 
@@ -6165,7 +6079,7 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
           modifiers and constraints (f.). Ends on "Support after go-live" -
           the message-drafts button lives in the manager section below, not
           here (see DeliveryDetail). */}
-      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
+      <div className="card plan-card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>The plan</h3>
           <span className="hint">{TIERS[role.tier].quadrant}</span>
@@ -6185,18 +6099,6 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
                           <span className="num">{mi + 1}.</span>
                           <span>{m.text}</span>
                           <span className="hrs">{pluralize(m.hours, 'hr')}</span>
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                )}
-                {p.titles && p.titles.length > 0 && (
-                  <div className="pkg-detail">
-                    <ol className="pkg-guides">
-                      {p.titles.map((title, ti) => (
-                        <li key={ti}>
-                          <span className="num">{ti + 1}.</span>
-                          <span>{title}</span>
                         </li>
                       ))}
                     </ol>

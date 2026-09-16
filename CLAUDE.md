@@ -86,9 +86,10 @@ reload reproduces exactly what the hash encodes** — the project picker only
 appears on a bare reload/link with no project segment, not on every reload.
 This was deliberately built as hash-based (`#/...`), not
 `history.pushState`-based path routing, so the app still works unmodified
-from `file://` with no server. A "Copy link" control on the one-pager copies
-the current `window.location.href` verbatim, so sending it reproduces the
-sender's exact view.
+from `file://` with no server. The one-pager's only export is Print/PDF
+(browser print, driven by the print stylesheet) — a former "Copy link"
+and "Copy one-pager" (plain-text) pair were removed as unnecessary
+alongside it.
 
 ## Role record shape
 
