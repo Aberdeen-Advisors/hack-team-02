@@ -429,17 +429,35 @@ a { color: var(--aberdeen-blue); }
 .file-list .fn { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-list .fs { color: var(--ink-3); font-size: 12px; }
 
-/* Required and optional upload slots, each its own small card - a file
-   that failed to parse gets the same slot and the same remove control as
-   one that succeeded, just its own quiet error line instead of a size. */
-.upload-slot-grid { display: grid; gap: var(--space-12); grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+/* Required stays two prominent cards, side by side: a fixed 2-column grid
+   (not auto-fill) so there's exactly one row, and align-items: stretch
+   (the grid default, not overridden here) makes both cards the same
+   height regardless of which one's content is taller - .upload-slot has
+   no height of its own, so a short label's card just gets more empty
+   space below its head, a long one wraps within the same box instead of
+   growing past its neighbor. Below the collapse width both cards stack
+   full width instead. */
+.upload-required-grid { display: grid; gap: var(--space-12); grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 768px) {
+  .upload-required-grid { grid-template-columns: 1fr; }
+}
 .upload-slot {
   border: 1px solid var(--hairline); border-radius: var(--radius-s); background: var(--surface-sunk);
   padding: 12px; display: grid; gap: 8px; align-content: start;
 }
-.upload-slot-head { display: grid; gap: 2px; }
+.upload-slot-head { display: grid; gap: 4px; }
 .upload-slot-label { font-size: 13px; font-weight: 500; color: var(--ink); }
+/* Source and file types are two visually distinct pieces, never one grey
+   string run together with a middot - see UploadSlot/UploadSlotRow, which
+   both render this same markup. Source is plain quiet text; file types is
+   a small uppercase pill, so the two read as different KINDS of
+   information, not one caption that happens to be long. */
+.upload-slot-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .upload-slot-source { font-size: 12px; color: var(--ink-3); }
+.upload-slot-types {
+  flex: none; font-size: 10px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--ink-3); border: 1px solid var(--hairline); border-radius: 999px; padding: 1px 7px;
+}
 .upload-slot-file {
   display: flex; align-items: center; gap: 8px; font-size: 12.5px;
   background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius-s);
@@ -448,6 +466,48 @@ a { color: var(--aberdeen-blue); }
 .upload-slot-file .fn { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .upload-slot-file .fs { color: var(--ink-3); font-size: 11.5px; flex: none; }
 .upload-slot-err { flex: 1; color: var(--flag); font-size: 12px; }
+
+/* Optional: one bordered list, not a grid of cards - structurally
+   different from Required, not just a different heading over it, which
+   is the whole point (see UploadsStep's own comment). Every row is the
+   same height (min-height, not a fixed height: a long label wraps within
+   it rather than the row growing, same rule as the required cards) with a
+   light divider between rows instead of a gap - one continuous list
+   reads as "the short ones," five separate cards read as "five more
+   things," which is the wrong weight for optional.
+   One flex line per row - label, then source + file types beside it, then
+   the choose-file control (or the file's own status) pushed to the far
+   right by margin-left: auto, not by splitting the row into two halves
+   with justify-content: space-between (which would leave the meta text
+   stranded in the middle of whatever space is left instead of sitting
+   right next to the label it belongs to). The label gets a fixed min-width
+   so all five line up in one column; overflow rules (ellipsis, never wrap)
+   are a backstop, not the plan - the labels themselves were shortened to
+   fit. */
+.upload-slot-list { border: 1px solid var(--hairline); border-radius: var(--radius-s); background: var(--surface-sunk); overflow: hidden; }
+.upload-row { display: flex; align-items: center; gap: var(--space-16); min-height: 52px; padding: 10px var(--space-16); }
+.upload-row + .upload-row { border-top: 1px solid var(--hairline); }
+.upload-row-label {
+  flex: none; width: 190px; font-size: 13px; font-weight: 500; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.upload-row-action { flex: none; margin-left: auto; display: flex; align-items: center; gap: 8px; }
+/* The one row with more than a single file to show: the fixed-height row
+   above still holds the label/meta/button, and only grows below it, into
+   its own wrapped file list, once there's actually something to list. */
+.upload-row-multi { flex-direction: column; align-items: stretch; }
+.upload-row-top { display: flex; align-items: center; gap: var(--space-16); }
+.upload-row-files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+/* Below the same width the required cards stack at: a fixed 190px label
+   plus its meta plus a right-pushed action would overflow a phone-width
+   screen, so the row wraps instead - the "same height every row" rule is
+   a wide-viewport rule (verified at 1280/1920px); at phone width every
+   row growing to fit its own wrapped content is the correct trade. */
+@media (max-width: 768px) {
+  .upload-row, .upload-row-top { flex-wrap: wrap; row-gap: 6px; }
+  .upload-row-label { width: auto; white-space: normal; overflow: visible; text-overflow: clip; }
+  .upload-row-action { margin-left: 0; }
+}
 
 /* Source citations on a role's own page - same quiet, small-print treatment
    as the constraint list beside it, extending that same provenance idea
@@ -1231,6 +1291,10 @@ table.data td .incflag {
 
 .form-grid { display: grid; gap: var(--space-16); grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .form-grid .full { grid-column: 1 / -1; }
+/* One row per wave: name, date, remove - same shape as a site row used to
+   be, just two inputs instead of three. */
+.wave-rows { display: grid; gap: 10px; margin-top: 6px; }
+.wave-row { display: grid; grid-template-columns: 2fr 1fr auto; gap: var(--space-8); align-items: center; }
 /* Non-blocking guidance on the add-a-role form: the site count has outgrown the
    chosen site scope. Deliberately NOT styled as an error: no red, no icon, no
    heavy border. It informs and gets out of the way. */
