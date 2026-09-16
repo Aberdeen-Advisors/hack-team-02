@@ -1165,6 +1165,28 @@ table.data td .rolename { font-weight: 500; }
 .pkg-list li { display: contents; }
 .pkg-list li .dot { align-self: start; margin-top: 6px; }
 .pkg-list li .dose { font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+/* Course modules / how-to guide titles, nested under a .pkg-list row.
+   .pkg-list li is display: contents, so this block is itself a direct grid
+   item of .pkg-list's own grid - grid-column: 1 / -1 gives it its own
+   full-width row under that li's label/dose row, rather than sliding into
+   the label column of the next row. */
+.pkg-detail { grid-column: 1 / -1; margin: -2px 0 0 24px; }
+.pkg-modules { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: 16px 1fr auto; column-gap: 8px; row-gap: 3px; font-size: 12.5px; color: var(--ink-2); }
+.pkg-modules li { display: contents; }
+.pkg-modules .num { color: var(--ink-3); }
+.pkg-modules .hrs { color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Every guide shown, no truncation - two columns so eight or nine stay a
+   compact block instead of a single wrapped run-on line, and small/muted
+   relative to .pkg-modules above so the guides read as secondary, point-
+   of-work reference material, not a second curriculum. Numbered the same
+   way .pkg-modules is (a plain ordinal, not the browser's own counter, so
+   it survives the multi-column reflow without renumbering per column). */
+.pkg-guides {
+  margin: 0; padding: 0; list-style: none; columns: 2; column-gap: var(--space-16);
+  font-size: 12px; color: var(--ink-3); line-height: 1.5;
+}
+.pkg-guides li { display: flex; gap: 6px; break-inside: avoid; }
+.pkg-guides .num { flex: none; color: var(--ink-3); }
 /* Sentence case, small, with a Verdigris rule - not shouty all-caps.
    Shared by any standalone one-pager sub-heading that opts into
    .op-kicker directly (what will affect delivery, manager actions). */
@@ -1764,4 +1786,9 @@ table.data td .incflag {
 
   /* ---- explainer: already a full-width bottom sheet at this same
      breakpoint (.ask-panel's own rule above); nothing further needed. */
+
+  /* ---- one-pager plan: two columns of guide titles get cramped once the
+     card itself is this narrow - one column reads better than two thin
+     ones. */
+  .pkg-guides { columns: 1; }
 }

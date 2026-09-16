@@ -743,6 +743,432 @@ function jobAidPlan(impact) {
   return { band: b.band, range: b.high === b.low ? `${b.low}` : `${b.low}-${b.high}`, count };
 }
 
+/* ---------------------------------------------------------------------------
+   AFTER-TASK -> SESSION LANGUAGE. An after-task describes a state or a rule
+   ("Plan is system-generated", "Every override carries a reason code"), not
+   something you can run a session on. This turns that into a verb phrase a
+   trainer could title a module with, and separately into finer, task-level
+   "how to" guide titles - deterministic pattern matching over the task's
+   own words, never a model call and never new content: every word in a
+   result traces back to the after-task it came from.
+   --------------------------------------------------------------------------- */
+
+// Verbs this app recognizes when scanning after-task text for an active,
+// teachable action. Deliberately excludes common nouns that also have verb
+// forms in English (order, return, request, change, plan) because in this
+// corpus they appear overwhelmingly as nouns ("the order", "change
+// requests") - including them produced false positives ("Plan is
+// system-generated" read as an instruction to plan, not a state to work
+// from).
+const VERB_BASES = new Set([
+  'validate', 'clear', 'release', 'work', 'escalate', 'read', 'generate', 'review',
+  'resolve', 'capture', 'price', 'see', 'log', 'investigate', 'reconcile', 'hold',
+  'retrieve', 'load', 'source', 'focus', 'act', 'manage', 'use', 'draw',
+  'enter', 'catch', 'build', 'monitor', 'train', 'own', 'buy', 'convert', 'expedite',
+  'publish', 'enforce', 'audit', 'analyze', 'adjust', 'recalibrate', 'mentor', 'test',
+  'confirm', 'fill', 'scan', 'receive', 'call', 'check', 'answer',
+  'approve', 'guide', 'maintain', 'amend', 'negotiate', 'carry', 'route', 'trigger',
+  'sign', 'drive', 'coordinate', 'verify', 'extract', 'calculate', 'post', 'issue',
+  'follow', 'apply', 'cover', 'print', 'steer', 'run', 'accrue', 'set',
+]);
+
+// Bare (uninflected) forms of these verbs only count when the corpus is
+// actually known to use them that way, with a plural subject ("Approvals
+// route...", "Returns orders trigger..."): every other verb here is a noun
+// often enough elsewhere in this app's data ("source list", "test",
+// "cover", "a role's own work") that only its inflected form (validates,
+// reviews, sources) is trusted. "report" stays off VERB_BASES entirely,
+// inflected or not - "validation reports" as a plain plural noun is common
+// enough in this corpus that even "reports" isn't safe to trust as a verb.
+const VERB_BARE_OK = new Set(['confirm', 'route', 'trigger', 'steer']);
+
+// Surface forms that need their own entry because the generic bare-form
+// rule above would otherwise block them: "overrides" is always a verb here,
+// but bare "override" is also a noun in the same corpus ("Every override
+// carries..."), so it stays off VERB_BASES entirely and is only recognized
+// inflected.
+const VERB_SURFACE_GERUNDS = { overrides: 'overriding' };
+
+const IRREGULAR_VERB_STEMS = { ties: 'tie', lies: 'lie', dies: 'die' };
+
+/* Surface inflection -> base form (validates -> validate, carries -> carry,
+   focuses -> focus). Used only to check VERB_BASES membership, never shown
+   on screen. */
+function stemVerb(word) {
+  const w = word.toLowerCase();
+  if (IRREGULAR_VERB_STEMS[w]) return IRREGULAR_VERB_STEMS[w];
+  if (/^[a-z]+ies$/.test(w)) return w.slice(0, -3) + 'y';
+  if (/(?:ches|shes|sses|zzes)$/.test(w)) return w.slice(0, -2);
+  if (/zes$/.test(w)) return w.slice(0, -1);
+  if (/ses$/.test(w)) {
+    // Two real patterns share this ending: base-ends-in-s plus -es
+    // ("focus" -> "focuses", strip 2) and base-ends-in-silent-e-after-s
+    // plus -s ("release" -> "releases", strip 1). Only a dictionary can
+    // tell them apart, so try the strip-2 form against VERB_BASES first
+    // and fall back to strip-1 - the far more common shape of the two.
+    const strip2 = w.slice(0, -2);
+    return VERB_BASES.has(strip2) ? strip2 : w.slice(0, -1);
+  }
+  if (/[a-z]s$/.test(w) && !/ss$/.test(w)) return w.slice(0, -1);
+  return w;
+}
+
+/* Base form -> gerund (validate -> validating, run -> running, buy ->
+   buying): drop a silent e (except after ee/oe), double a short final
+   consonant, otherwise just add -ing. The doubling rule only fires on a
+   true single-vowel-then-consonant ending (run, plan, set) - "read" and
+   "load" also end vowel-then-consonant, but the letter before that vowel
+   is itself a vowel (ea, oa), so there's no single short vowel to double
+   around and the naive two-letter check would otherwise misfire into
+   "readding"/"loadding". Plain regular-English rules, good enough for the
+   fixed, reviewed set of verbs in VERB_BASES. */
+function gerundOf(base) {
+  if (/e$/.test(base)) {
+    if (/(?:ee|oe)$/.test(base)) return base + 'ing'; // see, hoe keep the e
+    return base.slice(0, -1) + 'ing'; // validate, price, issue, accrue, use...
+  }
+  const isVowel = (c) => /[aeiou]/.test(c);
+  const last = base.slice(-1);
+  const shortCvc = base.length <= 4 && !isVowel(last) && !/[wxys]/.test(last)
+    && isVowel(base.slice(-2, -1)) && !isVowel(base.slice(-3, -2) || 'x');
+  if (shortCvc) return base + last + 'ing';
+  return base + 'ing';
+}
+
+/* null when word isn't a verb this app trusts in this exact form - the
+   caller moves on to the next word or falls back, rather than guessing. */
+function verbToGerund(word) {
+  const w = word.replace(/[.,;]$/, '').toLowerCase();
+  if (VERB_SURFACE_GERUNDS[w]) return VERB_SURFACE_GERUNDS[w];
+  const base = stemVerb(w);
+  if (!VERB_BASES.has(base)) return null;
+  if (base === w && !VERB_BARE_OK.has(base)) return null;
+  return gerundOf(base);
+}
+
+// A leading acronym (DC, ERP, POS) stays as-is - lowercasing just its first
+// letter ("dC receipt") reads as a typo, not a sentence-case fix.
+function lowerFirstWord(s) {
+  if (!s) return s;
+  if (/^[A-Z]{2,}(?:\s|$)/.test(s)) return s;
+  return s.charAt(0).toLowerCase() + s.slice(1);
+}
+function capitalizeWord(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+// Compact hyphenation read fine mid-sentence but not as the lead of a
+// module name - swapped for the words a trainer would actually say.
+const PHRASE_TIDY = [[/\bin-system\b/gi, 'in the system']];
+function tidyPhrase(s) { return PHRASE_TIDY.reduce((t, [re, rep]) => t.replace(re, rep), s); }
+
+/* "and clears exceptions" -> "and clearing exceptions": a second verb
+   coordinated with the one already converted needs converting too, or a
+   module reads as half gerund, half finite verb ("Validating and clears
+   exceptions"). */
+function fixCoordinatedVerb(rest) {
+  return rest.replace(/^(and|or)\s+([a-z]+)\b/i, (full, conj, v) => {
+    const g = verbToGerund(v);
+    return g ? `${conj} ${g}` : full;
+  });
+}
+
+/* Drops a trailing contrast clause ("...reviewed, not built", "...for
+   completeness rather than building it") - it describes what does NOT
+   happen, not something to teach or reference. "not" only counts as this
+   kind of clause when a comma introduces it: a bare mid-sentence "not"
+   ("...or they do not exist") is a real negation inside the sentence's own
+   meaning, not a trailing aside, and stripping from there would truncate
+   the thought instead of trimming it. */
+function stripContrastClause(s) {
+  return s.replace(/,\s+not\b.*$/i, '').replace(/\s+(?:rather than|instead of)\b.*$/i, '');
+}
+
+/* Cuts off a coordinated second clause that starts a new passive statement
+   ("...a reason code and is measured for bias") - that's a separate fact
+   about the sentence's subject, not part of what this verb's own object is,
+   and folding it in reads as a run-on ("How to carry a reason code and is
+   measured for bias"). */
+function trimTrailingClause(s) {
+  return s.split(/\s+and\s+(?:is|are|was|were)\s+/i)[0];
+}
+
+// A guide fragment built by slicing between two words (a clause boundary,
+// a length cap) can end on a bare preposition or filler adverb ("...items
+// with", "...system then") - trimmed off the end so a title never trails
+// off mid-thought.
+const GUIDE_TAIL_FILLER = /^(?:with|as|in|on|at|to|of|for|and|or|the|a|an|then|also|now|still|already|just)$/i;
+function trimTrailingFiller(s) {
+  const words = s.split(/\s+/);
+  while (words.length && GUIDE_TAIL_FILLER.test(words[words.length - 1].replace(/[.,;]$/, ''))) words.pop();
+  return words.join(' ');
+}
+
+/* One after-task -> one teachable module name, always a verb phrase, never
+   the input string verbatim. Three passes, in order: an active verb this
+   app recognizes (most after-tasks); failing that, a passive construction
+   ("<subject> is <participle>", or a subject already led by a gerund
+   noun - "Sequencing constrained by system rules" keeps that lead and
+   states the constraint); failing that, a plain noun phrase framed as
+   something to work with, or without. */
+function toModuleName(task) {
+  let s = task.trim().replace(/\.$/, '');
+  s = stripContrastClause(s);
+  if (/^no\s+/i.test(s)) return tidyPhrase(`Working without ${lowerFirstWord(s.replace(/^no\s+/i, ''))}`);
+
+  const words = s.split(/\s+/);
+  for (let i = 0; i < Math.min(words.length, 6); i++) {
+    const next = words[i + 1] || '';
+    if (/^(?:is|are|was|were)$/i.test(next)) continue;
+    const g = verbToGerund(words[i]);
+    if (!g) continue;
+    const rest = trimTrailingClause(fixCoordinatedVerb(words.slice(i + 1).join(' ')));
+    return tidyPhrase(capitalizeWord(g) + (rest ? ' ' + lowerFirstWord(rest) : ''));
+  }
+
+  const passive = passiveSplit(words);
+  if (passive) {
+    const { subject, participle, object } = passive;
+    if (/ing$/i.test(subject)) {
+      return tidyPhrase(object ? `${subject} within ${lowerFirstWord(object)}` : `${subject}, ${participle.toLowerCase()}`);
+    }
+    return tidyPhrase(`Working from the ${participle.toLowerCase()} ${lowerFirstWord(subject)}`);
+  }
+
+  return tidyPhrase(`Working with ${lowerFirstWord(s)}`);
+}
+
+/* Finds the FIRST word that reads as a passive participle (optionally
+   after is/are) and stops there, rather than a single backtracking regex -
+   which, given no valid trailing object, would keep expanding its subject
+   capture across a whole coordinated pair ("Spares reserved and issued
+   against the order" read "reserved" as part of the SUBJECT so it could
+   reach "issued" instead, producing "the issued spares reserved and").
+   Taking the first participle and dropping anything the sentence
+   coordinates onto it after is a deliberate simplification, not a bug -
+   the module still names the task's core state accurately. */
+function passiveSplit(words) {
+  for (let i = 1; i < words.length; i++) {
+    const isAux = /^(?:is|are)$/i.test(words[i]);
+    const pIdx = isAux ? i + 1 : i;
+    const pWord = (words[pIdx] || '').replace(/[.,;]$/, '');
+    if (!/^[a-z-]+(?:ed|en)$/i.test(pWord)) continue;
+    const subject = words.slice(0, i).join(' ');
+    const after = words.slice(pIdx + 1);
+    const object = /^(?:by|through|against|within|from|with)$/i.test(after[0] || '')
+      ? after.slice(1).join(' ') : null;
+    return { subject, participle: pWord, object };
+  }
+  return null;
+}
+
+/* Judgment, exceptions and new decision-making cost more session time than
+   a single rule or a data-entry habit - so hours are weighted by what the
+   task actually asks of the person, not split evenly or by how long the
+   sentence happens to be. Read off the after-task's own words, before any
+   rephrasing, since the source words are what this rule can defend. */
+const HARD_MODULE_HINTS = /\b(exception|escalat\w*|overrid\w*|judg?e?ment|discrepanc\w*|investigat\w*|resolv\w*|interpret\w*|adjust\w*|recalibrat\w*|approv\w*|approval|decision|decide\w*|audit\w*|monitor\w*|mentor\w*|discretion|non-renewal|drift)\b/i;
+const EASY_MODULE_HINTS = /\b(reason code|log(?:s|ged)?\b|confirm\w*|checkbox|template|held once|auto-populat\w*|self-generated|system-generated|automatically generated|scan(?:s|ned|ning)?\b|handheld|retrospective entry|real-time confirmation)\b/i;
+function moduleDifficulty(task) {
+  if (HARD_MODULE_HINTS.test(task)) return 2;
+  if (EASY_MODULE_HINTS.test(task)) return 0.5;
+  return 1;
+}
+
+/* Course modules for the one-pager's own "Role-based training" row.
+   Rebuild and Enable are the only tiers with a real curriculum to outline -
+   Reassure's 1.5 hours and Inform's 0.5 are awareness only, so callers
+   never ask this for those tiers (see the tier gate below, and the
+   trainingModules === null check wherever it's rendered).
+
+   Module names come from toModuleName() above, one per after-task: what
+   this role will actually be doing differently under the new system is
+   what the course has to teach. Hands-on practice already has its own line
+   in packageFor ("Practice environment"), so a module list built straight
+   from after-tasks is the whole curriculum, not a partial one missing a
+   wrap-up session.
+
+   Hours split across modules by moduleDifficulty() above, rounded to the
+   nearest half hour, with any rounding remainder folded into the largest
+   module so the total always matches the role's required hours exactly. */
+function trainingModules(role) {
+  if (role.tier !== 'Rebuild' && role.tier !== 'Enable') return null;
+  const tasks = (role.after || []).filter(Boolean).slice(0, 6);
+  if (tasks.length < 3) return null;
+  const hours = DOSES[role.tier].curriculumHours;
+  const weights = tasks.map(moduleDifficulty);
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  const rows = tasks.map((text, i) => ({
+    text: toModuleName(text),
+    source: text,
+    hours: Math.max(0.5, Math.round((hours * weights[i] / totalWeight) * 2) / 2),
+  }));
+  const shortfall = Math.round((hours - rows.reduce((s, r) => s + r.hours, 0)) * 2) / 2;
+  if (shortfall !== 0) {
+    const biggest = rows.reduce((a, b) => (b.hours > a.hours ? b : a), rows[0]);
+    biggest.hours = Math.max(0.5, Math.round((biggest.hours + shortfall) * 2) / 2);
+  }
+  return rows;
+}
+
+/* "{verb, object}" for every recognized verb in an after-task, not just its
+   first: "Scheduler validates and clears exceptions" yields both
+   {validate, exceptions} and {clear, exceptions} (borrowing the trailing
+   shared object when a verb has none of its own before the next one),
+   which is exactly the finer, task-level grain a point-of-work guide needs
+   and a whole-task module title doesn't give. Text only, not yet a "How
+   to..." string - guideTitles merges same-object candidates (including
+   these two) into one guide before any text is built, so a coordinated
+   pair never surfaces as two guides. */
+function toGuideFragments(task) {
+  let s = task.trim().replace(/\.$/, '');
+  s = stripContrastClause(s);
+  const words = s.split(/\s+/);
+  const verbs = [];
+  for (let i = 0; i < words.length; i++) {
+    // The sentence's own last word is never treated as a verb - a real
+    // verb here always has an object after it, so a final word that
+    // happens to be dictionary-inflected ("duplicate checks", "field
+    // requests") is the head noun of the closing phrase, not a second
+    // verb splitting it off.
+    if (i === words.length - 1) continue;
+    const next = words[i + 1] || '';
+    if (/^(?:is|are|was|were)$/i.test(next)) continue;
+    const w = words[i].replace(/[.,;]$/, '').toLowerCase();
+    const base = VERB_SURFACE_GERUNDS[w] ? w.replace(/s$/, '') : stemVerb(w);
+    const infinitive = VERB_SURFACE_GERUNDS[w] ? 'override' : base;
+    if (!VERB_BASES.has(base) && !VERB_SURFACE_GERUNDS[w]) continue;
+    if (base === w && !VERB_BARE_OK.has(base) && !VERB_SURFACE_GERUNDS[w]) continue;
+    verbs.push({ i, infinitive });
+  }
+  if (!verbs.length) return [];
+  const spanFor = (k) => {
+    const start = verbs[k].i + 1;
+    const end = k + 1 < verbs.length ? verbs[k + 1].i : words.length;
+    let span = words.slice(start, end);
+    while (span.length && /^(?:and|or|,|;)$/i.test(span[0].replace(/,$/, ''))) span.shift();
+    return trimTrailingFiller(trimTrailingClause(span.join(' ').replace(/[,;]$/, '')));
+  };
+  const lastSpan = spanFor(verbs.length - 1);
+  const fragments = [];
+  verbs.forEach((v, k) => {
+    const obj = spanFor(k) || lastSpan;
+    if (obj) fragments.push({ verb: v.infinitive, object: obj });
+  });
+  return fragments;
+}
+
+/* An extra, explicitly-named candidate for the edge case a person actually
+   reaches for a job aid to handle - the same judgment/exception language
+   moduleDifficulty() weights hours toward, above. Reads only the short noun
+   phrase around the keyword: stops at an auxiliary, a likely participle, or
+   the next recognized verb, so a keyword that's itself the sentence's own
+   verb ("Escalates blocks...") yields nothing here rather than folding that
+   verb into the guide text - toGuideFragments already covers that case.
+   Only called for a task where toGuideFragments found no verb at all (see
+   guideTitles): a task with its own verb+object candidates never also
+   needs this generic one. */
+const NEEDS_HANDLING = /\b(exceptions?|escalat\w*|overrid\w*|discrepanc\w*|blocks?|disputes?|rejections?)\b/i;
+function extraGuideFor(task) {
+  const m = task.match(NEEDS_HANDLING);
+  if (!m) return null;
+  const words = task.slice(m.index).split(/\s+/);
+  const frag = [];
+  for (const raw of words) {
+    const w = raw.replace(/[.,;]$/, '');
+    if (/^(?:and|or|rather|instead|not|is|are|was|were)$/i.test(w)) break;
+    if (verbToGerund(w)) break;
+    if (/[a-z]ed$/i.test(w) && frag.length) break; // a likely participle - stop naming the status, not what happens to it
+    frag.push(w);
+    if (frag.length >= 6) break;
+  }
+  const text = trimTrailingFiller(frag.join(' ').replace(/[,;]$/, ''));
+  return text ? { verb: 'handle', object: text } : null;
+}
+
+// A guide's object is compared after stripping leading filler words, so
+// "only the exceptions that fail three-way match" and "exceptions that
+// fail three-way match" (the same content, read by two different
+// extractors at slightly different starting points) are recognized as one
+// thing rather than two guides.
+const OBJECT_FILLER_LEAD = /^(?:the|a|an|only|just|still|also)\s+/i;
+function normalizeGuideObject(s) {
+  let t = s.toLowerCase().trim();
+  let prev;
+  do { prev = t; t = t.replace(OBJECT_FILLER_LEAD, ''); } while (t !== prev);
+  return t;
+}
+// Two objects "name the same thing" if they're equal once normalized, or
+// one fully contains the other - guarded to at least a two-or-three-word
+// phrase (8 chars) so two genuinely different short objects ("orders",
+// "records") never merge just because one happens to be a substring.
+function sameGuideObject(a, b) {
+  if (a === b) return true;
+  if (a.length < 8 || b.length < 8) return false;
+  return a.includes(b) || b.includes(a);
+}
+function joinVerbs(verbs) {
+  if (verbs.length === 1) return verbs[0];
+  if (verbs.length === 2) return `${verbs[0]} and ${verbs[1]}`;
+  return `${verbs.slice(0, -1).join(', ')} and ${verbs[verbs.length - 1]}`;
+}
+
+/* How-to-guide titles for the one-pager, so the job-aid count reads as a
+   named deliverable list rather than a bare number. Guides are task level,
+   one grain finer than the course modules above and phrased differently
+   (an instruction, not a session title), built from the same after-tasks
+   (Rebuild/Enable only).
+
+   Two dedup passes, both required - a coordinated pair inside one sentence
+   ("validates and clears exceptions") and a near-duplicate across two
+   different sentences (one role mentioning "exceptions" twice, in
+   different words) are the same problem at different scope, and both
+   collapse to the SAME guide, not two: every candidate across every
+   after-task is pooled first, then merged by sameGuideObject() regardless
+   of which task or which verb produced it. A generic "handle X" candidate
+   is dropped from a cluster the moment a task-specific verb also names X -
+   see the verb-list filter below. Every surviving guide is returned; the
+   caller shows the whole list, and the count next to "How-to guides" is
+   this list's own length, not a separate estimate. */
+function guideTitles(role, moduleNames) {
+  if (role.tier !== 'Rebuild' && role.tier !== 'Enable') return null;
+  const tasks = (role.after || []).filter(Boolean);
+  if (!tasks.length) return null;
+
+  const candidates = [];
+  tasks.forEach((task) => {
+    const frags = toGuideFragments(task);
+    if (frags.length) {
+      frags.forEach((f) => candidates.push(f));
+    } else {
+      const extra = extraGuideFor(task);
+      if (extra) candidates.push(extra);
+    }
+  });
+  if (!candidates.length) return null;
+
+  const clusters = [];
+  candidates.forEach((c) => {
+    const norm = normalizeGuideObject(c.object);
+    const hit = clusters.find((cl) => sameGuideObject(cl.norm, norm));
+    if (hit) {
+      if (c.object.length > hit.object.length) hit.object = c.object;
+      if (!hit.verbs.includes(c.verb)) hit.verbs.push(c.verb);
+    } else {
+      clusters.push({ norm, object: c.object, verbs: [c.verb] });
+    }
+  });
+
+  const taken = new Set((moduleNames || []).map((m) => m.toLowerCase()));
+  const guides = clusters
+    .map((cl) => {
+      const named = cl.verbs.length > 1 ? cl.verbs.filter((v) => v !== 'handle') : cl.verbs;
+      const verbWord = named.length ? joinVerbs(named) : 'handle';
+      return tidyPhrase(`How to ${verbWord} ${lowerFirstWord(cl.object)}`);
+    })
+    .filter((g, i, arr) => !taken.has(g.toLowerCase()) && arr.indexOf(g) === i);
+
+  return guides.length ? guides : null;
+}
+
 /* INTENSITY and MODALITY are two different questions, kept apart on
    purpose. Intensity - how many hours of training this role needs - is set
    by tier alone (DOSES[tier].curriculumHours) and NEVER changes with
@@ -805,9 +1231,21 @@ function trainingDesign(role) {
   // so the session math always matches the method actually shown.
   const methodKey = (deskless && role.tier !== 'Inform') ? 'onShift' : key;
 
+  const modules = trainingModules(role);
+  const titles = guideTitles(role, modules ? modules.map((m) => m.text) : []);
+  // The band/range jobAidPlan produces is still the honest count wherever
+  // there's no real list to name (Reassure, Inform, or the rare Rebuild/
+  // Enable role with nothing to derive) - titles.length replaces it the
+  // moment a real, deduplicated list exists, so the number shown next to
+  // "How-to guides" is never a different figure than the list underneath
+  // it.
+  const aidsBand = jobAidPlan(impact);
+  const aids = titles ? { ...aidsBand, count: titles.length } : aidsBand;
   return {
     complexity, hours, deskless, primary, why, largeAudience: large, methodKey,
-    aids: jobAidPlan(impact),
+    aids,
+    modules,
+    titles,
     jobAidMethod: TRAINING_METHODS.jobAids,
     trainTheTrainer: primary.delivery === 'train-the-trainer',
     // Real field only - siteCount, not an invented "shift pattern" count
@@ -870,7 +1308,16 @@ function trainingLoadForRole(role) {
    total and session count do. On-shift roles already fold the total into
    their own duration string (trainingDesign), so they skip straight to
    that; self-driven methods (web-based, short refreshers) have no session
-   to staff at all, so they read as "completed independently". */
+   to staff at all, so they read as "completed independently".
+
+   When a module outline is also shown (t.modules, see trainingModules
+   above), the session count is dropped from this line: sessionsForRole is
+   how many classrooms it takes to staff the whole cohort, not a count the
+   module list divides into cleanly, and showing both next to each other
+   reads as a contradiction ("3 sessions" beside five modules). The number
+   itself isn't lost - it's on the Training tab's own role table instead,
+   next to how the role is delivered, which is where a staffing fact
+   belongs rather than framed as part of the curriculum. */
 function trainingDoseLine(role) {
   const t = trainingDesign(role);
   const hours = pluralize(t.hours, 'hour');
@@ -878,6 +1325,7 @@ function trainingDoseLine(role) {
     return `${hours}, ${t.primary.method.toLowerCase()}`;
   }
   if (t.trainTheTrainer) {
+    if (t.modules) return `${hours}, ${t.primary.method.toLowerCase()}`;
     const sessions = sessionsForRole(role, t);
     return `${hours}, ${t.primary.method.toLowerCase()}, ${pluralize(sessions, 'session')}`;
   }
@@ -1347,21 +1795,25 @@ function packageFor(role) {
   const d = DOSES[role.tier];
   const t = trainingDesign(role);
   const sites = Math.max(1, role.siteCount || 1);
-  const aidsHint = `${t.aids.band} band, ${t.jobAidMethod.duration} each`;
+  // Once a real, named list backs the count (t.titles), the band is no
+  // longer what set the number, so the hint states only the one fact that
+  // is still true of every guide regardless of count: how long each one
+  // takes to read.
+  const aidsHint = t.titles ? `${t.jobAidMethod.duration} each` : `${t.aids.band} band, ${t.jobAidMethod.duration} each`;
   const method = trainingDoseLine(role);
   switch (role.tier) {
     case 'Rebuild': return [
       { text: 'Role redesign',       dose: `${pluralize(role.tasksRemoved + role.tasksChanged + role.tasksNew, 'task')} re-mapped, 1 workshop per site` },
       { text: 'Practice environment', dose: `${pluralize(d.sandboxDays, 'day')}, ${pluralize(Math.max(1, Math.ceil(role.headcount * d.sandboxSeatsPerHead)), 'seat')}${role.deskless ? ', rotated into shift time' : ''}` },
-      { text: 'Role-based training', dose: method },
-      { text: 'How-to guides', dose: `${t.aids.count}`, hint: aidsHint },
+      { text: 'Role-based training', dose: method, modules: t.modules },
+      { text: 'How-to guides', dose: `${t.aids.count}`, hint: aidsHint, titles: t.titles },
       { text: 'Trained colleague',  dose: `${d.superUsersPerSite} per site (${sites})${role.deskless ? ', shadowing on the floor' : ''}`, hint: `About 1 trained colleague per ${d.superUserRatio} people` },
       { text: 'Manager coaching',    dose: `${pluralize(d.managerCoachingSessions, 'session')} over ${pluralize(d.floorCoachingWeeks, 'week')}` },
       { text: 'Support after go-live', dose: `${pluralize(d.hypercareWeeks, 'week')}` },
     ];
     case 'Enable': return [
-      { text: 'Role-based training',   dose: method },
-      { text: 'How-to guides', dose: `${t.aids.count}`, hint: aidsHint },
+      { text: 'Role-based training',   dose: method, modules: t.modules },
+      { text: 'How-to guides', dose: `${t.aids.count}`, hint: aidsHint, titles: t.titles },
       { text: 'Peer champions',  dose: `${pluralize(Math.max(1, Math.ceil(role.headcount / d.superUserRatio)), 'champion')}${role.deskless ? ', coaching on shift' : ''}`, hint: `About 1 champion per ${d.superUserRatio} people` },
       { text: 'Support after go-live', dose: `${pluralize(d.hypercareWeeks, 'week')}` },
     ];
@@ -5468,7 +5920,11 @@ function onePagerText(role, citeDeck, goLiveDate) {
   L.push('AFTER');  (role.after || []).forEach((b) => L.push(`  - ${b}`));
   L.push('');
   L.push(`PRESCRIBED (${role.tier})`);
-  packageFor(role).forEach((p) => L.push(`  - ${p.text}: ${p.dose}`));
+  packageFor(role).forEach((p) => {
+    L.push(`  - ${p.text}: ${p.dose}`);
+    if (p.modules) p.modules.forEach((m, mi) => L.push(`      ${mi + 1}. ${m.text} (${pluralize(m.hours, 'hr')})`));
+    if (p.titles) p.titles.forEach((title, ti) => L.push(`      ${ti + 1}. ${title}`));
+  });
   const deliveryPairs = deliveryPairsFor(role);
   if (deliveryPairs.length) {
     L.push('');
@@ -5503,15 +5959,16 @@ function onePagerText(role, citeDeck, goLiveDate) {
    states this role's own support duration, the Communication tab owns the
    milestones, and the Adoption tab owns measurement, so none of that is
    repeated on this page any more. */
-/* The drafts are the best output this tool produces and this is how
-   people actually reach them - a real primary button, sized and colored
-   as a genuine call to action from the same token scale every other
-   primary action in the app uses (see .btn.primary/.btn.lg), not a text
-   link sitting quietly inside a bordered box the way it used to. */
+/* The drafts are the best output this tool produces and this is how people
+   actually reach them - a real primary button, not a text link sitting
+   quietly inside a bordered box. Standard .btn size, same as every other
+   button on this page: it's the primary action by color and position (the
+   last thing in the section the manager just read their actions from), not
+   by being physically larger than its surroundings. */
 function DeliveryDetail({ role, onOpenDrafts }) {
   return (
     <div style={{ marginTop: 'var(--space-16)' }}>
-      <button type="button" className="btn primary lg no-print" onClick={() => onOpenDrafts && onOpenDrafts(role.id)}>
+      <button type="button" className="btn primary no-print" onClick={() => onOpenDrafts && onOpenDrafts(role.id)}>
         Open message drafts for this role →
       </button>
       <p className="only-print sub">Generated message drafts for this role are in the Communication tab.</p>
@@ -5631,8 +6088,9 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
       </div>
 
       {/* e. THE PLAN: concrete action items, not prose. Prescribed package,
-          modifiers, constraints (f.), and the one-line pointer to this
-          role's message drafts. */}
+          modifiers and constraints (f.). Ends on "Support after go-live" -
+          the message-drafts button lives in the manager section below, not
+          here (see DeliveryDetail). */}
       <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>The plan</h3>
@@ -5645,6 +6103,31 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
                 <i className="dot" style={{ '--dot': TIERS[role.tier].hex }} />
                 <span className="pkg-label" title={p.hint || undefined}>{p.text}</span>
                 <span className="dose">{p.dose}</span>
+                {p.modules && (
+                  <div className="pkg-detail">
+                    <ol className="pkg-modules">
+                      {p.modules.map((m, mi) => (
+                        <li key={mi}>
+                          <span className="num">{mi + 1}.</span>
+                          <span>{m.text}</span>
+                          <span className="hrs">{pluralize(m.hours, 'hr')}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                {p.titles && (
+                  <div className="pkg-detail">
+                    <ol className="pkg-guides">
+                      {p.titles.map((title, ti) => (
+                        <li key={ti}>
+                          <span className="num">{ti + 1}.</span>
+                          <span>{title}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -5671,13 +6154,15 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
               </ul>
             </div>
           )}
-          <DeliveryDetail role={role} onOpenDrafts={onOpenDrafts} />
         </div>
       </div>
 
       {/* NEW: what the manager needs to do - the one thing nothing else on
           this page tells the person actually responsible for this role.
-          Every item is dated and drawn from data already on this page. */}
+          Every item is dated and drawn from data already on this page. The
+          drafts button lives here, not in the plan above: the plan states
+          what's prescribed, this section is what the manager actually has
+          to go do, and the drafts are how they do the last of it. */}
       <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
           <h3>What the manager needs to do</h3>
@@ -5688,6 +6173,7 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
               <li key={i}><span className="when">{a.when}</span><span>{a.text}</span></li>
             ))}
           </ol>
+          <DeliveryDetail role={role} onOpenDrafts={onOpenDrafts} />
         </div>
       </div>
 
@@ -6197,7 +6683,11 @@ function TrainingView({ scored, incomplete, selectedId, onSelect, citeDeck, goLi
                 <td data-label="Role"><span className="rolename">{role.role}</span></td>
                 <td data-label="Tier"><TierBadge tier={role.tier} /></td>
                 <td className="n" data-label="Total required hours">{pluralize(design.hours, 'hour')}</td>
-                <td data-label="How it's delivered">{design.primary.method}</td>
+                <td data-label="How it's delivered">
+                  {design.trainTheTrainer
+                    ? `${design.primary.method} · ${pluralize(sessionsForRole(role, design), 'session')}`
+                    : design.primary.method}
+                </td>
                 <td data-label="Delivery constraint">{design.deliveryConstraint || 'None'}</td>
               </tr>
             ))}
@@ -7701,7 +8191,6 @@ const UPLOAD_SLOTS = [
   { key: 'currentState',      label: 'Current state documents',     source: 'process owners',                      required: false, accept: UPLOAD_ACCEPT },
   { key: 'siteShiftPatterns', label: 'Site and shift patterns',     source: 'operations',                          required: false, accept: UPLOAD_ACCEPT },
   { key: 'programPlan',       label: 'Program plan',                source: 'the PMO',                             required: false, accept: UPLOAD_ACCEPT },
-  { key: 'exampleImpact',     label: 'Example impact records',      source: 'two or three roles, written by hand', required: false, accept: UPLOAD_ACCEPT },
   { key: 'anythingElse',      label: 'Anything else',               source: '',                                    required: false, accept: UPLOAD_ACCEPT, multi: true },
 ];
 
@@ -8134,7 +8623,7 @@ function BasicsStep({ basics, onChange, onNext, onCancel }) {
    equal-height cards side by side (.upload-required-grid, unchanged - a
    two-item grid row is already equal-height by the grid default, no extra
    CSS needed for that). Optional is a single bordered list
-   (.upload-slot-list) of five uniform rows with a light divider between
+   (.upload-slot-list) of four uniform rows with a light divider between
    them - a label, its source and file types, and the choose-file control
    right-aligned, all at the same row height, which is what actually kills
    the ragged card grid this replaced. No caption sentence above the grid
@@ -8438,22 +8927,36 @@ const WIZARD_STEPS = [
   { key: 'review', label: 'Review' },
 ];
 
-/* What the derivation pass (see the AI DERIVATION banner below, run after
-   the project opens, never in this wizard) is allowed to read: every
-   successfully parsed document except the roles spreadsheet itself (that's
-   structured headcount data, not prose describing what changes) and the
-   example impact records, which travel separately as style calibration,
-   never as evidence about any specific role. */
-function collectDerivationDocs(uploads) {
+/* There is no upload slot asking for hand-written example impact records
+   by name any more - every other slot asks for a document that already
+   exists somewhere, and that one asked the practitioner to write
+   something, which undercuts the tool's own claim to derive impact rather
+   than ask for it. The calibration behavior survives: whatever's actually
+   uploaded (most likely under "Anything else", but this checks all of
+   them) is scanned for the shape of a hand-written before/after write-up -
+   explicit "Before:"/"After:" headers, at least a couple of each, matching
+   "two or three roles" worth of content - and anything that matches travels
+   to the derivation pass as style calibration only, matching the client's
+   own phrasing, never as evidence about any specific role (see
+   collectDerivationDocs below, which excludes it for that reason). */
+function looksLikeImpactExample(text) {
+  if (!text) return false;
+  const beforeHeaders = (text.match(/^\s*before\s*:/gim) || []).length;
+  const afterHeaders = (text.match(/^\s*after\s*:/gim) || []).length;
+  return beforeHeaders >= 2 && afterHeaders >= 2;
+}
+function allUploadedDocs(uploads) {
   return UPLOAD_SLOTS
-    .filter((slot) => slot.key !== 'rolesHeadcount' && slot.key !== 'exampleImpact')
+    .filter((slot) => slot.key !== 'rolesHeadcount')
     .flatMap((slot) => (slot.multi ? (uploads[slot.key] || []) : [uploads[slot.key]]))
     .filter((u) => u && u.status === 'done' && u.text)
     .map((u) => ({ name: u.name, text: u.text }));
 }
+function collectDerivationDocs(uploads) {
+  return allUploadedDocs(uploads).filter((u) => !looksLikeImpactExample(u.text));
+}
 function collectExampleRecords(uploads) {
-  const u = uploads.exampleImpact;
-  return (u && u.status === 'done' && u.text) ? [{ name: u.name, text: u.text }] : [];
+  return allUploadedDocs(uploads).filter((u) => looksLikeImpactExample(u.text));
 }
 
 function NewProjectWizard({ onFinish, onCancel }) {
