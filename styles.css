@@ -1110,7 +1110,7 @@ table.data td .rolename { font-weight: 500; }
 .op-head h2 { font-size: 24px; letter-spacing: -.02em; }
 .op-head .crumbs { color: var(--ink-2); font-size: 13.5px; margin-top: 5px; }
 
-.op-summary { color: var(--ink-2); font-size: 14.5px; max-width: 88ch; }
+.op-summary { color: var(--ink-2); font-size: 14.5px; }
 
 .ba { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0; }
 .ba > div { padding: var(--space-16) 18px; }
@@ -1175,18 +1175,14 @@ table.data td .rolename { font-weight: 500; }
 .pkg-modules li { display: contents; }
 .pkg-modules .num { color: var(--ink-3); }
 .pkg-modules .hrs { color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
-/* Every guide shown, no truncation - two columns so eight or nine stay a
-   compact block instead of a single wrapped run-on line, and small/muted
-   relative to .pkg-modules above so the guides read as secondary, point-
-   of-work reference material, not a second curriculum. Numbered the same
-   way .pkg-modules is (a plain ordinal, not the browser's own counter, so
-   it survives the multi-column reflow without renumbering per column). */
-.pkg-guides {
-  margin: 0; padding: 0; list-style: none; columns: 2; column-gap: var(--space-16);
-  font-size: 12px; color: var(--ink-3); line-height: 1.5;
-}
-.pkg-guides li { display: flex; gap: 6px; break-inside: avoid; }
-.pkg-guides .num { flex: none; color: var(--ink-3); }
+/* Every guide shown, no truncation, one per line - the same grid shape,
+   ordinal numbering and type size as .pkg-modules above, so the two lists
+   read as one section at two densities, not two different treatments.
+   Secondary is signaled by color alone (ink-3, versus .pkg-modules' own
+   ink-2), never a size step. */
+.pkg-guides { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: 16px 1fr; column-gap: 8px; row-gap: 3px; font-size: 12.5px; color: var(--ink-3); }
+.pkg-guides li { display: contents; }
+.pkg-guides .num { color: var(--ink-3); }
 /* Sentence case, small, with a Verdigris rule - not shouty all-caps.
    Shared by any standalone one-pager sub-heading that opts into
    .op-kicker directly (what will affect delivery, manager actions). */
@@ -1786,9 +1782,4 @@ table.data td .incflag {
 
   /* ---- explainer: already a full-width bottom sheet at this same
      breakpoint (.ask-panel's own rule above); nothing further needed. */
-
-  /* ---- one-pager plan: two columns of guide titles get cramped once the
-     card itself is this narrow - one column reads better than two thin
-     ones. */
-  .pkg-guides { columns: 1; }
 }

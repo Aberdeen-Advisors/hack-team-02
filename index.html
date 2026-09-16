@@ -1111,62 +1111,135 @@ function joinVerbs(verbs) {
   return `${verbs.slice(0, -1).join(', ')} and ${verbs[verbs.length - 1]}`;
 }
 
-/* How-to-guide titles for the one-pager, so the job-aid count reads as a
-   named deliverable list rather than a bare number. Guides are task level,
-   one grain finer than the course modules above and phrased differently
-   (an instruction, not a session title), built from the same after-tasks
-   (Rebuild/Enable only).
+// Bare action words this app trusts ONLY inside an explicit "X, Y and Z
+// <shared noun>" list (see splitCoordinatedObject) - a much narrower,
+// safer context than scanning a sentence generally, since the coordinating
+// commas and "and" already establish that these are parallel actions, not
+// prose that happens to contain one of these words.
+const COORDINATE_ACTION_WORDS = new Set([
+  'create', 'change', 'update', 'edit', 'block', 'unblock', 'delete', 'remove',
+  'add', 'cancel', 'close', 'open', 'assign', 'reassign', 'approve', 'reject',
+  'escalate', 'review', 'check', 'verify', 'validate', 'confirm', 'release',
+  'hold', 'clear', 'log', 'record', 'enter', 'post', 'issue', 'route', 'flag',
+  'override', 'extend', 'renew', 'suspend', 'reinstate', 'archive',
+]);
+// "requests for all master data domains" -> "a request for all master data
+// domains": each split-out guide is about ONE of them, so the shared plural
+// head reads as singular under its own article.
+function singularizeHead(head) {
+  const m = head.match(/^([a-z]+)(\b.*)$/i);
+  if (!m) return head;
+  const [, first, rest] = m;
+  if (/[a-z]s$/i.test(first) && !/ss$/i.test(first)) return `a ${first.slice(0, -1)}${rest}`;
+  return head;
+}
+/* "create, change and block requests for all master data domains" names
+   three distinct actions on one shared object, not one action - a training
+   module can responsibly teach all three in a single session, but a job
+   aid titled for all three at once is useless to someone who only needs
+   one of them. Splits into one {verb, object} per listed action, each
+   paired with the shared object singularized under its own article. Only
+   fires when EVERY item in the list is a recognized action word, so an
+   ordinary descriptive phrase ("mandatory field and duplicate checks")
+   is never torn apart into nonsense fragments - returns null rather than
+   guess wherever that isn't the case, same policy as everywhere else in
+   this pipeline. */
+function splitCoordinatedObject(object) {
+  const m = object.match(/^([a-z]+(?:,\s*[a-z]+)*,?\s+and\s+[a-z]+)\s+(.+)$/i);
+  if (!m) return null;
+  const items = m[1].split(/,|\s+and\s+/i).map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (items.length < 2 || !items.every((i) => COORDINATE_ACTION_WORDS.has(i))) return null;
+  const head = singularizeHead(m[2]);
+  return items.map((item) => ({ verb: item, object: head }));
+}
 
-   Two dedup passes, both required - a coordinated pair inside one sentence
-   ("validates and clears exceptions") and a near-duplicate across two
-   different sentences (one role mentioning "exceptions" twice, in
-   different words) are the same problem at different scope, and both
-   collapse to the SAME guide, not two: every candidate across every
-   after-task is pooled first, then merged by sameGuideObject() regardless
-   of which task or which verb produced it. A generic "handle X" candidate
-   is dropped from a cluster the moment a task-specific verb also names X -
-   see the verb-list filter below. Every surviving guide is returned; the
-   caller shows the whole list, and the count next to "How-to guides" is
-   this list's own length, not a separate estimate. */
+/* How-to-guide titles for the one-pager, so the job-aid count reads as a
+   named deliverable list rather than a bare number. A module is a training
+   session; a guide is a single task looked up at the point of work, so a
+   guide naming the SAME whole action a module already covers isn't finer,
+   it's a restatement with "How to" stuck on the front - the thing this
+   function exists to prevent, not just format.
+
+   A task that already yields more than one verb+object candidate
+   (coordinated verbs sharing an object, "validates and clears exceptions")
+   is inherently finer than its own module (which names all of them
+   together), so those candidates stand as-is. A task that yields exactly
+   ONE candidate covering the whole sentence is NOT finer than its module -
+   they're the same content - so it only survives if
+   splitCoordinatedObject() can break its object into genuinely separate
+   actions ("create, change and block requests" -> three guides, one per
+   action); if it can't, this task contributes no guide at all, per the
+   rule: no decomposition, no guide, never a restatement.
+
+   Two dedup passes on what's left, both required - a coordinated pair
+   inside one sentence and a near-duplicate across two different sentences
+   (one role mentioning "exceptions" twice, in different words) are the
+   same problem at different scope, and both collapse to the SAME guide:
+   every candidate is pooled first, then merged by sameGuideObject()
+   regardless of which task or which verb produced it. A generic "handle X"
+   candidate is dropped from a cluster the moment a task-specific verb also
+   names X. A final substring check against the role's own module text
+   catches anything that still restates a module outright.
+
+   Returns null only when this tier never derives guides at all (Reassure,
+   Inform); returns [] (never null) once a Rebuild/Enable role's own tasks
+   have been considered, even when nothing here survives decomposition -
+   the caller reads that as "genuinely zero", not "no data", so the count
+   next to "How-to guides" is never out of step with an absent list. */
 function guideTitles(role, moduleNames) {
   if (role.tier !== 'Rebuild' && role.tier !== 'Enable') return null;
   const tasks = (role.after || []).filter(Boolean);
-  if (!tasks.length) return null;
+  if (!tasks.length) return [];
 
   const candidates = [];
   tasks.forEach((task) => {
     const frags = toGuideFragments(task);
-    if (frags.length) {
+    if (frags.length > 1) {
       frags.forEach((f) => candidates.push(f));
+    } else if (frags.length === 1) {
+      const split = splitCoordinatedObject(frags[0].object);
+      // distinct: true - each split action shares the same object with its
+      // siblings by construction (all three act on "a request..."), which
+      // is exactly the case the object-clustering below would otherwise
+      // fold back into one "create, change and block" guide, undoing the
+      // split. These stay one guide per action no matter what else shares
+      // their object.
+      if (split) split.forEach((f) => candidates.push({ ...f, distinct: true }));
+      // else: one verb, one object, nothing finer inside it to name - that
+      // IS the module, so no guide for this task.
     } else {
       const extra = extraGuideFor(task);
       if (extra) candidates.push(extra);
     }
   });
-  if (!candidates.length) return null;
+  if (!candidates.length) return [];
 
   const clusters = [];
   candidates.forEach((c) => {
     const norm = normalizeGuideObject(c.object);
-    const hit = clusters.find((cl) => sameGuideObject(cl.norm, norm));
+    const hit = c.distinct ? null : clusters.find((cl) => !cl.distinct && sameGuideObject(cl.norm, norm));
     if (hit) {
       if (c.object.length > hit.object.length) hit.object = c.object;
       if (!hit.verbs.includes(c.verb)) hit.verbs.push(c.verb);
     } else {
-      clusters.push({ norm, object: c.object, verbs: [c.verb] });
+      clusters.push({ norm, object: c.object, verbs: [c.verb], distinct: !!c.distinct });
     }
   });
 
-  const taken = new Set((moduleNames || []).map((m) => m.toLowerCase()));
+  const moduleLower = (moduleNames || []).map((m) => m.toLowerCase());
   const guides = clusters
     .map((cl) => {
       const named = cl.verbs.length > 1 ? cl.verbs.filter((v) => v !== 'handle') : cl.verbs;
       const verbWord = named.length ? joinVerbs(named) : 'handle';
       return tidyPhrase(`How to ${verbWord} ${lowerFirstWord(cl.object)}`);
     })
-    .filter((g, i, arr) => !taken.has(g.toLowerCase()) && arr.indexOf(g) === i);
+    .filter((g, i, arr) => {
+      const gl = g.toLowerCase();
+      if (moduleLower.some((m) => gl.includes(m) || m.includes(gl))) return false;
+      return arr.indexOf(g) === i;
+    });
 
-  return guides.length ? guides : null;
+  return guides;
 }
 
 /* INTENSITY and MODALITY are two different questions, kept apart on
@@ -1233,14 +1306,15 @@ function trainingDesign(role) {
 
   const modules = trainingModules(role);
   const titles = guideTitles(role, modules ? modules.map((m) => m.text) : []);
-  // The band/range jobAidPlan produces is still the honest count wherever
-  // there's no real list to name (Reassure, Inform, or the rare Rebuild/
-  // Enable role with nothing to derive) - titles.length replaces it the
-  // moment a real, deduplicated list exists, so the number shown next to
-  // "How-to guides" is never a different figure than the list underneath
-  // it.
+  // The band/range jobAidPlan produces is still the honest count for a tier
+  // that never derives a real list at all (Reassure, Inform - titles is
+  // null there). The moment titles exists at all (Rebuild/Enable, even as
+  // an empty array because nothing survived decomposition), its own length
+  // is the count - zero is a real answer here, not a gap to fill with the
+  // band estimate, so the number next to "How-to guides" is never out of
+  // step with the list actually shown underneath it.
   const aidsBand = jobAidPlan(impact);
-  const aids = titles ? { ...aidsBand, count: titles.length } : aidsBand;
+  const aids = titles !== null ? { ...aidsBand, count: titles.length } : aidsBand;
   return {
     complexity, hours, deskless, primary, why, largeAudience: large, methodKey,
     aids,
@@ -5923,7 +5997,7 @@ function onePagerText(role, citeDeck, goLiveDate) {
   packageFor(role).forEach((p) => {
     L.push(`  - ${p.text}: ${p.dose}`);
     if (p.modules) p.modules.forEach((m, mi) => L.push(`      ${mi + 1}. ${m.text} (${pluralize(m.hours, 'hr')})`));
-    if (p.titles) p.titles.forEach((title, ti) => L.push(`      ${ti + 1}. ${title}`));
+    if (p.titles && p.titles.length) p.titles.forEach((title, ti) => L.push(`      ${ti + 1}. ${title}`));
   });
   const deliveryPairs = deliveryPairsFor(role);
   if (deliveryPairs.length) {
@@ -6116,7 +6190,7 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
                     </ol>
                   </div>
                 )}
-                {p.titles && (
+                {p.titles && p.titles.length > 0 && (
                   <div className="pkg-detail">
                     <ol className="pkg-guides">
                       {p.titles.map((title, ti) => (
