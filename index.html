@@ -5991,9 +5991,16 @@ function DeliveryDetail({ role, onOpenDrafts }) {
   );
 }
 
-function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts }) {
+function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate }) {
   const label = backLabel || 'Stakeholder Impact';
   const [showScore, setShowScore] = useState(false);
+  // Opened from here, drafts are a popup over this same page, not a
+  // navigation to the Communication tab - closing it (the panel's own X)
+  // leaves the practitioner exactly where they were. The Communication
+  // tab's own "Open drafts" entry points are untouched: those already
+  // manage this same panel locally within CommunicationView, with no tab
+  // switch involved either way.
+  const [showDrafts, setShowDrafts] = useState(false);
   if (!role) {
     return (
       <div className="card"><div className="empty">
@@ -6150,7 +6157,7 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
               <li key={i}><span className="when">{a.when}</span><span>{a.text}</span></li>
             ))}
           </ol>
-          <DeliveryDetail role={role} onOpenDrafts={onOpenDrafts} />
+          <DeliveryDetail role={role} onOpenDrafts={() => setShowDrafts(true)} />
         </div>
       </div>
 
@@ -6177,6 +6184,14 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate, onOpenDrafts 
         </div>
       </div>
       <p className="footnote">All figures illustrative. All data synthetic.</p>
+      {showDrafts && (
+        <DraftsPanel
+          title={`Message drafts: ${role.role}`}
+          subtitle="Every milestone this role is reached on, computed from its own record. Edit in place, then copy."
+          drafts={draftsForRole(role, goLiveDate)}
+          onClose={() => setShowDrafts(false)}
+        />
+      )}
     </>
   );
 }
@@ -6769,19 +6784,9 @@ function DraftsPanel({ title, subtitle, drafts, onClose }) {
   );
 }
 
-function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck, goLiveDate, weights, onResetWeights, tierFilter, setTierFilter, autoOpenDraftsId, onAutoOpenDraftsConsumed }) {
+function CommunicationView({ scored, incomplete, selectedId, onSelect, citeDeck, goLiveDate, weights, onResetWeights, tierFilter, setTierFilter }) {
   const [search, setSearch] = useState('');
   const [draftsView, setDraftsView] = useState(null); // { mode: 'role', roleId } | { mode: 'milestone', tier, milestoneIdx }
-
-  // A cross-reference from a role's own one-pager: open straight to that
-  // role's drafts, then forget it, so revisiting this tab later doesn't
-  // reopen the same panel unprompted.
-  useEffect(() => {
-    if (autoOpenDraftsId) {
-      setDraftsView({ mode: 'role', roleId: autoOpenDraftsId });
-      if (onAutoOpenDraftsConsumed) onAutoOpenDraftsConsumed();
-    }
-  }, [autoOpenDraftsId]);
 
   const plan = useMemo(() => resourcedPlan(scored), [scored]);
   const commsGroup = plan.find((g) => g.group === 'Communication');
@@ -9646,16 +9651,6 @@ function App() {
     syncRoute({ tab: tabId }, 'push');
   }, [syncRoute]);
 
-  // The one-pager's "message drafts" line is a real cross-reference to the
-  // Communication tab's own drafts panel for this one role, not just prose -
-  // consumed once by CommunicationView's effect so it doesn't reopen on
-  // every later visit to the tab.
-  const [autoOpenDraftsId, setAutoOpenDraftsId] = useState(null);
-  const openDraftsFor = useCallback((id) => {
-    setAutoOpenDraftsId(id);
-    switchTab('comms');
-  }, [switchTab]);
-
   const createRole = useCallback((role) => {
     setRaw((rs) => [...rs, role]);
     setSelectedId(role.id);
@@ -9835,8 +9830,7 @@ function App() {
           <CommunicationView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
                               citeDeck={project.hasDeckReproduction} goLiveDate={project.goLiveDate}
                               weights={weights} onResetWeights={resetWeights}
-                              tierFilter={filters.tier} setTierFilter={setFilterTier}
-                              autoOpenDraftsId={autoOpenDraftsId} onAutoOpenDraftsConsumed={() => setAutoOpenDraftsId(null)} />
+                              tierFilter={filters.tier} setTierFilter={setFilterTier} />
         )}
         {tab === 'plan' && (
           <PlanView scored={scored} incomplete={incomplete} selectedId={selectedId} onSelect={openRole}
@@ -9845,7 +9839,7 @@ function App() {
         )}
         {tab === 'role' && (
           <OnePager role={selected} onBack={closeRole} backLabel={TAB_LABELS[returnTab] || 'Stakeholder Impact'}
-                    citeDeck={project.hasDeckReproduction} goLiveDate={project.goLiveDate} onOpenDrafts={openDraftsFor} />
+                    citeDeck={project.hasDeckReproduction} goLiveDate={project.goLiveDate} />
         )}
         {tab === 'add' && <AddRoleView onCreate={createRole} project={project} comboExample={comboExample} />}
         {tab === 'review' && (
