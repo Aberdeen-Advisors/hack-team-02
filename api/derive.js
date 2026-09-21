@@ -368,12 +368,16 @@ module.exports = async (req, res) => {
       res.statusCode = 200;
       return res.end(JSON.stringify({ ...data, model }));
     } catch (err) {
-      // Never surface an error to the practitioner, and never log the
-      // document text or the model's own response - a category name only.
+      // Never surface the model's own response or the document text - but
+      // the reason IS returned, as the same short category name it's
+      // logged under (e.g. "http_401", "refusal", "timeout"), never a raw
+      // error message: enough for the client to tell a systemic failure
+      // (every role, same category) from ordinary needsInput, and to say
+      // something more specific than "something went wrong" when it does.
       const reason = (err && err.message) || 'unknown_error';
       console.log(`[derive] ${roleName}: error, serving needsInput (${Date.now() - startedAt}ms) reason=${reason}`);
       res.statusCode = 200;
-      return res.end(JSON.stringify({ ...needsInputResult(), reason: 'api_error' }));
+      return res.end(JSON.stringify({ ...needsInputResult(), reason }));
     }
   }
 

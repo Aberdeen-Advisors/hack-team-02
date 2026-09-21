@@ -245,7 +245,16 @@ a { color: var(--aberdeen-blue); }
   padding-left: 16px; margin-left: 2px; border-left: 1px solid var(--hairline-strong);
   flex: 1 1 auto;
 }
-.tb-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: none; }
+/* flex: 0 1 auto + min-width: 0, not flex: none: this group can hold a
+   drafting-status pill whose text length depends on the project (role
+   counts, a failure reason), and .topbar-row is nowrap with nothing else
+   free to give up width. Without the ability to shrink here, a long
+   enough pill pushed "All projects" (the one thing in this bar that must
+   always stay fully visible and clickable) off the right edge of the
+   screen entirely. The button itself stays flex: none below so it's never
+   what gives way; .weight-alert-text is what actually shrinks/truncates. */
+.tb-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: 0 1 auto; min-width: 0; justify-content: flex-end; }
+.tb-actions > .btn { flex: none; }
 /* The brand mark, scaled to actually read as a mark, not an artifact next
    to the product name - .picker-head's own 30px large-logo treatment is
    the same size, for the same reason. */
@@ -299,8 +308,13 @@ a { color: var(--aberdeen-blue); }
   font-size: 12px; font-weight: 500; color: var(--flag);
   background: var(--flag-wash); border: 1px solid var(--flag-line);
   border-radius: 999px; padding: 3px 6px 3px 11px;
+  flex: 0 1 auto; min-width: 0; max-width: 340px;
 }
-.weight-alert .link-btn { color: var(--aberdeen-blue); font-weight: 600; }
+/* The one part of this pill allowed to give way - ellipsis over a second
+   pill, or a failure reason, rather than pushing "All projects" (or this
+   pill's own Review/Reset button) out past the edge of the screen. */
+.weight-alert-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.weight-alert .link-btn { color: var(--aberdeen-blue); font-weight: 600; flex: none; }
 .weight-alert .link-btn:hover { color: var(--ink); }
 
 /* The brief, non-toast reaction to a weight change: what just moved,
@@ -683,6 +697,11 @@ a { color: var(--aberdeen-blue); }
 }
 .tile .meta { font-size: 12.5px; color: var(--ink-2); margin-top: var(--space-4); }
 .tile.accent { border-left: 3px solid var(--aberdeen-blue); }
+/* A tile whose own number depends on an answer still pending below it -
+   same Verdigris "review this" accent as the question card asking for
+   that answer (.column-question-card), so the two visibly read as one
+   waiting pair, not two unrelated pieces of UI. */
+.tile.tile-waiting { border-left: 3px solid var(--verdigris); }
 /* A structural zero (e.g. no deskless roles in this population): a dash
    reads as a deliberate finding, a bold 0 reads as a KPI regressing. */
 .tile .value.dash { color: var(--ink-3); font-weight: 400; }
@@ -804,13 +823,16 @@ a { color: var(--aberdeen-blue); }
    replaces the finding sentence in the exact same hero position while a
    wizard-created project's derivation pass is still running, never
    layered under a spinner over the dashboard below it. */
-.drafting-progress { display: flex; align-items: center; gap: var(--space-12); margin-top: var(--space-8); max-width: 460px; }
+.drafting-progress { display: flex; align-items: center; gap: var(--space-12); margin-top: var(--space-8); max-width: 620px; }
 .drafting-count {
   font-size: 28px; font-weight: 200; color: var(--aberdeen-blue); letter-spacing: -.01em;
   font-variant-numeric: tabular-nums; white-space: nowrap; flex: none;
 }
 .drafting-bar { flex: 1; height: 6px; border-radius: 999px; background: var(--surface-sunk); border: 1px solid var(--hairline); overflow: hidden; }
 .drafting-bar-fill { height: 100%; background: var(--aberdeen-blue); border-radius: 999px; transition: width .3s ease; }
+/* Projected, not exact - "~" carries that on its own without a paragraph
+   explaining how the estimate is made (see formatDerivationEta). */
+.drafting-eta { flex: none; font-size: 13px; color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* The two lines that can sit under the hero sentence once drafting is no
    longer running: a plain explanatory line (drafting failed entirely) and
@@ -1329,10 +1351,28 @@ table.mini.milestones tr.past .done-mark { color: var(--flag); font-weight: 500;
 .note.warn { border-left-color: var(--verdigris); background: var(--flag-wash); }
 .note .sub { display: block; font-size: 12px; color: var(--ink-2); margin-top: 3px; }
 
-/* A column-mapping question reads as one sentence with its choices inlined
-   as links, not a bordered form row - .note already carries the right
-   weight for "read this before moving on" without competing with .card. */
-.column-question .link-btn { font-weight: 500; }
+/* An unresolved column mapping, as an outstanding action: a card (not
+   .note - this is a real decision to make, not a passing remark), a
+   Verdigris left edge matching the tile it's waiting on (.tile-waiting),
+   a small uppercase kicker standing in for "you need to look at this",
+   then the real choice as selectable cards rather than inline links. */
+.column-question-card { border-left: 3px solid var(--verdigris); }
+.cq-kicker { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--verdigris); margin-bottom: 5px; }
+.cq-prompt { font-size: 14px; color: var(--ink); margin: 0 0 var(--space-12); }
+.cq-options { display: flex; gap: var(--space-12); flex-wrap: wrap; }
+.cq-option {
+  flex: 1 1 200px; text-align: left; cursor: pointer; appearance: none;
+  background: var(--surface); border: 1px solid var(--hairline-strong); border-radius: var(--radius-s);
+  padding: 11px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+.cq-option:hover, .cq-option:focus-visible { border-color: var(--verdigris); background: var(--flag-wash); outline: none; }
+.cq-option-name { font-size: 14px; font-weight: 600; color: var(--ink); }
+.cq-option-samples { font-size: 12.5px; color: var(--ink-2); }
+/* Once answered: the card is gone, replaced by this one quiet line - same
+   voice as .hero-note, a fact stated once, not left standing as an open
+   question any more. */
+.cq-resolved-line { font-size: 13px; color: var(--ink-2); margin: 0; }
+.cq-resolved-line b { color: var(--ink); font-weight: 600; }
 
 /* New-project review: one document per row, three columns - a file-type
    indicator, the name and what-it-contains, and (when it applies) a small
