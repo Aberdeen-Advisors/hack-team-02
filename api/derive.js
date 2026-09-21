@@ -1,28 +1,43 @@
 /**
  * POST /api/derive
  *
- * Vercel Node serverless function. Derives ONE role's impact detail, either
- * from the project's uploaded documents (before/after task lists, the six
- * 1-5 sub-factor scores with the anchor band each matches, constraints, and
- * a one-paragraph narrative) or a plain "needsInput" result when the
- * documents do not describe what changes for this role.
+ * Vercel Node serverless function. Derives ONE role's impact detail as one
+ * of three states:
  *
- * THE ENTIRE SAFETY MODEL IS ONE RULE, stated to the model twice below:
- * answer only from the supplied documents, and return "needsInput" - every
- * other field left empty - rather than inventing plausible-sounding content.
- * A role with no evidence in the documents must come back with nothing, not
- * a guess dressed up as a finding. This is deliberately NOT the same
- * fallback philosophy as api/generate.js or api/suggest-scores.js: those
- * two derive from data the client already computed deterministically, so a
- * template fallback is honest. There is no honest template for "what does
- * this specific role's work become," so both the no-key path and the
+ *   drafted    The uploaded documents specifically describe this role (or a
+ *              group that clearly includes it). Every field is grounded in
+ *              that evidence, and sourceFileName/sourceQuote cite it.
+ *   assumed    The documents do not describe this role directly, but the
+ *              role's title, the named systems, and (where the documents
+ *              describe a related role, the same function, or the same
+ *              site) that surrounding evidence are enough to draft a
+ *              plausible before/after from general professional knowledge
+ *              of this kind of change for this kind of role. assumptionBasis
+ *              says what that draft rests on. sourceFileName/sourceQuote
+ *              stay empty: an assumption is never dressed up as a document
+ *              citation.
+ *   needsInput Neither is reasonably possible, for example a role specific
+ *              enough to this organization that nothing can responsibly be
+ *              assumed about it. Every other field left empty.
+ *
+ * THE SAFETY MODEL, stated to the model twice below: drafted content must be
+ * traceable to the documents, assumed content must be visibly labeled as an
+ * assumption and never carry a document citation, and when even a
+ * reasonable assumption is not possible the answer is needsInput, not a
+ * guess dressed up as either of the other two. This is deliberately NOT the
+ * same fallback philosophy as api/generate.js or api/suggest-scores.js:
+ * those two derive from data the client already computed deterministically,
+ * so a template fallback is honest. There is no honest template for "what
+ * does this specific role's work become," so both the no-key path and the
  * on-error/on-timeout path here return needsInput, never placeholder
- * content, never a neutral mid-scale guess.
+ * content, never a neutral mid-scale guess and never a fabricated
+ * assumption.
  *
  * Scoring stays exactly as authoritative everywhere else in the app: the
  * six numbers this returns are pre-fill values for a practitioner to
- * accept, edit or reject on the review screen. scoreRole/assignTier/the 3.5
- * threshold never run inside this function and are never asked to.
+ * accept, edit or reject on the review screen, whether the state is drafted
+ * or assumed. scoreRole/assignTier/the 3.5 threshold never run inside this
+ * function and are never asked to.
  *
  * CommonJS + global fetch on purpose, same as the other two endpoints: the
  * repo has no package.json and no build step, so no SDK is installed and
@@ -65,7 +80,7 @@ const SUB_FACTOR_META = {
 const OUTPUT_SCHEMA = {
   type: 'object',
   properties: {
-    state: { type: 'string', enum: ['drafted', 'needsInput'] },
+    state: { type: 'string', enum: ['drafted', 'assumed', 'needsInput'] },
     before: { type: 'array', items: { type: 'string' }, description: 'Empty array if state is needsInput.' },
     after: { type: 'array', items: { type: 'string' }, description: 'Empty array if state is needsInput.' },
     tasksRemoved: { type: 'number' },
@@ -73,7 +88,7 @@ const OUTPUT_SCHEMA = {
     tasksNew: { type: 'number' },
     impact: {
       type: 'object',
-      description: 'The anchor band (1-5, whole number) each impact sub-factor matches. All 3 if state is needsInput.',
+      description: 'The anchor band (1-5, whole number) each impact sub-factor matches. All 0 if state is needsInput.',
       properties: { taskShare: { type: 'number' }, frequencyVolume: { type: 'number' }, errorConsequence: { type: 'number' } },
       required: ['taskShare', 'frequencyVolume', 'errorConsequence'],
       additionalProperties: false,
@@ -87,54 +102,78 @@ const OUTPUT_SCHEMA = {
     },
     rationale: {
       type: 'object',
-      description: 'One short sentence per sub-factor naming the band and the evidence for it. Empty strings if state is needsInput.',
+      description: 'One short sentence per sub-factor naming the band and what it is based on. Empty strings if state is needsInput.',
       properties: SUB_FACTOR_KEYS.reduce((o, k) => { o[k] = { type: 'string' }; return o; }, {}),
       required: SUB_FACTOR_KEYS,
       additionalProperties: false,
     },
     constraints: { type: 'array', items: { type: 'string' }, description: 'Empty array if state is needsInput.' },
     summary: { type: 'string', description: 'One paragraph. Empty string if state is needsInput.' },
-    sourceFileName: { type: 'string', description: 'The uploaded file this was drawn from. Empty string if state is needsInput.' },
-    sourceQuote: { type: 'string', description: 'A short quote (under 200 characters) from that file supporting this. Empty string if state is needsInput.' },
+    sourceFileName: { type: 'string', description: 'ONLY for state drafted: the uploaded file this was drawn from. Empty string for assumed or needsInput.' },
+    sourceQuote: { type: 'string', description: 'ONLY for state drafted: a short quote (under 200 characters) from that file supporting this. Empty string for assumed or needsInput.' },
+    assumptionBasis: { type: 'string', description: 'ONLY for state assumed: one or two sentences naming the general knowledge (the role title, the named systems) and any related-role, related-function or same-site evidence the draft rests on. Empty string for drafted or needsInput.' },
   },
-  required: ['state', 'before', 'after', 'tasksRemoved', 'tasksChanged', 'tasksNew', 'impact', 'risk', 'rationale', 'constraints', 'summary', 'sourceFileName', 'sourceQuote'],
+  required: ['state', 'before', 'after', 'tasksRemoved', 'tasksChanged', 'tasksNew', 'impact', 'risk', 'rationale', 'constraints', 'summary', 'sourceFileName', 'sourceQuote', 'assumptionBasis'],
   additionalProperties: false,
 };
 
 const SYSTEM_PROMPT = [
   'You are a change-impact analyst at Aberdeen Advisors. You are given one role (name, site, headcount) and a set of',
-  'documents describing an organizational change. Your job is to work out, from those documents alone, how this',
-  'specific role\'s day-to-day work changes, and to score six 1-5 sub-factors against the anchor bands supplied.',
+  'documents describing an organizational change. Your job is to work out how this specific role\'s day-to-day work',
+  'changes, and to score six 1-5 sub-factors against the anchor bands supplied, using exactly one of three states.',
   '',
-  'THE ONE RULE THAT MATTERS MOST: answer only from the documents you are given. If they do not describe, specifically',
-  'for this role or for a group that clearly includes it, what tasks or decisions change, return state "needsInput"',
-  'and leave every other field at its empty value: empty arrays, zero counts, empty strings, all six scores 0.',
-  'Do not invent a task list, do not estimate scores from the role\'s title or headcount alone, and do not produce',
-  'generic, plausible-sounding content to fill the fields. A role merely named in an org chart or a headcount table,',
-  'with nothing said about what changes for it, is not covered and must come back as needsInput. Getting this wrong,',
-  'by inventing content the documents do not support, is worse than returning needsInput too often.',
+  'STATE 1: "drafted". The documents specifically describe this role, or a group that clearly includes it, changing.',
+  'Every field must be traceable to that evidence: quote or closely paraphrase it, and name the file it came from.',
   '',
-  'If, and only if, the documents genuinely describe this role\'s change:',
-  '1. List the real before and after tasks the documents describe for this role. Count how many disappear (removed),',
-  '   how many change shape (changed) and how many are genuinely new.',
+  'STATE 2: "assumed". The documents do NOT specifically describe this role, but a reasonable draft is still possible',
+  'from general professional knowledge of what a change like this typically does to a role like this, given the role\'s',
+  'title and the named systems. Use this state when you can responsibly draft before/after tasks, task counts and all',
+  'six sub-factor scores this way. You must still use anything the documents DO say about a related role, the same',
+  'function, or the same site, even though none of it names this role directly, and your assumptionBasis should say',
+  'so when it applies. An assumed draft is exactly as complete as a drafted one (full before/after, full task counts,',
+  'all six scores) but is never accompanied by sourceFileName or sourceQuote: those two fields stay empty strings,',
+  'because an assumption must never be dressed up as a document citation. Instead, assumptionBasis states in one or',
+  'two sentences what general knowledge, and what related evidence if any, the draft rests on.',
+  '',
+  'STATE 3: "needsInput". Neither of the above is possible, for example because the role is specific enough to this',
+  'organization (an internal-only title, a bespoke function) that even a general-knowledge assumption would not be',
+  'responsible. Leave every other field at its empty value: empty arrays, zero counts, empty strings, all six scores',
+  '0. Returning needsInput too often is a smaller failure than drafting or assuming content that is not warranted.',
+  '',
+  'THE RULE THAT MATTERS MOST, whichever state you pick: never invent evidence. A "drafted" role\'s sourceFileName and',
+  'sourceQuote must both be real and verbatim from an uploaded document. An "assumed" role must never carry a',
+  'sourceFileName or sourceQuote, because it has none: presenting an assumption as if it were a document finding is',
+  'the one mistake this tool cannot afford; a human reviewing an assumed role must always be able to tell that it is',
+  'one at a glance.',
+  '',
+  'If the state is drafted or assumed:',
+  '1. List the before and after tasks (real, from the documents, if drafted; a plausible before/after for this kind of',
+  '   role and change, if assumed). Count how many disappear (removed), how many change shape (changed) and how many',
+  '   are genuinely new.',
   '2. For each of the six sub-factors, pick the ONE anchor band (a whole number, 1 to 5) from the supplied ladder that',
-  '   the documents\' own evidence best matches. Do not interpolate between bands and do not default to the middle out',
-  '   of caution. decisionRights is specifically about approval or override authority moving from the person to the',
-  '   system or to another role. localReadiness is scored 5 = LEAST ready (most gap), 1 = most ready.',
-  '3. For each sub-factor, write one short sentence naming the band you picked and quoting or closely paraphrasing the',
-  '   specific evidence for it. A rationale with no real evidence behind it means the role should have been needsInput.',
+  '   best matches the evidence (drafted) or the typical case for this kind of role and change (assumed). Do not',
+  '   interpolate between bands and do not default to the middle out of caution. decisionRights is specifically about',
+  '   approval or override authority moving from the person to the system or to another role. localReadiness is',
+  '   scored 5 = LEAST ready (most gap), 1 = most ready.',
+  '3. For each sub-factor, write one short sentence naming the band you picked. If drafted, quote or closely',
+  '   paraphrase the specific evidence for it. If assumed, say plainly that it is a typical assumption for this kind',
+  '   of role, not a documented fact.',
   '4. List constraints affecting delivery for this role (for example: works on the floor, no desk or email, shift',
-  '   coverage, a named regulatory or compliance requirement) only where the documents actually state them.',
+  '   coverage, a named regulatory or compliance requirement): from the documents if drafted, or only the ones',
+  '   generally true of this kind of role if assumed.',
   '5. Write one paragraph, plain business English, addressed to a change-management practitioner, summarizing what',
-  '   changes and why it matters for this role. Ground it in specifics from the documents, not generic language.',
-  '6. Name the one file and a short supporting quote (under 200 characters, verbatim from that file) you relied on',
-  '   most. If several files were relevant, name the one with the clearest evidence.',
+  '   changes and why it matters for this role.',
+  '6. If drafted, name the one file and a short supporting quote (under 200 characters, verbatim from that file) you',
+  '   relied on most; leave sourceFileName and sourceQuote empty. If assumed, leave both of those empty and instead',
+  '   fill assumptionBasis with what the draft rests on.',
   '',
   'If example impact records are supplied, match their tone and level of detail, not their specific content: they show',
   'how this client describes work, not facts about this role.',
   '',
-  'Second reminder, because this is the entire safety model for this tool: when the documents do not cover this role,',
-  'return needsInput and nothing else. Never fabricate content to avoid an empty result.',
+  'Final reminder, because this is the entire safety model for this tool: drafted content must be grounded in the',
+  'documents, assumed content must be visibly and honestly labeled as an assumption with no fake citation, and where',
+  'even a responsible assumption is not possible the answer is needsInput. Never fabricate content to avoid an empty',
+  'result, and never blend an assumption into a drafted answer or vice versa.',
   '',
   'Never use an em dash anywhere in any text field. Use a comma, a colon, a full stop, or restructure the sentence.',
   '',
@@ -198,7 +237,7 @@ function needsInputResult() {
     impact: { taskShare: 0, frequencyVolume: 0, errorConsequence: 0 },
     risk: { decisionRights: 0, capabilityDelta: 0, localReadiness: 0 },
     rationale: SUB_FACTOR_KEYS.reduce((o, k) => { o[k] = ''; return o; }, {}),
-    constraints: [], summary: '', sourceFileName: '', sourceQuote: '',
+    constraints: [], summary: '', sourceFileName: '', sourceQuote: '', assumptionBasis: '',
   };
 }
 
@@ -243,14 +282,15 @@ async function callAnthropic(payload, apiKey) {
     if (!text) throw new Error('empty_completion');
 
     const parsed = JSON.parse(text);
-    if (parsed.state !== 'drafted' && parsed.state !== 'needsInput') throw new Error('bad_shape');
+    if (parsed.state !== 'drafted' && parsed.state !== 'assumed' && parsed.state !== 'needsInput') throw new Error('bad_shape');
 
     if (parsed.state === 'needsInput') {
       return { data: needsInputResult(), model: msg.model || MODEL };
     }
 
+    const isAssumed = parsed.state === 'assumed';
     const clamped = {
-      state: 'drafted',
+      state: parsed.state,
       before: Array.isArray(parsed.before) ? parsed.before.map(String) : [],
       after: Array.isArray(parsed.after) ? parsed.after.map(String) : [],
       tasksRemoved: Math.max(0, Math.round(Number(parsed.tasksRemoved) || 0)),
@@ -269,15 +309,26 @@ async function callAnthropic(payload, apiKey) {
       rationale: SUB_FACTOR_KEYS.reduce((o, k) => { o[k] = String((parsed.rationale && parsed.rationale[k]) || ''); return o; }, {}),
       constraints: Array.isArray(parsed.constraints) ? parsed.constraints.map(String) : [],
       summary: String(parsed.summary || ''),
-      sourceFileName: String(parsed.sourceFileName || ''),
-      sourceQuote: String(parsed.sourceQuote || '').slice(0, 240),
+      // Defensively scrubbed by state, not just prompted: an assumed role
+      // must never carry a source citation even if the model filled one in
+      // on a bad day, and an assumed role's own basis sentence has nothing
+      // to say on a drafted (evidenced) role.
+      sourceFileName: isAssumed ? '' : String(parsed.sourceFileName || ''),
+      sourceQuote: isAssumed ? '' : String(parsed.sourceQuote || '').slice(0, 240),
+      assumptionBasis: isAssumed ? String(parsed.assumptionBasis || '').slice(0, 400) : '',
     };
     // Any sub-factor left at 0 (the needsInput sentinel value) means the
     // model didn't actually pick a band for it - safer to treat the whole
     // role as needsInput than show a part-populated draft with a silent gap.
+    // Same rule for both drafted and assumed: an assumption is still a full
+    // six-score draft, never a partial one.
     const hasAllBands = [clamped.impact.taskShare, clamped.impact.frequencyVolume, clamped.impact.errorConsequence,
       clamped.risk.decisionRights, clamped.risk.capabilityDelta, clamped.risk.localReadiness].every((n) => n > 0);
     if (!hasAllBands) return { data: needsInputResult(), model: msg.model || MODEL };
+    // An assumed role with no stated basis is indistinguishable from a
+    // guess with no grounding at all - treat it the same as an incomplete
+    // draft rather than show an unexplained assumption.
+    if (isAssumed && !clamped.assumptionBasis) return { data: needsInputResult(), model: msg.model || MODEL };
 
     return { data: clamped, model: msg.model || MODEL };
   } finally {

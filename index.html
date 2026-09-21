@@ -4947,6 +4947,16 @@ function pluralize(n, singular, plural) {
   return `${n.toLocaleString()} ${word}`;
 }
 
+// The short, dense-table form of the same three derivation states
+// ReviewRow's own pill spells out in full (reviewStateLabel) - RoleTable's
+// tier column and RedesignRow both show this in place of a tier badge
+// while a role is still incomplete.
+function incompleteFlagText(role) {
+  if (role.draft) return role.draft.kind === 'assumed' ? 'assumption' : 'drafted';
+  if (role.needsInput) return 'needs input';
+  return 'incomplete';
+}
+
 const signed = (n) => `${n > 0 ? '+' : ''}${n.toFixed(1)}`;
 
 /* A fractional FTE delta (-0.4, of admin time) is not the same conversation
@@ -5513,7 +5523,7 @@ function columnsFor(comboExample) {
       render: (r, incomplete) => incomplete ? 'N/A' : r.scores.risk.toFixed(1),
       cellTitle: (r, incomplete) => incomplete ? null : axisFormula(RISK_FACTORS, r.risk, r.scores.risk) },
     { key: 'tier', label: 'Tier', width: 132,
-      render: (r, incomplete) => incomplete ? <span className="incflag">{r.draft ? 'drafted' : r.needsInput ? 'needs input' : 'incomplete'}</span> : <TierBadge tier={r.tier} /> },
+      render: (r, incomplete) => incomplete ? <span className="incflag">{incompleteFlagText(r)}</span> : <TierBadge tier={r.tier} /> },
   ];
 }
 
@@ -6010,13 +6020,28 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate }) {
     );
   }
   if (!role.complete) {
+    const isAssumed = role.draft && role.draft.kind === 'assumed';
     return (
       <div className="card"><div className="empty">
-        <h3>{role.role}: incomplete</h3>
-        <p>
-          This row cannot be scored or tiered: {role.missing.length} of 6 sub-factors {role.missing.length === 1 ? 'is' : 'are'} not set:
-          {' '}{role.missing.join(', ')}.
-        </p>
+        <h3>{role.role}</h3>
+        {role.draft && (
+          <span className={'review-state' + (isAssumed ? ' assumed' : ' drafted')}>{reviewStateLabel(role)}</span>
+        )}
+        {role.draft ? (
+          <>
+            <p>
+              {isAssumed
+                ? 'Not yet reviewed. The tool drafted a likely before and after from general knowledge of this kind of role, not from your uploaded documents.'
+                : 'Not yet reviewed. Your uploaded documents describe what changes for this role.'}
+            </p>
+            {isAssumed && role.draft.assumptionBasis && <p className="sub">{role.draft.assumptionBasis}</p>}
+          </>
+        ) : (
+          <p>
+            This row cannot be scored or tiered: {role.missing.length} of 6 sub-factors {role.missing.length === 1 ? 'is' : 'are'} not set:
+            {' '}{role.missing.join(', ')}.
+          </p>
+        )}
         <p className="footnote" style={{ maxWidth: '70ch', margin: '10px auto 0' }}>{NOTE.incomplete}</p>
         <div className="btn-row no-print" style={{ justifyContent: 'center', marginTop: 14 }}>
           <button className="btn" onClick={onBack}>← {label}</button>
@@ -6474,7 +6499,7 @@ const RedesignRow = React.memo(function RedesignRow({ role, onSelect }) {
           <span className="stat"><i className="stat-lbl">new</i><b className="stat-val">+{role.tasksNew || 0}</b></span>
           <span className="stat"><i className="stat-lbl">FTE</i><b className="stat-val">{signed(fte)}</b></span>
         </span>
-        {role.complete ? <TierBadge tier={role.tier} /> : <span className="incflag">{role.draft ? 'drafted' : role.needsInput ? 'needs input' : 'incomplete'}</span>}
+        {role.complete ? <TierBadge tier={role.tier} /> : <span className="incflag">{incompleteFlagText(role)}</span>}
         <span className="drx" aria-hidden="true">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
@@ -8137,17 +8162,43 @@ function parseCSV(text) {
   return rows.filter((r) => r.some((c) => (c || '').trim() !== ''));
 }
 
-/* Tolerant of column order and casing, so a client's own export doesn't have
-   to match the downloadable template byte for byte. */
-const CSV_HEADER_ALIASES = {
-  role: ['role name', 'role', 'title', 'job title'],
-  site: ['site', 'location', 'site name'],
-  headcount: ['headcount', 'employees', 'people', 'fte'],
-  summary: ['description of what changes', 'description', 'what changes', 'change description'],
+/* Tolerant of column order, casing and a client's own house style for a
+   header name - matched as "contains one of these words", not exact
+   equality, so "Site Type" and "Job Title" both read as plausible matches
+   without needing every real-world phrasing spelled out verbatim. A single
+   header can match more than one field (rare, and left as-is rather than
+   guarded against); what matters is that every column matching a given
+   field is kept, not just the first, since a column mapping's own
+   confidence is a straight read of how many candidates that leaves it
+   with - see detectColumnCandidates. */
+const COLUMN_FIELD_KEYWORDS = {
+  role: ['role', 'job', 'position', 'title'],
+  site: ['site', 'location', 'facility', 'plant'],
+  headcount: ['headcount', 'fte', 'employee', 'people', 'count'],
 };
-function matchCsvHeader(raw) {
-  const norm = String(raw || '').trim().toLowerCase().replace(/\s+/g, ' ');
-  return Object.keys(CSV_HEADER_ALIASES).find((key) => CSV_HEADER_ALIASES[key].includes(norm)) || null;
+function detectColumnCandidates(headerRow) {
+  const candidates = { role: [], site: [], headcount: [] };
+  (headerRow || []).forEach((cell, i) => {
+    const norm = String(cell || '').trim().toLowerCase();
+    if (!norm) return;
+    Object.keys(COLUMN_FIELD_KEYWORDS).forEach((field) => {
+      if (COLUMN_FIELD_KEYWORDS[field].some((kw) => norm.indexOf(kw) !== -1)) candidates[field].push(i);
+    });
+  });
+  return candidates;
+}
+/* Up to `limit` distinct, non-empty sample values from a column's data rows
+   (never the header row) - what a column-mapping question shows beside
+   each option so the choice is obvious without opening the spreadsheet. */
+function sampleColumnValues(rows, colIndex, limit) {
+  const seen = new Set();
+  const out = [];
+  (rows || []).slice(1).some((r) => {
+    const v = String((r || [])[colIndex] || '').trim();
+    if (v && !seen.has(v)) { seen.add(v); out.push(v); }
+    return out.length >= (limit || 3);
+  });
+  return out;
 }
 
 /* ===========================================================================
@@ -8215,23 +8266,132 @@ function ensureXlsx() {
   return _xlsxReady;
 }
 
+// Word count only, everywhere - the one length unit every format can give
+// honestly (a docx has no real "page" without rendering it, a spreadsheet's
+// pages are meaningless). describeDocLength below is what decides which
+// unit(s) a given file actually shows.
+function countWords(text) {
+  return (text.match(/\S+/g) || []).length;
+}
+// Case-insensitive de-duplication that keeps first-seen casing, capped so
+// a document with a genuinely long heading list still reads as a summary
+// rather than a second table of contents.
+function dedupeHeadings(list) {
+  const seen = new Set();
+  const out = [];
+  (list || []).forEach((h) => {
+    const t = String(h || '').trim();
+    if (!t) return;
+    const key = t.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(t);
+  });
+  return out.slice(0, 12);
+}
+/* Font-size heuristic: pdf.js hands back a flat stream of positioned text
+   items, not a heading tag, so a line is treated as a heading when its own
+   text is short (a real heading, not a wrapped sentence) and its font size
+   sits meaningfully above this document's own median line size - "this
+   document's own", not a fixed point size, because a slide-deck export and
+   a dense spec render body text at very different sizes. Silent on a
+   document with no size variation at all (a plain-text export, a scanned
+   page pdf.js already gave up on) - no heading list rather than a made-up
+   one. */
+function detectPdfHeadings(lines) {
+  const sizes = lines.map((l) => l.size).filter((s) => s > 0).sort((a, b) => a - b);
+  if (!sizes.length) return [];
+  const median = sizes[Math.floor(sizes.length / 2)];
+  if (!median) return [];
+  const threshold = median * 1.15;
+  const candidates = lines
+    .filter((l) => l.size >= threshold && l.text.length >= 3 && l.text.length <= 80)
+    .map((l) => l.text);
+  return dedupeHeadings(candidates);
+}
 async function extractPdfText(file) {
   await ensurePdfJs();
   const buf = await file.arrayBuffer();
   const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
   const pages = [];
+  const lines = [];
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
+    let cur = '', curSize = 0;
+    content.items.forEach((it) => {
+      cur += it.str;
+      curSize = Math.max(curSize, Math.hypot(it.transform[2], it.transform[3]) || 0);
+      if (it.hasEOL) {
+        if (cur.trim()) lines.push({ text: cur.trim(), size: curSize });
+        cur = ''; curSize = 0;
+      } else {
+        cur += ' ';
+      }
+    });
+    if (cur.trim()) lines.push({ text: cur.trim(), size: curSize });
     pages.push(content.items.map((it) => it.str).join(' '));
   }
-  return { text: pages.join('\n'), rows: null };
+  const text = pages.join('\n');
+  return { text, rows: null, meta: { pageCount: pdf.numPages, wordCount: countWords(text), headings: detectPdfHeadings(lines) } };
+}
+// Explicit, in addition to (never instead of) mammoth's own default style
+// map - belt and braces for a style name mammoth's built-in defaults don't
+// already cover, on whatever real-world template a client's document was
+// built from.
+const DOCX_HEADING_STYLE_MAP = [
+  "p[style-name='Heading 1'] => h1:fresh",
+  "p[style-name='Heading 2'] => h2:fresh",
+  "p[style-name='Heading 3'] => h3:fresh",
+  "p[style-name='Heading 4'] => h4:fresh",
+  "p[style-name='Heading 5'] => h5:fresh",
+  "p[style-name='Heading 6'] => h6:fresh",
+  "p[style-name='Title'] => h1:fresh",
+  "p[style-name='Subtitle'] => h2:fresh",
+];
+
+function extractHtmlHeadingTags(html) {
+  const headings = [];
+  const re = /<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/gi;
+  let m;
+  while ((m = re.exec(html))) {
+    const h = m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (h) headings.push(h);
+  }
+  return headings;
+}
+/* Fallback for a document with no "Heading N" paragraph style applied at
+   all - built by hand, or by a generator that just bolds a section title
+   instead of using a real heading style. A paragraph whose entire text is
+   bold, and short, reads as a heading the same way a person skimming the
+   document would take it. Only used when the real style-based pass above
+   found nothing, never blended with it. */
+function detectBoldParagraphHeadings(html) {
+  const headings = [];
+  const re = /<p[^>]*>\s*<strong>([\s\S]*?)<\/strong>\s*<\/p>/gi;
+  let m;
+  while ((m = re.exec(html))) {
+    const h = m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (h && h.length >= 3 && h.length <= 80) headings.push(h);
+  }
+  return headings;
 }
 async function extractDocxText(file) {
   await ensureMammoth();
   const buf = await file.arrayBuffer();
-  const result = await window.mammoth.extractRawText({ arrayBuffer: buf });
-  return { text: result.value, rows: null };
+  // convertToHtml (not extractRawText) because Word's own "Heading 1"-"Heading
+  // 6" paragraph styles are mammoth's default style map to <h1>-<h6> - that's
+  // the one signal available for "what does this document cover" that isn't
+  // a guess. Plain text for mention-scanning and word count is recovered by
+  // stripping the tags back out, not by a second parse.
+  const result = await window.mammoth.convertToHtml({ arrayBuffer: buf, styleMap: DOCX_HEADING_STYLE_MAP });
+  const html = result.value;
+  const headings = extractHtmlHeadingTags(html);
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+  return {
+    text, rows: null,
+    meta: { wordCount: countWords(text), headings: dedupeHeadings(headings.length ? headings : detectBoldParagraphHeadings(html)) },
+  };
 }
 async function extractXlsxContent(file) {
   await ensureXlsx();
@@ -8240,11 +8400,34 @@ async function extractXlsxContent(file) {
   const sheet = wb.Sheets[wb.SheetNames[0]];
   const rows = window.XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1 });
   const text = window.XLSX.utils.sheet_to_csv(sheet);
-  return { text, rows };
+  const headerRow = (rows[0] || []).map((c) => String(c || '').trim());
+  return { text, rows, meta: { rowCount: Math.max(0, rows.length - 1), wordCount: countWords(text), headings: dedupeHeadings(headerRow) } };
 }
 async function extractCsvContent(file) {
   const text = await file.text();
-  return { text, rows: parseCSV(text) };
+  const rows = parseCSV(text);
+  const headerRow = (rows[0] || []).map((c) => String(c || '').trim());
+  return { text, rows, meta: { rowCount: Math.max(0, rows.length - 1), wordCount: countWords(text), headings: dedupeHeadings(headerRow) } };
+}
+// Length as a reader would say it out loud: pages plus words when there are
+// real pages, rows for a spreadsheet, words alone otherwise. Never more than
+// one of these units guessed past what the format actually gives.
+function describeDocLength(meta) {
+  if (!meta) return '';
+  if (meta.pageCount != null) return `${pluralize(meta.pageCount, 'page')}, ${pluralize(meta.wordCount, 'word')}`;
+  if (meta.rowCount != null) return pluralize(meta.rowCount, 'row');
+  return pluralize(meta.wordCount, 'word');
+}
+// Same plain substring technique mentionScan uses across every document at
+// once, run here against one document's text alone - returns the role
+// names that do NOT turn up in it, so a summary row can say both how many
+// it names and, when it's not all of them, which ones it skips.
+function missingRoleNamesInText(roleNames, text) {
+  const hay = String(text || '').toLowerCase();
+  return roleNames.filter((name) => {
+    const needle = name.trim().toLowerCase();
+    return !(needle && hay.indexOf(needle) !== -1);
+  });
 }
 /* Dispatches by extension to the right client-side extractor. Never throws
    past the caller uncaught - a file that can't be read is reported against
@@ -8273,19 +8456,18 @@ async function parseRolesSpreadsheet(file) {
   return window.XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1 });
 }
 
-/* Best guess at which column is which, from the header row's own text -
-   reuses the same aliases matchCsvHeader already knows (role/site/
-   headcount/summary), ignoring a 'summary' match since this sheet isn't
-   expected to carry a description column. Never guaranteed right: the
-   column-mapping selects in ReviewStep read this as a starting point, not a
-   final answer, and the person reviewing it can always override it. */
-function guessRoleColumns(headerRow) {
-  const guess = { role: null, site: null, headcount: null };
-  (headerRow || []).forEach((cell, i) => {
-    const key = matchCsvHeader(cell);
-    if (key && key !== 'summary' && guess[key] == null) guess[key] = i;
+/* Resolves only the fields detectColumnCandidates is actually confident
+   about - exactly one plausible column. A field left at null here is
+   either genuinely absent or ambiguous between two or more columns;
+   ReviewStep is what decides which of those two it is and asks about it
+   accordingly, never this function silently guessing between them. */
+function autoResolveColumns(headerRow) {
+  const candidates = detectColumnCandidates(headerRow);
+  const map = { role: null, site: null, headcount: null };
+  Object.keys(candidates).forEach((field) => {
+    if (candidates[field].length === 1) map[field] = candidates[field][0];
   });
-  return guess;
+  return map;
 }
 
 /* Turns the raw 2-D array (header row plus data rows) into role records
@@ -8319,8 +8501,8 @@ function describeAccept(accept) {
 function collectFileStatuses(uploads) {
   return UPLOAD_SLOTS.flatMap((slot) => {
     const val = uploads[slot.key];
-    if (slot.multi) return (val || []).map((f) => ({ slotLabel: slot.label, ...f }));
-    return val ? [{ slotLabel: slot.label, ...val }] : [];
+    if (slot.multi) return (val || []).map((f) => ({ slotLabel: slot.label, slotKey: slot.key, ...f }));
+    return val ? [{ slotLabel: slot.label, slotKey: slot.key, ...val }] : [];
   });
 }
 
@@ -8465,10 +8647,15 @@ function ProjectPicker({ projects, onSelect, onStartNew }) {
    app, with one addition: `needsInput: true`, set only on roles this wizard
    creates, never on the three example projects' seed data. Combined with
    the optional `draft` field the derivation pass adds (also never present
-   on the three examples), this is what swaps the generic "incomplete" flag
-   for "needs input" or "drafted" in the two places a role's status renders
-   as a flag rather than a tier badge (RoleTable's own tier column and
-   RedesignRow) - see those two call sites for the exact branch.
+   on the three examples, and itself carrying a `kind` of 'drafted' or
+   'assumed' - see the AI DERIVATION banner), this is what swaps the
+   generic "incomplete" flag for "needs input", "drafted" or "assumption"
+   in the two places a role's status renders as a compact flag rather than
+   a tier badge (RoleTable's own tier column and RedesignRow - see
+   incompleteFlagText, the one function both read), and for the fuller
+   "Needs input" / "From your documents" / "Our starting assumption"
+   labels everywhere else that status is shown in full (ReviewRow, the
+   one-pager's own incomplete state - see reviewStateLabel).
    Employee count and site count are deliberately not asked for in Basics -
    both are derived from the roles spreadsheet and shown back in Review.
    =========================================================================== */
@@ -8777,71 +8964,221 @@ function UploadSlotMultiRow({ slot, files, onAddFile, onRemove }) {
   );
 }
 
-/* Step 3. Counts and short lists only, no prose: what the roles spreadsheet
-   produced, whether the column guess needs fixing, which files parsed and
-   which failed, and which roles never turn up in anything else uploaded.
-   Below that, a plain list (not prose) of whatever's actually missing and
-   the concrete consequence of leaving it that way - go-live can't really
-   be missing (Basics requires it), but the check stays here rather than
-   trusting a step it doesn't control. "Create project" is never disabled -
+// The plain name behind a filename's own extension, for the small file-type
+// indicator on each document row - reuses ACCEPT_TYPE_LABELS rather than a
+// second literal list.
+function fileExtLabel(name) {
+  const ext = (String(name || '').split('.').pop() || '').toLowerCase();
+  return ACCEPT_TYPE_LABELS[ext] || ext.toUpperCase();
+}
+
+/* One document, summarized rather than just named: length in whatever unit
+   the format actually gives, how many of the organization's own roles turn
+   up in it, and the subject areas its own headings name - any clause whose
+   underlying signal is empty is left out rather than printed empty. A file
+   still being read, or one that failed, says exactly that instead. */
+/* One document, as two columns: file type, name and what-it-contains on
+   the left (name at full weight, everything else quiet and secondary,
+   underneath it), role coverage as its own small label-over-value metric
+   on the right - the fact a reader is actually scanning this list for, so
+   it gets a position of its own instead of sitting mid-sentence. */
+function DocSummaryRow({ f, roleNames }) {
+  // A structured data file (a spreadsheet slot's own header row already
+  // becomes the "covers" clause) is not prose a role's name would appear
+  // in by accident of context - counting mentions against one reads as a
+  // failed check on a file that was never expected to name roles at all.
+  // Only a real document (pdf/docx) gets a coverage metric at all.
+  const isStructured = f.status === 'done' && f.meta && f.meta.rowCount != null;
+  const mention = (f.status === 'done' && roleNames.length && !isStructured)
+    ? (() => {
+        const missing = missingRoleNamesInText(roleNames, f.text);
+        return { count: roleNames.length - missing.length, missing };
+      })()
+    : null;
+
+  if (f.status !== 'done') {
+    return (
+      <li className="doc-row">
+        <span className="file-type-badge">{fileExtLabel(f.name)}</span>
+        <div className="doc-row-main">
+          <span className="doc-row-name">{f.name}</span>
+          <span className={f.status === 'error' ? 'upload-slot-err' : 'sub'}>
+            {f.status === 'error' ? `Could not be read: ${f.error}` : 'Reading…'}
+          </span>
+        </div>
+      </li>
+    );
+  }
+
+  const metaParts = [];
+  const length = describeDocLength(f.meta);
+  if (length) metaParts.push(length);
+  const headings = (f.meta && f.meta.headings) || [];
+  if (headings.length) metaParts.push(`covers ${headings.map((h) => h.toLowerCase()).join(', ')}`);
+
+  // Missing roles become small chips, never a sentence - and only where
+  // there are few enough to be worth reading one by one. Above three, the
+  // "N of M" metric on the right already says everything a chip list
+  // would, at a glance instead of a wall of tags.
+  const showChips = mention && mention.missing.length > 0 && mention.missing.length <= 3;
+
+  return (
+    <li className="doc-row">
+      <span className="file-type-badge">{fileExtLabel(f.name)}</span>
+      <div className="doc-row-main">
+        <span className="doc-row-name">{f.name}</span>
+        {metaParts.length > 0 && <span className="doc-row-meta">{metaParts.join(' · ')}</span>}
+        {showChips && (
+          <div className="doc-row-chips">
+            {mention.missing.map((name) => <span className="role-chip" key={name}>{name}</span>)}
+          </div>
+        )}
+      </div>
+      {mention && (
+        <div className="doc-row-coverage">
+          <span className="drc-label">Roles named</span>
+          <span className="drc-value">{mention.count} of {roleNames.length}</span>
+        </div>
+      )}
+    </li>
+  );
+}
+
+/* One column-mapping question, asked as a single sentence rather than a
+   dropdown: the prompt, then every plausible column as an inline choice
+   with its own sample values right beside it, so the difference between
+   options is obvious without opening the spreadsheet. */
+function ColumnQuestion({ prompt, options, flagged, onPick }) {
+  return (
+    <div className={'note column-question' + (flagged ? ' warn' : '')}>
+      <p style={{ margin: 0 }}>
+        {prompt}{' '}
+        {options.map((opt, i) => (
+          <React.Fragment key={opt.index}>
+            {i > 0 && (i === options.length - 1 ? ' or ' : ', ')}
+            <button type="button" className="link-btn" onClick={() => onPick(opt.index)}>
+              {opt.header}{opt.samples.length ? ` (${opt.samples.join(', ')})` : ''}
+            </button>
+          </React.Fragment>
+        ))}
+      </p>
+    </div>
+  );
+}
+
+const COLUMN_FIELD_LABELS = { role: 'Role name column', site: 'Site column', headcount: 'Headcount column' };
+
+/* Step 3: a summary of what the tool understood, not a form left to fill
+   in. Every column mapping resolves on its own (silently when there's one
+   clear match, as a single visible question when there's more than one
+   candidate or none at all), sites are never allowed to read as zero, and
+   every uploaded document is summarized by what it actually contains
+   rather than just its parse status. "Create project" is never disabled -
    a thin project is still a real one, and every gap here is exactly the
    same gap the project opens showing. */
-function ReviewStep({ basics, parsedRoles, roleColumnMap, roleHeaderRow, onColumnMapChange, uploads, onBack, onCreate }) {
+function ReviewStep({ basics, parsedRoles, roleColumnMap, roleHeaderRow, roleRows, onColumnMapChange, uploads, onBack, onCreate }) {
+  const [showOverride, setShowOverride] = useState(false);
+
   const totalHeadcount = parsedRoles.reduce((s, r) => s + (Math.max(0, parseInt(r.headcount, 10)) || 0), 0);
-  const sites = new Set(parsedRoles.map((r) => r.site.trim()).filter(Boolean));
+  const siteCountFound = new Set(parsedRoles.map((r) => r.site.trim()).filter(Boolean)).size;
+  const siteCount = siteCountFound > 0 ? siteCountFound : 1;
+  const siteDefaulted = siteCountFound === 0;
+
+  const candidates = useMemo(() => detectColumnCandidates(roleHeaderRow || []), [roleHeaderRow]);
+  const fieldStatus = useCallback((field) => {
+    if (roleColumnMap[field] != null) return 'resolved';
+    const n = (candidates[field] || []).length;
+    if (n === 0) return field === 'site' ? 'defaulted' : 'none';
+    return 'ambiguous';
+  }, [roleColumnMap, candidates]);
+  const roleStatus = fieldStatus('role');
+  const headcountStatus = fieldStatus('headcount');
+  const siteStatus = fieldStatus('site');
+  const pendingFields = ['role', 'site', 'headcount'].filter((f) => {
+    const st = fieldStatus(f);
+    return st === 'ambiguous' || st === 'none';
+  });
+
+  const questionFor = (field) => {
+    const status = fieldStatus(field);
+    const optionIdx = status === 'ambiguous' ? candidates[field] : (roleHeaderRow || []).map((_, i) => i);
+    const options = optionIdx.map((i) => ({ index: i, header: roleHeaderRow[i] || `Column ${i + 1}`, samples: sampleColumnValues(roleRows, i, 3) }));
+    const prompts = {
+      role: status === 'none' ? "Couldn't find a likely role column. Which one names the role?" : 'Which column has the role name?',
+      site: 'Which column has the site?',
+      headcount: status === 'none' ? "Couldn't find a likely headcount column. Which one has headcount?" : 'Which column has headcount?',
+    };
+    return { prompt: prompts[field], options, flagged: status === 'none' };
+  };
+
   const files = useMemo(() => collectFileStatuses(uploads), [uploads]);
-  const failedFiles = files.filter((f) => f.status === 'error');
-  const mentions = useMemo(() => mentionScan(parsedRoles.map((r) => r.role), uploads), [parsedRoles, uploads]);
-  const unmentioned = parsedRoles.filter((_, i) => (mentions.refsByIndex[i] || []).length === 0);
-  const columnFields = [
-    { key: 'role', label: 'Role name column' },
-    { key: 'site', label: 'Site column' },
-    { key: 'headcount', label: 'Headcount column' },
-  ];
+  const docFiles = files.filter((f) => f.slotKey !== 'rolesHeadcount');
+  const failedDocFiles = docFiles.filter((f) => f.status === 'error');
+  const roleNames = useMemo(() => parsedRoles.map((r) => r.role), [parsedRoles]);
+  const mentions = useMemo(() => mentionScan(roleNames, uploads), [roleNames, uploads]);
+  const unmentionedNames = useMemo(
+    () => [...new Set(parsedRoles.filter((_, i) => (mentions.refsByIndex[i] || []).length === 0).map((r) => r.role))],
+    [parsedRoles, mentions]
+  );
+
+  const rolesUpload = uploads.rolesHeadcount;
   const slotParsed = (key) => uploads[key] && uploads[key].status === 'done';
   const gaps = [
+    rolesUpload && rolesUpload.status === 'error' && `Roles and headcount file could not be read: ${rolesUpload.error}`,
     !basics.goLiveDate && 'No go-live date: the Communication tab’s timeline and the Adoption tab’s day count will be empty.',
     parsedRoles.length === 0 && 'No roles found: there is nothing to score yet.',
     !slotParsed('futureStateDesign') && 'No future state design document: nothing describes what is changing for these roles yet.',
   ].filter(Boolean);
 
+  const mappingSentence = `Read ${pluralize(parsedRoles.length, 'role')} and ${pluralize(totalHeadcount, 'person', 'people')} from your file.`;
+
   return (
     <>
       <div className="view-head">
-        <h2>New project: review</h2>
-        <p className="lede">{basics.name || 'New project'}</p>
+        <h2>{basics.name || 'New project'}</h2>
+        {(basics.industry || basics.whatIsChanging) && (
+          <p className="lede">{[basics.industry, basics.whatIsChanging].filter(Boolean).join(' · ')}</p>
+        )}
       </div>
 
       <div className="grid cols-3" style={{ marginBottom: 'var(--space-16)' }}>
-        <Tile label="Roles found" value={parsedRoles.length} countTo={parsedRoles.length} />
-        <Tile label="Total headcount" value={totalHeadcount.toLocaleString()} countTo={totalHeadcount} />
-        <Tile label="Sites found" value={sites.size} countTo={sites.size} />
+        <Tile label="Roles found" value={parsedRoles.length} countTo={parsedRoles.length}
+              emptyNote={roleStatus !== 'resolved' ? 'Waiting on the question below' : undefined} />
+        <Tile label="Total headcount" value={totalHeadcount.toLocaleString()} countTo={totalHeadcount}
+              emptyNote={headcountStatus !== 'resolved' ? 'Waiting on the question below' : undefined} />
+        <Tile label="Sites found" value={siteCount} countTo={siteCount}
+              emptyNote={siteStatus === 'ambiguous' ? 'Waiting on the question below' : undefined}
+              meta={siteStatus !== 'ambiguous' && siteDefaulted ? 'No site breakdown provided' : undefined} />
       </div>
 
-      {gaps.length > 0 && (
-        <div className="note warn" style={{ marginBottom: 'var(--space-16)' }}>
-          <b>{pluralize(gaps.length, 'thing')} missing</b>
-          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-            {gaps.map((g, i) => <li key={i}>{g}</li>)}
-          </ul>
-        </div>
+      {roleHeaderRow && (
+        pendingFields.length > 0 ? (
+          <div style={{ marginBottom: 'var(--space-16)', display: 'flex', flexDirection: 'column', gap: 'var(--space-8)' }}>
+            {pendingFields.map((field) => {
+              const q = questionFor(field);
+              return <ColumnQuestion key={field} prompt={q.prompt} options={q.options} flagged={q.flagged}
+                                     onPick={(idx) => onColumnMapChange(field, idx)} />;
+            })}
+          </div>
+        ) : (
+          <p className="lede" style={{ marginBottom: showOverride ? 'var(--space-8)' : 'var(--space-16)' }}>
+            {mappingSentence}{' '}
+            <button type="button" className="link-btn" onClick={() => setShowOverride((v) => !v)}>
+              {showOverride ? 'Hide columns' : 'Change these'}
+            </button>
+          </p>
+        )
       )}
 
-      {roleHeaderRow && (
+      {roleHeaderRow && pendingFields.length === 0 && showOverride && (
         <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
-          <div className="card-head">
-            <h3>Columns read from the roles file</h3>
-            {(roleColumnMap.role == null || roleColumnMap.headcount == null) && (
-              <span className="hint">Couldn't confidently guess every column - check these</span>
-            )}
-          </div>
           <div className="card-body">
             <div className="form-grid">
-              {columnFields.map((f) => (
-                <div className="field" key={f.key}>
-                  <label htmlFor={`np-col-${f.key}`}>{f.label}</label>
-                  <select id={`np-col-${f.key}`} value={roleColumnMap[f.key] == null ? '' : roleColumnMap[f.key]}
-                          onChange={(e) => onColumnMapChange(f.key, e.target.value === '' ? null : parseInt(e.target.value, 10))}>
+              {['role', 'site', 'headcount'].map((key) => (
+                <div className="field" key={key}>
+                  <label htmlFor={`np-col-${key}`}>{COLUMN_FIELD_LABELS[key]}</label>
+                  <select id={`np-col-${key}`} value={roleColumnMap[key] == null ? '' : roleColumnMap[key]}
+                          onChange={(e) => onColumnMapChange(key, e.target.value === '' ? null : parseInt(e.target.value, 10))}>
                     <option value="">(none)</option>
                     {roleHeaderRow.map((h, i) => <option key={i} value={i}>{h || `Column ${i + 1}`}</option>)}
                   </select>
@@ -8854,39 +9191,38 @@ function ReviewStep({ basics, parsedRoles, roleColumnMap, roleHeaderRow, onColum
 
       <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
         <div className="card-head">
-          <h3>Files</h3>
-          <span className="hint">{pluralize(files.length, 'file')} uploaded, {pluralize(files.length - failedFiles.length, 'file')} parsed{failedFiles.length ? `, ${pluralize(failedFiles.length, 'file')} failed` : ''}</span>
+          <h3>Documents</h3>
+          <span className="hint">
+            {pluralize(docFiles.length, 'document')} uploaded{failedDocFiles.length ? `, ${pluralize(failedDocFiles.length, 'document')} failed` : ''}
+            {rolesUpload && rolesUpload.status === 'done' ? ` · roles and headcount read separately, from ${rolesUpload.name}` : ''}
+          </span>
         </div>
         <div className="card-body">
-          {files.length === 0 ? (
-            <p className="sub" style={{ margin: 0 }}>No files uploaded.</p>
+          {docFiles.length === 0 ? (
+            <p className="sub" style={{ margin: 0 }}>No documents uploaded.</p>
           ) : (
-            <ul className="qual-list">
-              {files.map((f, i) => (
-                <li className="qual-item" key={i}>
-                  <span>{f.slotLabel}: {f.name}</span>
-                  <span className={f.status === 'error' ? 'upload-slot-err' : 'sub'}>{f.status === 'error' ? f.error : 'Parsed'}</span>
-                </li>
-              ))}
+            <ul className="doc-list">
+              {docFiles.map((f, i) => <DocSummaryRow key={i} f={f} roleNames={roleNames} />)}
             </ul>
+          )}
+          {parsedRoles.length > 0 && mentions.docCount > 0 && (
+            <p className="sub doc-coverage-line">
+              {unmentionedNames.length === 0
+                ? 'Every role is mentioned somewhere in these documents.'
+                : `${pluralize(unmentionedNames.length, 'role')} not mentioned in any document: ${unmentionedNames.join(', ')}.`}
+            </p>
           )}
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
-        <div className="card-head"><h3>Not mentioned in any document</h3></div>
-        <div className="card-body">
-          {parsedRoles.length === 0 ? (
-            <p className="sub" style={{ margin: 0 }}>No roles found yet.</p>
-          ) : mentions.docCount === 0 ? (
-            <p className="sub" style={{ margin: 0 }}>No documents uploaded to check.</p>
-          ) : unmentioned.length === 0 ? (
-            <p className="sub" style={{ margin: 0 }}>Every role is mentioned somewhere in the uploaded documents.</p>
-          ) : (
-            <p className="sub" style={{ margin: 0 }}>{unmentioned.map((r) => r.role).join(', ')}.</p>
-          )}
+      {gaps.length > 0 && (
+        <div className="note warn" style={{ marginBottom: 'var(--space-16)' }}>
+          <b>{pluralize(gaps.length, 'thing')} missing</b>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+            {gaps.map((g, i) => <li key={i}>{g}</li>)}
+          </ul>
         </div>
-      </div>
+      )}
 
       <div className="btn-row" style={{ marginTop: 18 }}>
         <button type="button" className="btn primary lg" onClick={onCreate}>Create project</button>
@@ -8955,9 +9291,9 @@ function NewProjectWizard({ onFinish, onCancel }) {
   }, []);
   const addMultiFile = useCallback((key, file) => {
     const fileId = 'f-' + Math.random().toString(36).slice(2, 9);
-    setUploads((u) => ({ ...u, [key]: [...(u[key] || []), { fileId, name: file.name, size: file.size, status: 'reading', text: '', error: null }] }));
-    extractUploadedFile(file).then(({ text }) => {
-      setUploads((u) => ({ ...u, [key]: (u[key] || []).map((f) => (f.fileId === fileId ? { ...f, status: 'done', text } : f)) }));
+    setUploads((u) => ({ ...u, [key]: [...(u[key] || []), { fileId, name: file.name, size: file.size, status: 'reading', text: '', meta: null, error: null }] }));
+    extractUploadedFile(file).then(({ text, meta }) => {
+      setUploads((u) => ({ ...u, [key]: (u[key] || []).map((f) => (f.fileId === fileId ? { ...f, status: 'done', text, meta } : f)) }));
     }).catch((err) => {
       setUploads((u) => ({ ...u, [key]: (u[key] || []).map((f) => (f.fileId === fileId ? { ...f, status: 'error', error: (err && err.message) || 'could not be read' } : f)) }));
     });
@@ -8975,20 +9311,20 @@ function NewProjectWizard({ onFinish, onCancel }) {
   // just its text - and a fresh guess at which column is which is taken the
   // moment it parses.
   const handleSlotFile = useCallback((key, file) => {
-    setUpload(key, { name: file.name, size: file.size, status: 'reading', text: '', rows: null, error: null });
+    setUpload(key, { name: file.name, size: file.size, status: 'reading', text: '', rows: null, meta: null, error: null });
     if (key === 'rolesHeadcount') {
       parseRolesSpreadsheet(file).then((rows) => {
-        setUpload(key, { name: file.name, size: file.size, status: 'done', text: '', rows, error: null });
-        setRoleColumnMap(guessRoleColumns(rows[0] || []));
+        setUpload(key, { name: file.name, size: file.size, status: 'done', text: '', rows, meta: null, error: null });
+        setRoleColumnMap(autoResolveColumns(rows[0] || []));
       }).catch((err) => {
-        setUpload(key, { name: file.name, size: file.size, status: 'error', text: '', rows: null, error: (err && err.message) || 'could not be read' });
+        setUpload(key, { name: file.name, size: file.size, status: 'error', text: '', rows: null, meta: null, error: (err && err.message) || 'could not be read' });
       });
       return;
     }
-    extractUploadedFile(file).then(({ text, rows }) => {
-      setUpload(key, { name: file.name, size: file.size, status: 'done', text, rows, error: null });
+    extractUploadedFile(file).then(({ text, rows, meta }) => {
+      setUpload(key, { name: file.name, size: file.size, status: 'done', text, rows, meta, error: null });
     }).catch((err) => {
-      setUpload(key, { name: file.name, size: file.size, status: 'error', text: '', rows: null, error: (err && err.message) || 'could not be read' });
+      setUpload(key, { name: file.name, size: file.size, status: 'error', text: '', rows: null, meta: null, error: (err && err.message) || 'could not be read' });
     });
   }, [setUpload]);
 
@@ -9103,7 +9439,7 @@ function NewProjectWizard({ onFinish, onCancel }) {
       )}
       {step === 'review' && (
         <ReviewStep basics={basics} parsedRoles={parsedRoles}
-                    roleColumnMap={roleColumnMap} roleHeaderRow={roleHeaderRow} onColumnMapChange={setColumnMap}
+                    roleColumnMap={roleColumnMap} roleHeaderRow={roleHeaderRow} roleRows={roleRows} onColumnMapChange={setColumnMap}
                     uploads={uploads} onBack={() => setStep('uploads')} onCreate={create} />
       )}
     </div>
@@ -9117,14 +9453,19 @@ function NewProjectWizard({ onFinish, onCancel }) {
    once per such role, in the background, with a small concurrency limit so
    a 38-role project does not fire 38 requests at once. Each call is
    independent: one role's failure or timeout never blocks another's, and
-   both come back as the same "needsInput" result a genuine no-evidence
-   answer would (see api/derive.js - the whole safety model lives there,
+   both come back as the same "needsInput" result a genuine no-evidence-and-
+   no-reasonable-assumption answer would (see api/derive.js - the whole
+   safety model, including the three-state distinction below, lives there,
    not here). A role that resolves to a real answer gets a `draft` -
    everything the model proposed, held separately from the role's own
-   scoring fields - and stays exactly as incomplete/needsInput as before
-   until a practitioner accepts it on the review screen (ReviewView below).
-   Accepting copies the draft into the role's real fields; nothing here
-   ever writes to role.impact/role.risk directly. */
+   scoring fields, with a `kind` of 'drafted' (the documents describe this
+   role) or 'assumed' (they do not, but a plausible draft from general
+   knowledge is still responsible - `assumptionBasis` says what it rests
+   on, and `source` is always null for this kind, never a fabricated
+   citation) - and stays exactly as incomplete/needsInput as before until a
+   practitioner accepts it on the review screen (ReviewView below).
+   Accepting copies the draft into the role's real fields, whichever kind
+   it is; nothing here ever writes to role.impact/role.risk directly. */
 
 // Anchor bands are the same six ladders AxisBreakdown/Slider already show a
 // human - reused verbatim as the model's own grounding, never a second,
@@ -9156,12 +9497,22 @@ async function deriveRoleFromApi(role, project) {
 
 // Merges an /api/derive result into a role record as a pending `draft` -
 // never into impact/risk/before/after themselves. A needsInput result (or
-// any shape that isn't a real draft) leaves the role exactly as it was.
+// any shape that isn't a real draft or assumption) leaves the role exactly
+// as it was. `draft.kind` carries the one distinction the rest of the app
+// renders everywhere a draft appears: 'drafted' (from the documents, real
+// evidence, a source citation) or 'assumed' (no evidence for this role, a
+// plausible draft from general knowledge, an assumptionBasis sentence
+// instead of a citation - see api/derive.js for the whole three-state
+// model). source is only ever populated for 'drafted': an assumed draft
+// must never carry a document citation, even defensively, since that is
+// the one thing that would let an assumption pass as a finding.
 function applyDerivationResult(role, result) {
-  if (!result || result.state !== 'drafted') return role;
+  if (!result || (result.state !== 'drafted' && result.state !== 'assumed')) return role;
+  const kind = result.state;
   return {
     ...role,
     draft: {
+      kind,
       summary: result.summary || '',
       before: Array.isArray(result.before) ? result.before : [],
       after: Array.isArray(result.after) ? result.after : [],
@@ -9172,22 +9523,36 @@ function applyDerivationResult(role, result) {
       risk: result.risk || {},
       rationale: result.rationale || {},
       constraints: Array.isArray(result.constraints) ? result.constraints : [],
-      source: (result.sourceFileName || result.sourceQuote)
+      source: kind === 'drafted' && (result.sourceFileName || result.sourceQuote)
         ? { fileName: result.sourceFileName || '', snippet: result.sourceQuote || '' }
         : null,
+      assumptionBasis: kind === 'assumed'
+        ? (result.assumptionBasis || 'Drafted from general knowledge of this kind of role for this kind of change, not from the uploaded documents.')
+        : '',
     },
   };
 }
 
-/* One role's draft, expanded: its proposed summary, source citation,
-   before/after lists, and Accept / Edit / Reject. A role with no draft
-   (documents did not cover it) gets the same shape with a plain "no
-   evidence" message and only an Edit affordance, so a practitioner can
-   still complete it by hand without leaving this screen. */
+// The one label, everywhere a role's derivation state appears (this row's
+// own pill, RoleTable, RedesignRow, the one-pager) - see incompleteFlagText
+// for the compact table-cell form of the same three states.
+function reviewStateLabel(role) {
+  if (!role.draft) return 'Needs input';
+  return role.draft.kind === 'assumed' ? 'Our starting assumption' : 'From your documents';
+}
+
+/* One role's draft, expanded: its proposed summary, then either a source
+   citation (drafted: real evidence) or an assumption disclosure
+   (assumed: general knowledge, never dressed up as a citation), before/
+   after lists, and Accept / Edit / Reject. A role with no draft (neither
+   was possible) gets the same shape with a plain "no evidence" message and
+   only an Edit affordance, so a practitioner can still complete it by hand
+   without leaving this screen. */
 function ReviewRow({ role, onAccept, onReject, onSaveEdit }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const hasDraft = !!role.draft;
+  const isAssumed = hasDraft && role.draft.kind === 'assumed';
 
   const save = (patch) => { onSaveEdit(role.id, patch); setEditing(false); setOpen(true); };
 
@@ -9196,7 +9561,7 @@ function ReviewRow({ role, onAccept, onReject, onSaveEdit }) {
       <button type="button" className="draft-row-head" onClick={() => setOpen((o) => !o)}>
         <span className="drn">{role.role}</span>
         <span className="drm">{role.siteArchetype} · {pluralize(role.headcount, 'person', 'people')}</span>
-        <span className={'review-state' + (hasDraft ? ' drafted' : ' needs-input')}>{hasDraft ? 'Drafted' : 'Needs input'}</span>
+        <span className={'review-state' + (hasDraft ? (isAssumed ? ' assumed' : ' drafted') : ' needs-input')}>{reviewStateLabel(role)}</span>
         <span className="drx" aria-hidden="true">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
@@ -9206,11 +9571,17 @@ function ReviewRow({ role, onAccept, onReject, onSaveEdit }) {
           ) : hasDraft ? (
             <>
               <p className="op-summary">{role.draft.summary}</p>
-              {role.draft.source && role.draft.source.fileName && (
-                <p className="source-note">
-                  <b>Source:</b> {role.draft.source.fileName}
-                  {role.draft.source.snippet ? <>: &ldquo;{role.draft.source.snippet}&rdquo;</> : null}
+              {isAssumed ? (
+                <p className="note assumption-note">
+                  <b>Assumption, not a finding:</b> {role.draft.assumptionBasis}
                 </p>
+              ) : (
+                role.draft.source && role.draft.source.fileName && (
+                  <p className="source-note">
+                    <b>Source:</b> {role.draft.source.fileName}
+                    {role.draft.source.snippet ? <>: &ldquo;{role.draft.source.snippet}&rdquo;</> : null}
+                  </p>
+                )
               )}
               <div className="grid cols-2">
                 <div>
@@ -9230,7 +9601,7 @@ function ReviewRow({ role, onAccept, onReject, onSaveEdit }) {
             </>
           ) : (
             <>
-              <p className="sub">The uploaded documents do not describe what changes for this role. Nothing was drafted.</p>
+              <p className="sub">Neither your documents nor a reasonable assumption cover this role. Nothing was drafted.</p>
               <div className="btn-row">
                 <button type="button" className="btn" onClick={() => setEditing(true)}>Enter by hand</button>
               </div>
@@ -9329,13 +9700,29 @@ function ReviewEditForm({ role, onSave, onCancel }) {
    once. Not one of ALL_TABS (same precedent as AddRoleView's 'add' tab):
    reachable only via the topbar's own pending-review pill, and only ever
    relevant for a project that came through the wizard. */
+// The three review states, split out of one role list - shared by the
+// review screen's own tiles/ordering and the topbar's pending-review pill,
+// so the two never drift into counting this differently.
+function splitReviewStates(roles) {
+  const drafted = roles.filter((r) => r.draft && r.draft.kind !== 'assumed');
+  const assumed = roles.filter((r) => r.draft && r.draft.kind === 'assumed');
+  const needsInput = roles.filter((r) => !r.draft);
+  return { drafted, assumed, needsInput };
+}
+
 function ReviewView({ roles, onAccept, onReject, onSaveEdit, onBulkAccept }) {
-  const drafted = [...roles.filter((r) => r.draft)].sort((a, b) => b.headcount - a.headcount);
-  const needsInput = [...roles.filter((r) => !r.draft)].sort((a, b) => b.headcount - a.headcount);
-  const ordered = [...needsInput, ...drafted];
+  const { drafted, assumed, needsInput } = splitReviewStates(roles);
+  const byHeadcountDesc = (a, b) => b.headcount - a.headcount;
+  // Needs-input first (the real gaps, nothing to work from at all), then
+  // the evidenced drafts (the easy accepts), assumption-state roles last -
+  // sorted below evidenced ones, per spec, so a practitioner sees what's
+  // grounded in the documents before what's merely a plausible guess.
+  const ordered = [...[...needsInput].sort(byHeadcountDesc), ...[...drafted].sort(byHeadcountDesc), ...[...assumed].sort(byHeadcountDesc)];
   const totalHeadcount = roles.reduce((s, r) => s + (r.headcount || 0), 0) || 1;
-  const draftedHeadcount = drafted.reduce((s, r) => s + (r.headcount || 0), 0);
-  const needsInputHeadcount = needsInput.reduce((s, r) => s + (r.headcount || 0), 0);
+  const headcountOf = (list) => list.reduce((s, r) => s + (r.headcount || 0), 0);
+  const draftedHeadcount = headcountOf(drafted);
+  const assumedHeadcount = headcountOf(assumed);
+  const needsInputHeadcount = headcountOf(needsInput);
 
   return (
     <>
@@ -9347,16 +9734,18 @@ function ReviewView({ roles, onAccept, onReject, onSaveEdit, onBulkAccept }) {
         <p className="sub">Every role has been reviewed. Nothing left here.</p>
       ) : (
         <>
-          <div className="grid cols-2" style={{ marginBottom: 'var(--space-16)' }}>
-            <Tile label="Drafted" value={drafted.length} countTo={drafted.length}
+          <div className="grid cols-3" style={{ marginBottom: 'var(--space-16)' }}>
+            <Tile label="From your documents" value={drafted.length} countTo={drafted.length}
                   meta={`${pct(draftedHeadcount / totalHeadcount)} of headcount`} />
+            <Tile label="Our starting assumption" value={assumed.length} countTo={assumed.length}
+                  meta={`${pct(assumedHeadcount / totalHeadcount)} of headcount`} />
             <Tile label="Needs input" value={needsInput.length} countTo={needsInput.length}
                   meta={`${pct(needsInputHeadcount / totalHeadcount)} of headcount`} />
           </div>
 
           {drafted.length > 0 && (
             <div className="btn-row" style={{ marginBottom: 'var(--space-12)' }}>
-              <button type="button" className="btn primary" onClick={onBulkAccept}>Accept all {pluralize(drafted.length, 'drafted role')}</button>
+              <button type="button" className="btn primary" onClick={onBulkAccept}>Accept all {pluralize(drafted.length, 'role')} from your documents</button>
             </div>
           )}
 
@@ -9693,9 +10082,13 @@ function App() {
   const rejectRole = useCallback((id) => {
     setRaw((rs) => rs.map((r) => (r.id === id ? { ...r, draft: null } : r)));
   }, []);
+  // Bulk-accept is scoped to evidenced drafts only: an assumption is
+  // explicitly something to confirm one at a time (the review row's own
+  // Accept button), never something a single "accept all" click should be
+  // able to sweep up alongside the documents-backed ones.
   const bulkAcceptDrafts = useCallback(() => {
     setRaw((rs) => rs.map((r) => {
-      if (!r.draft) return r;
+      if (!r.draft || r.draft.kind === 'assumed') return r;
       const v = r.draft;
       return {
         ...r, needsInput: false, draft: null,
@@ -9771,7 +10164,10 @@ function App() {
                 <span className="weight-alert">
                   {derivationProgress && derivationProgress.active
                     ? `Drafting roles… ${derivationProgress.done}/${derivationProgress.total}`
-                    : `${pluralize(reviewRoles.filter((r) => r.draft).length, 'role')} drafted, ${pluralize(reviewRoles.filter((r) => !r.draft).length, 'role')} need input`}
+                    : (() => {
+                        const { drafted, assumed, needsInput } = splitReviewStates(reviewRoles);
+                        return `${pluralize(drafted.length, 'role')} from your documents, ${pluralize(assumed.length, 'role')} assumed, ${pluralize(needsInput.length, 'role')} need input`;
+                      })()}
                   <button type="button" className="link-btn" onClick={() => switchTab('review')}>Review</button>
                 </span>
               )}

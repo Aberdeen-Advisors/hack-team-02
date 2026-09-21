@@ -518,13 +518,20 @@ a { color: var(--aberdeen-blue); }
    one-pager's source-ref-list above, just a single line, not a list. */
 .source-note { font-size: 13px; color: var(--ink-2); margin: 0 0 var(--space-8); }
 .source-note b { color: var(--ink); font-weight: 500; }
+/* Same "review this" Verdigris family as .review-state.assumed, so the
+   pill and the disclosure box under it read as one signal, not two. */
+.assumption-note { margin: 0 0 var(--space-8); border-left-color: var(--verdigris); background: var(--flag-wash); }
+.assumption-note b { color: var(--ink); }
 
-/* Drafted vs. needs input, on the review screen's own row head - the
-   "confirmed / live" accent family (Aberdeen Blue) for a real AI proposal,
+/* From-your-documents vs. our-starting-assumption vs. needs-input, on the
+   review screen's own row head - the "confirmed / live" accent family
+   (Aberdeen Blue) for a real, evidenced proposal, the existing "review
+   this" Verdigris family for an assumption still waiting to be confirmed,
    a plain neutral pill for the ones with nothing to show yet. Never a tier
    hue: this is a review-workflow state, not a tier. */
 .review-state { flex: none; font-size: 11px; font-weight: 500; letter-spacing: .02em; text-transform: uppercase; padding: 2px 9px; border-radius: 999px; border: 1px solid transparent; }
 .review-state.drafted { color: var(--live); background: var(--live-wash); border-color: var(--live-line); }
+.review-state.assumed { color: var(--flag); background: var(--flag-wash); border-color: var(--flag-line); }
 .review-state.needs-input { color: var(--ink-3); background: var(--surface-sunk); border-color: var(--hairline); }
 
 .draft-list { display: grid; gap: var(--space-8); }
@@ -1299,6 +1306,45 @@ table.mini.milestones tr.past .done-mark { color: var(--flag); font-weight: 500;
 }
 .note.warn { border-left-color: var(--verdigris); background: var(--flag-wash); }
 .note .sub { display: block; font-size: 12px; color: var(--ink-2); margin-top: 3px; }
+
+/* A column-mapping question reads as one sentence with its choices inlined
+   as links, not a bordered form row - .note already carries the right
+   weight for "read this before moving on" without competing with .card. */
+.column-question .link-btn { font-weight: 500; }
+
+/* New-project review: one document per row, three columns - a file-type
+   indicator, the name and what-it-contains, and (when it applies) a small
+   coverage metric in the same label-over-value voice as .tile's own label/
+   value pair, just smaller. No max-height/overflow here any more: the
+   panel sizes to its content and the page itself scrolls past it, the same
+   as every other card on this step - a handful of short rows just fit. */
+.doc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.doc-row {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: start; column-gap: var(--space-12);
+  padding: 9px 12px; background: var(--surface-sunk); border: 1px solid var(--hairline); border-radius: var(--radius-s);
+}
+.doc-row-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* The one thing a reader is scanning this list for - real weight, body
+   size, primary ink, not another line of grey. */
+.doc-row-name { font-size: 14px; font-weight: 600; color: var(--ink); line-height: 1.3; }
+.doc-row-meta { color: var(--ink-2); font-size: 12.5px; line-height: 1.4; }
+.doc-row-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 1px; }
+.role-chip {
+  display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 500; line-height: 1.3;
+  padding: 2px 9px; border-radius: 999px; background: var(--surface); border: 1px solid var(--hairline-strong); color: var(--ink-2);
+}
+.file-type-badge {
+  flex: none; font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  border: 1px dashed var(--hairline-strong); border-radius: 999px; padding: 2px 8px; color: var(--ink-3);
+  margin-top: 1px;
+}
+/* Coverage as a metric, not a clause buried in a sentence - the exact
+   label-over-value voice .tile uses (uppercase caption, tabular value),
+   just sized for a table row instead of a full card. */
+.doc-row-coverage { flex: none; min-width: 88px; text-align: right; display: flex; flex-direction: column; gap: 2px; }
+.doc-row-coverage .drc-label { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--caption); font-weight: 500; }
+.doc-row-coverage .drc-value { font-size: 15px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.doc-coverage-line.sub { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--hairline); color: var(--ink-2); font-size: 12.5px; }
 
 .view-head .lede.unit { font-size: 13px; color: var(--ink-3); margin-top: 7px; }
 
