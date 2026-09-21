@@ -5776,7 +5776,7 @@ function devAssertDashboardLayout(cardsRef, chartColRef) {
 
 function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights, weightDeltas,
                           siteArchetypeBase, siteArchetypeCombos, comboExample,
-                          sa, setSa, projectName }) {
+                          sa, setSa, projectName, derivationProgress, onOpenReview, onRetryDerivation }) {
   const chartColRef = useRef(null);
   const cardsRef = useRef(null);
 
@@ -5825,6 +5825,14 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
   const agg = useMemo(() => aggregate(filtered), [filtered]);
   const sentence = useMemo(() => headlineFinding(agg), [agg]);
 
+  // Normalized so the hero JSX below never has to null-check its way
+  // through three states - null (no derivation ever ran, or not a wizard
+  // project at all) reads identically to "not drafting, nothing failed".
+  const drafting = derivationProgress || { active: false, failed: false, total: 0, done: 0 };
+  // Site-scoped, same as filteredIncomplete itself: a role still needing
+  // input by hand, narrowed to whatever site type is currently filtered.
+  const filteredReviewRoles = useMemo(() => filteredIncomplete.filter((r) => r.needsInput), [filteredIncomplete]);
+
   const siteFilterControl = siteScopeOptionCount > 1 && (
     <select id="f-sa" className="card-head-select no-print" aria-label="Filter by site type"
             value={sa} onChange={(e) => setSa(e.target.value)}>
@@ -5862,18 +5870,53 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
             states a conclusion rather than data. Everything below it is
             the evidence for this sentence. */}
         <div>
-          <div className="hero-headline">
-            <h2 className="hero-sentence">{sentence}</h2>
-            <div className="hero-rule" aria-hidden="true" />
-          </div>
-
-          {filteredIncomplete.length > 0 && (
-            <div className="note warn" style={{ marginBottom: 'var(--space-16)' }}>
-              <b>{filteredIncomplete.length} row{filteredIncomplete.length === 1 ? '' : 's'} incomplete: not scored, not tiered, not plotted.</b>
-              <span className="sub">
-                {filteredIncomplete.map((r) => `${r.role} (${r.missing.length} of 6 sub-factors missing)`).join(' · ')}. {NOTE.incomplete}
-              </span>
+          {drafting.active ? (
+            // Progress in the hero's own position and type treatment,
+            // never a paragraph explaining what's incomplete and why - the
+            // tier cards and chart below are already doing that live, one
+            // role at a time (see the dashboard grid: it reads straight off
+            // `scored`/`incomplete`, so it fills in on its own as each role
+            // resolves, no separate wiring needed here).
+            <div className="hero-headline">
+              <h2 className="hero-sentence">Drafting {pluralize(drafting.total, 'role')} from your documents</h2>
+              <div className="drafting-progress">
+                <span className="drafting-count">{drafting.done} of {drafting.total}</span>
+                <div className="drafting-bar">
+                  <div className="drafting-bar-fill" style={{ width: `${Math.round((drafting.done / Math.max(1, drafting.total)) * 100)}%` }} />
+                </div>
+              </div>
+              <div className="hero-rule" aria-hidden="true" />
             </div>
+          ) : drafting.failed ? (
+            <div className="hero-headline">
+              <h2 className="hero-sentence">Drafting could not run for this project</h2>
+              <p className="hero-sub">
+                None of {pluralize(drafting.total, 'role')} could be checked against your documents, so every one still needs input by hand. This usually means the drafting service was unreachable, not that your documents were unusable.
+              </p>
+              <div className="btn-row no-print" style={{ marginTop: 'var(--space-8)' }}>
+                <button type="button" className="btn primary" onClick={onRetryDerivation}>Retry drafting</button>
+              </div>
+              <div className="hero-rule" aria-hidden="true" />
+            </div>
+          ) : (
+            <div className="hero-headline">
+              <h2 className="hero-sentence">{sentence}</h2>
+              <div className="hero-rule" aria-hidden="true" />
+            </div>
+          )}
+
+          {!drafting.active && !drafting.failed && (
+            filteredReviewRoles.length > 0 ? (
+              <p className="sub hero-note">
+                {pluralize(filteredReviewRoles.length, 'role')} need input.{' '}
+                <button type="button" className="link-btn" onClick={onOpenReview}>Review</button>
+              </p>
+            ) : filteredIncomplete.length > 0 ? (
+              <p className="sub hero-note">
+                {pluralize(filteredIncomplete.length, 'role')} incomplete, not scored or tiered.
+                <i className="info-ico" tabIndex={0} title={NOTE.incomplete} aria-label={`Why incomplete: ${NOTE.incomplete}`}>ⓘ</i>
+              </p>
+            ) : null
           )}
         </div>
 
@@ -9907,42 +9950,55 @@ function App() {
 
   // AI DERIVATION: runs once per wizard-created project, the moment its
   // roles are actually loaded into `raw` - never inside the wizard itself.
-  // derivationStartedRef guards against starting twice for the same
-  // project (this effect re-runs on every `raw` change, since each
-  // resolved role writes back into `raw`; the guard is what keeps that
-  // from restarting the whole queue). A concurrency-limited pool of
-  // workers pulls from a fixed snapshot of the roles that needed input at
-  // the moment derivation started - new needs-input roles never appear on
-  // their own after that, so there is nothing later to miss.
-  const derivationStartedRef = useRef(null);
-  const [derivationProgress, setDerivationProgress] = useState(null); // { total, done, active } | null
-  useEffect(() => {
-    if (!project || project.kind !== 'new' || !project.derivation) return undefined;
-    if (derivationStartedRef.current === project.id) return undefined;
-    const pending = raw.filter((r) => r.needsInput && !r.draft);
-    if (!pending.length) return undefined;
-    derivationStartedRef.current = project.id;
+  // rawRef mirrors `raw` without the kickoff effect below ever depending on
+  // it directly: `raw` gets a new reference on every single resolved role
+  // (each one calls setRaw), and an effect that depended on it would run
+  // its own cleanup - cancelling the whole in-flight batch - the moment
+  // the very first role resolved. That's a real useEffect footgun, not a
+  // hypothetical one, and it silently capped every wizard-created project
+  // at one resolved role forever, no matter how many were pending. Reading
+  // through a ref instead means this effect only ever runs once per
+  // project; derivationStartedRef is the (now-redundant but still cheap)
+  // second guard against starting twice.
+  const rawRef = useRef(raw);
+  useEffect(() => { rawRef.current = raw; }, [raw]);
 
-    if (!project.derivation.documents.length) {
+  const derivationStartedRef = useRef(null);
+  const derivationCancelRef = useRef(null);
+  // { total, done, active, failed } | null. `failed` is only ever true
+  // once a batch that actually called the model (real documents were
+  // uploaded) finishes with not one single role resolved to drafted or
+  // assumed - a systemic failure (no reachable API, every call erroring),
+  // not the ordinary case of some roles genuinely having no evidence or
+  // reasonable assumption to draw on.
+  const [derivationProgress, setDerivationProgress] = useState(null);
+
+  const runDerivationBatch = useCallback((pending, proj) => {
+    if (derivationCancelRef.current) derivationCancelRef.current();
+
+    if (!proj.derivation.documents.length) {
       // Only the roles/headcount spreadsheet was uploaded. Every role would
       // predictably come back "needs input" from the model anyway, so settle
       // the whole batch immediately rather than spending N calls on it.
-      setDerivationProgress({ total: pending.length, done: pending.length, active: false });
-      return undefined;
+      setDerivationProgress({ total: pending.length, done: pending.length, active: false, failed: false });
+      return;
     }
 
-    setDerivationProgress({ total: pending.length, done: 0, active: true });
+    setDerivationProgress({ total: pending.length, done: 0, active: true, failed: false });
 
     let cancelled = false;
+    derivationCancelRef.current = () => { cancelled = true; };
+    let resolvedAny = false;
     const CONCURRENCY = 3;
     let idx = 0;
     const runNext = () => {
       if (cancelled || idx >= pending.length) return Promise.resolve();
       const role = pending[idx];
       idx += 1;
-      return deriveRoleFromApi(role, project)
+      return deriveRoleFromApi(role, proj)
         .then((result) => {
           if (cancelled) return;
+          if (result && (result.state === 'drafted' || result.state === 'assumed')) resolvedAny = true;
           setRaw((rs) => rs.map((r) => (r.id === role.id ? applyDerivationResult(r, result) : r)));
         })
         .catch(() => {})
@@ -9953,11 +10009,30 @@ function App() {
         .then(runNext);
     };
     Promise.all(Array.from({ length: Math.min(CONCURRENCY, pending.length) }, runNext)).then(() => {
-      if (!cancelled) setDerivationProgress((p) => (p ? { ...p, active: false } : p));
+      if (!cancelled) setDerivationProgress((p) => (p ? { ...p, active: false, failed: !resolvedAny } : p));
     });
+  }, []);
 
-    return () => { cancelled = true; };
-  }, [project, raw]);
+  useEffect(() => {
+    if (!project || project.kind !== 'new' || !project.derivation) return undefined;
+    if (derivationStartedRef.current === project.id) return undefined;
+    const pending = rawRef.current.filter((r) => r.needsInput && !r.draft);
+    if (!pending.length) return undefined;
+    derivationStartedRef.current = project.id;
+    runDerivationBatch(pending, project);
+    return () => { if (derivationCancelRef.current) derivationCancelRef.current(); };
+  }, [project, runDerivationBatch]);
+
+  // Only ever reachable from the "drafting failed entirely" hero state:
+  // re-reads whichever roles are still needs-input right now (every one of
+  // them, since nothing resolved last time) and runs the same batch again,
+  // exactly as if the project had just been opened.
+  const retryDerivation = useCallback(() => {
+    if (!project) return;
+    const pending = rawRef.current.filter((r) => r.needsInput && !r.draft);
+    if (!pending.length) return;
+    runDerivationBatch(pending, project);
+  }, [project, runDerivationBatch]);
 
   // Weight changes are the tool's most impressive trick and, un-surfaced,
   // its most invisible one: every downstream figure re-tiers, but nothing
@@ -10210,7 +10285,9 @@ function App() {
                          weights={weights} onWeight={setWeight} onResetWeights={resetWeights} weightDeltas={weightDeltas}
                          siteArchetypeBase={project.siteArchetypeBase} siteArchetypeCombos={project.siteArchetypeCombos}
                          comboExample={comboExample}
-                         sa={filters.sa} setSa={setFilterSa} projectName={project.name} />
+                         sa={filters.sa} setSa={setFilterSa} projectName={project.name}
+                         derivationProgress={project.kind === 'new' ? derivationProgress : null}
+                         onOpenReview={() => switchTab('review')} onRetryDerivation={retryDerivation} />
         )}
         {tab === 'redesign' && (
           <RedesignView all={all} selectedId={selectedId} onSelect={openRole} weights={weights} onResetWeights={resetWeights}

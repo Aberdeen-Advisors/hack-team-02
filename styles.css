@@ -797,6 +797,28 @@ a { color: var(--aberdeen-blue); }
   letter-spacing: -.01em; max-width: 66ch;
 }
 .hero-rule { width: 44px; height: 3px; border-radius: 2px; background: var(--verdigris); margin-top: 6px; }
+
+/* Drafting-in-progress hero: a large, ExtraLight Aberdeen Blue count -
+   the same numeric voice .tile's own value uses, just inline with a bar
+   instead of stacked in a card - next to a thin progress track. This
+   replaces the finding sentence in the exact same hero position while a
+   wizard-created project's derivation pass is still running, never
+   layered under a spinner over the dashboard below it. */
+.drafting-progress { display: flex; align-items: center; gap: var(--space-12); margin-top: var(--space-8); max-width: 460px; }
+.drafting-count {
+  font-size: 28px; font-weight: 200; color: var(--aberdeen-blue); letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums; white-space: nowrap; flex: none;
+}
+.drafting-bar { flex: 1; height: 6px; border-radius: 999px; background: var(--surface-sunk); border: 1px solid var(--hairline); overflow: hidden; }
+.drafting-bar-fill { height: 100%; background: var(--aberdeen-blue); border-radius: 999px; transition: width .3s ease; }
+
+/* The two lines that can sit under the hero sentence once drafting is no
+   longer running: a plain explanatory line (drafting failed entirely) and
+   a quiet one-line count-plus-link (some roles still need input) - never
+   the old per-role "(6 of 6 sub-factors missing)" listing. */
+.hero-sub { font-size: 14px; color: var(--ink-2); max-width: 66ch; margin: 4px 0 0; }
+.hero-note { font-size: 13px; color: var(--ink-2); margin: 6px 0 0; }
+.hero-note .info-ico { margin-left: 5px; }
 /* The chart's own title row: no card chrome here at all (see
    .dashboard-chart-col below) - just the quiet section label and the site
    filter, sitting directly above the plot with minimal air between them. */
