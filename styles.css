@@ -1368,11 +1368,6 @@ table.mini.milestones tr.past .done-mark { color: var(--flag); font-weight: 500;
 .cq-option:hover, .cq-option:focus-visible { border-color: var(--verdigris); background: var(--flag-wash); outline: none; }
 .cq-option-name { font-size: 14px; font-weight: 600; color: var(--ink); }
 .cq-option-samples { font-size: 12.5px; color: var(--ink-2); }
-/* Once answered: the card is gone, replaced by this one quiet line - same
-   voice as .hero-note, a fact stated once, not left standing as an open
-   question any more. */
-.cq-resolved-line { font-size: 13px; color: var(--ink-2); margin: 0; }
-.cq-resolved-line b { color: var(--ink); font-weight: 600; }
 
 /* New-project review: one document per row, three columns - a file-type
    indicator, the name and what-it-contains, and (when it applies) a small
@@ -1390,7 +1385,13 @@ table.mini.milestones tr.past .done-mark { color: var(--flag); font-weight: 500;
    size, primary ink, not another line of grey. */
 .doc-row-name { font-size: 14px; font-weight: 600; color: var(--ink); line-height: 1.3; }
 .doc-row-meta { color: var(--ink-2); font-size: 12.5px; line-height: 1.4; }
-.doc-row-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 1px; }
+.doc-row-chips { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 1px; }
+/* Same voice as .doc-row-meta on purpose - this is not a flag, it's the
+   plain fact the chips beside it are missing from, not present in, this
+   document. Quiet, no color, no icon: every role is named somewhere in
+   the set (the coverage line below already says so), this is just which
+   document that isn't. */
+.doc-row-chips-label { color: var(--ink-2); font-size: 12.5px; line-height: 1.4; }
 .role-chip {
   display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 500; line-height: 1.3;
   padding: 2px 9px; border-radius: 999px; background: var(--surface); border: 1px solid var(--hairline-strong); color: var(--ink-2);

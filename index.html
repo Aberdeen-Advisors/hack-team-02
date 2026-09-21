@@ -4947,6 +4947,14 @@ function pluralize(n, singular, plural) {
   return `${n.toLocaleString()} ${word}`;
 }
 
+// "A", "A and B", "A, B and C" - no Oxford comma, matching the rest of the
+// app's own list phrasing (e.g. tier package text).
+function joinWithAnd(list) {
+  if (list.length <= 1) return list.join('');
+  if (list.length === 2) return `${list[0]} and ${list[1]}`;
+  return `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`;
+}
+
 // The short, dense-table form of the same three derivation states
 // ReviewRow's own pill spells out in full (reviewStateLabel) - RoleTable's
 // tier column and RedesignRow both show this in place of a tier badge
@@ -5828,7 +5836,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
   // Normalized so the hero JSX below never has to null-check its way
   // through three states - null (no derivation ever ran, or not a wizard
   // project at all) reads identically to "not drafting, nothing failed".
-  const drafting = derivationProgress || { active: false, failed: false, total: 0, done: 0 };
+  const drafting = derivationProgress || { active: false, failed: false, noDocuments: false, total: 0, done: 0 };
   // Site-scoped, same as filteredIncomplete itself: a role still needing
   // input by hand, narrowed to whatever site type is currently filtered.
   const filteredReviewRoles = useMemo(() => filteredIncomplete.filter((r) => r.needsInput), [filteredIncomplete]);
@@ -5901,6 +5909,11 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
               </div>
               <div className="hero-rule" aria-hidden="true" />
             </div>
+          ) : drafting.noDocuments ? (
+            <div className="hero-headline">
+              <h2 className="hero-sentence">No documents were uploaded, so every role starts needing input</h2>
+              <div className="hero-rule" aria-hidden="true" />
+            </div>
           ) : (
             <div className="hero-headline">
               <h2 className="hero-sentence">{sentence}</h2>
@@ -5908,7 +5921,7 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
             </div>
           )}
 
-          {!drafting.active && !drafting.failed && (
+          {!drafting.active && !drafting.failed && !drafting.noDocuments && (
             filteredReviewRoles.length > 0 ? (
               <p className="sub hero-note">
                 {pluralize(filteredReviewRoles.length, 'role')} need input.{' '}
@@ -8473,22 +8486,61 @@ function describeDocLength(meta) {
 function normalizeForMatch(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
+// Filler that would otherwise inflate an incidental overlap - ordinary
+// stopwords, plus a version-ish token ("v2", "3" out of "v2.3") since a
+// document's own filename version suffix is not a meaningful word.
+const MATCH_STOPWORDS = new Set(['the', 'a', 'an', 'of', 'and', 'or', 'for', 'to', 'in', 'on', 'with', 'at', 'by', 'from']);
+function isVersionToken(w) {
+  return /^v?\d+$/i.test(w);
+}
+// The words a title-repeat check actually judges by: the file's trailing
+// extension stripped first (so it never counts as a word), stopwords and
+// version numbers dropped after. Named apart from the explainer's own
+// meaningfulWords (tokenize-and-singularize for question matching,
+// entirely unrelated) even though the two do a similar-sounding job.
+function titleOverlapWords(raw) {
+  const withoutExt = String(raw || '').replace(/\.[a-z0-9]{2,5}$/i, '');
+  return normalizeForMatch(withoutExt).split(' ').filter(Boolean).filter((w) => !MATCH_STOPWORDS.has(w) && !isVersionToken(w));
+}
 /* A heading that's really just the document's own title or the project's
    own name restated - the line every export seems to open with, not a
-   section of its own - caught by shared words, not by one incidental
-   overlapping word ("order to cash" sharing "order" with some unrelated
-   title would not count). */
+   section of its own - caught by shared meaningful words, not by one
+   incidental overlapping word or an exact-string match (a real file is
+   "Calderstone - Future State Process Design v2.3.docx" and the heading
+   it repeats is "SAP S/4HANA Program: Future State Process Design" -
+   overlapping, never equal). The heading is split on ":" first and each
+   half tested on its own, so a "Programme name: Real heading" title is
+   still caught by whichever half actually restates the file or project
+   name, instead of that half's overlap being diluted by the other one. */
 function looksLikeTitleRepeat(heading, fileName, projectName) {
-  const hWords = normalizeForMatch(heading).split(' ').filter(Boolean);
-  if (!hWords.length) return true;
-  const bases = [fileName, projectName]
-    .map((s) => normalizeForMatch(String(s || '').replace(/\.[a-z0-9]{2,5}$/i, '')))
-    .filter(Boolean);
-  return bases.some((base) => {
-    const baseWords = new Set(base.split(' ').filter(Boolean));
-    const overlap = hWords.filter((w) => baseWords.has(w)).length;
-    return overlap >= 2 && overlap / hWords.length >= 0.6;
+  const bases = [fileName, projectName].map(titleOverlapWords).filter((w) => w.length);
+  if (!bases.length) return false;
+  const segments = heading.split(':').map((s) => s.trim()).filter(Boolean);
+  if (!segments.length) return true;
+  return segments.some((seg) => {
+    const segWords = titleOverlapWords(seg);
+    if (!segWords.length) return false;
+    return bases.some((baseWords) => {
+      const baseSet = new Set(baseWords);
+      const overlap = segWords.filter((w) => baseSet.has(w)).length;
+      return overlap >= 2 && overlap / segWords.length >= 0.6;
+    });
   });
+}
+/* A token that must never be lowercased: all-caps (SAP, HR, EDI), or
+   containing a digit or a slash (S/4HANA, P2P) - anything else is an
+   ordinary Title Case word and safe to fold into a lowercase sentence. */
+function isProtectedHeadingToken(tok) {
+  if (/\d/.test(tok)) return true;
+  if (tok.includes('/')) return true;
+  const letters = tok.replace(/[^a-zA-Z]/g, '');
+  return letters.length > 0 && letters === letters.toUpperCase();
+}
+// Lowercases a heading word by word, not the whole string at once, so an
+// acronym or a mixed alphanumeric token survives instead of coming out as
+// "sap s/4hana".
+function lowercaseHeadingForSentence(text) {
+  return text.split(/(\s+)/).map((tok) => (/^\s*$/.test(tok) ? tok : (isProtectedHeadingToken(tok) ? tok : tok.toLowerCase()))).join('');
 }
 // A numbered sub-heading ("3.1 Customer Service Representative") is one
 // level too deep for a subject-area list - only a single-part number
@@ -8518,7 +8570,7 @@ function subjectAreasSentence(headings, fileName, projectName) {
     const key = stripped.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
-    cleaned.push(stripped.toLowerCase());
+    cleaned.push(lowercaseHeadingForSentence(stripped));
   });
   if (!cleaned.length) return '';
   const shown = cleaned.slice(0, SUBJECT_AREA_CAP);
@@ -9137,6 +9189,7 @@ function DocSummaryRow({ f, roleNames, projectName }) {
         {metaParts.length > 0 && <span className="doc-row-meta">{metaParts.join(' · ')}</span>}
         {showChips && (
           <div className="doc-row-chips">
+            <span className="doc-row-chips-label">Not named here</span>
             {mention.missing.map((name) => <span className="role-chip" key={name}>{name}</span>)}
           </div>
         )}
@@ -9182,18 +9235,6 @@ function ColumnQuestionCard({ prompt, options, flagged, onPick }) {
   );
 }
 
-/* Once answered: a single quiet line, not the card any more - the choice
-   plus a small control to change it. Only ever shown for a field that
-   actually needed asking; a confidently auto-resolved field never gets
-   its own line here at all (see the mapping sentence instead). */
-function ColumnResolvedLine({ label, header, onChange }) {
-  return (
-    <p className="sub cq-resolved-line">
-      {label}: <b>{header}</b>.{' '}
-      <button type="button" className="link-btn" onClick={onChange}>Change</button>
-    </p>
-  );
-}
 
 const COLUMN_FIELD_LABELS = { role: 'Role name column', site: 'Site column', headcount: 'Headcount column' };
 
@@ -9267,7 +9308,18 @@ function ReviewStep({ basics, parsedRoles, roleColumnMap, roleHeaderRow, roleRow
     !slotParsed('futureStateDesign') && 'No future state design document: nothing describes what is changing for these roles yet.',
   ].filter(Boolean);
 
-  const mappingSentence = `Read ${pluralize(parsedRoles.length, 'role')} and ${pluralize(totalHeadcount, 'person', 'people')} from your file.`;
+  // Only a field that actually needed asking, and is now resolved, gets a
+  // clause here - a confidently auto-resolved field stays silent, same
+  // rule the question cards themselves already follow. This is the one
+  // place any of the three column choices are confirmed in prose; there
+  // used to be a second, smaller line doing the same job per field, but
+  // its only action (reopen that one question) was strictly weaker than
+  // "Change these" below, which already edits all three at once.
+  const resolvedColumnClauses = ['role', 'site', 'headcount']
+    .filter((field) => neededQuestion(field) && fieldStatus(field) === 'resolved')
+    .map((field) => `${roleHeaderRow[roleColumnMap[field]] || `Column ${roleColumnMap[field] + 1}`} for ${field}`);
+  const mappingSentence = `Read ${pluralize(parsedRoles.length, 'role')} and ${pluralize(totalHeadcount, 'person', 'people')} from your spreadsheet`
+    + (resolvedColumnClauses.length ? `, using ${joinWithAnd(resolvedColumnClauses)}` : '') + '.';
 
   return (
     <>
@@ -9295,12 +9347,7 @@ function ReviewStep({ basics, parsedRoles, roleColumnMap, roleHeaderRow, roleRow
         <div style={{ marginBottom: 'var(--space-16)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-8)' }}>
             {['role', 'site', 'headcount'].map((field) => {
-              if (!neededQuestion(field)) return null;
-              if (fieldStatus(field) === 'resolved') {
-                const header = roleHeaderRow[roleColumnMap[field]] || `Column ${roleColumnMap[field] + 1}`;
-                return <ColumnResolvedLine key={field} label={COLUMN_FIELD_LABELS[field]} header={header}
-                                           onChange={() => onColumnMapChange(field, null)} />;
-              }
+              if (!neededQuestion(field) || fieldStatus(field) === 'resolved') return null;
               const q = questionFor(field);
               return <ColumnQuestionCard key={field} prompt={q.prompt} options={q.options} flagged={q.flagged}
                                          onPick={(idx) => onColumnMapChange(field, idx)} />;
@@ -9956,6 +10003,11 @@ function App() {
   const [raw, setRaw] = useState([]);
   const [dataSource, setDataSource] = useState('');
   const [meta, setMeta] = useState({}); // the active project's data-file provenance fields
+  // Set once per project, the moment loadRolesForProject's promise actually
+  // resolves and writes into `raw` - see the derivation kickoff effect,
+  // which needs to know roles have landed without depending on `raw`
+  // itself (a value that changes again on every single resolved role).
+  const [rolesLoadedFor, setRolesLoadedFor] = useState(null);
   const [tab, setTab] = useState('portfolio');
   const [returnTab, setReturnTab] = useState('portfolio'); // where "← Back" on the one-pager / methodology page returns to
   const [selectedId, setSelectedId] = useState(null);
@@ -10075,6 +10127,19 @@ function App() {
     loadRolesForProject(project).then(({ roles, source, meta }) => {
       if (!live) return;
       setRaw(roles); setDataSource(source); setMeta(meta || {});
+      // A scalar that changes exactly once per project, the moment its
+      // roles actually land - see the derivation kickoff effect below for
+      // why this exists: `raw` itself can't be in that effect's deps.
+      setRolesLoadedFor(project.id);
+      // Reset here, synchronously, rather than inside the dev-assertion
+      // effect below: that effect and the kickoff effect both fire in the
+      // same commit once rolesLoadedFor changes, in declaration order - if
+      // the assertion effect reset this ref itself, it would run after the
+      // kickoff effect's own synchronous dispatch and immediately clobber
+      // the "true" that dispatch had just set, guaranteeing a false
+      // positive every time. Resetting here, before either effect runs at
+      // all, avoids that ordering trap entirely.
+      derivationRequestIssuedRef.current = false;
     });
     return () => { live = false; };
   }, [project]);
@@ -10112,12 +10177,24 @@ function App() {
 
   const derivationStartedRef = useRef(null);
   const derivationCancelRef = useRef(null);
-  // { total, done, active, failed, avgMs, failReason } | null. `failed` is
-  // only ever true once a batch that actually called the model (real
-  // documents were uploaded) finishes with not one single role resolved to
-  // drafted or assumed - a systemic failure (no reachable API, every call
-  // erroring), not the ordinary case of some roles genuinely having no
-  // evidence or reasonable assumption to draw on. `avgMs` is the running
+  // Flipped true the moment the first /api/derive fetch is actually
+  // dispatched for a batch - read only by the dev assertion below, which
+  // exists specifically to catch a future regression of the kickoff
+  // effect silently never running again (exactly what happened before
+  // rolesLoadedFor existed: the effect read `raw` before roles had loaded,
+  // found nothing pending, and never got another chance to run).
+  const derivationRequestIssuedRef = useRef(false);
+  // { total, done, active, failed, noDocuments, avgMs, failReason } | null.
+  // `failed` is only ever true once a batch that actually called the model
+  // (real documents were uploaded) finishes with not one single role
+  // resolved to drafted or assumed - a systemic failure (no reachable API,
+  // every call erroring), not the ordinary case of some roles genuinely
+  // having no evidence or reasonable assumption to draw on. `noDocuments`
+  // is the third, separate reason a batch can settle with nothing drafted:
+  // no documents were uploaded to check any role against, so the model was
+  // never called at all - this must read differently in the hero from
+  // both "still running" and "ran and failed," not silently look like
+  // whichever of those two a reader guesses. `avgMs` is the running
   // average of how long a resolved call actually took, for the hero's own
   // ETA; `failReason` is only set alongside `failed`.
   const [derivationProgress, setDerivationProgress] = useState(null);
@@ -10128,12 +10205,14 @@ function App() {
     if (!proj.derivation.documents.length) {
       // Only the roles/headcount spreadsheet was uploaded. Every role would
       // predictably come back "needs input" from the model anyway, so settle
-      // the whole batch immediately rather than spending N calls on it.
-      setDerivationProgress({ total: pending.length, done: pending.length, active: false, failed: false, avgMs: null, failReason: null });
+      // the whole batch immediately rather than spending N calls on it - but
+      // say so plainly (noDocuments) rather than settling silently into a
+      // shape indistinguishable from a batch that ran and found nothing.
+      setDerivationProgress({ total: pending.length, done: pending.length, active: false, failed: false, noDocuments: true, avgMs: null, failReason: null });
       return;
     }
 
-    setDerivationProgress({ total: pending.length, done: 0, active: true, failed: false, avgMs: null, failReason: null });
+    setDerivationProgress({ total: pending.length, done: 0, active: true, failed: false, noDocuments: false, avgMs: null, failReason: null });
 
     let cancelled = false;
     derivationCancelRef.current = () => { cancelled = true; };
@@ -10145,6 +10224,7 @@ function App() {
       if (cancelled || idx >= pending.length) return Promise.resolve();
       const role = pending[idx];
       idx += 1;
+      derivationRequestIssuedRef.current = true;
       const startedAt = Date.now();
       return deriveRoleFromApi(role, proj)
         .then((result) => {
@@ -10173,13 +10253,60 @@ function App() {
 
   useEffect(() => {
     if (!project || project.kind !== 'new' || !project.derivation) return undefined;
+    // Roles land asynchronously (loadRolesForProject above): `project`
+    // changes and this effect's first run happen in the same commit, well
+    // before that promise resolves, so rawRef.current would still be the
+    // previous project's (or empty) roles without this check - and with
+    // `pending` reading empty, the guard below would never even get set,
+    // so this effect would never run again for this project at all
+    // (`raw` deliberately isn't a dependency here - see rawRef above).
+    // rolesLoadedFor is the one scalar that changes exactly once, when
+    // roles for THIS project actually arrive, so this effect correctly
+    // waits for that commit instead of silently never starting.
+    if (rolesLoadedFor !== project.id) return undefined;
     if (derivationStartedRef.current === project.id) return undefined;
+    // Set before the pending check, not after: this must mark "started"
+    // even when there's nothing to derive (zero needs-input roles), or a
+    // project that genuinely has nothing pending would look identical to
+    // one this effect simply hasn't run for yet, and there is nothing else
+    // that would ever flip rolesLoadedFor/project again to give it another
+    // chance to run.
+    derivationStartedRef.current = project.id;
     const pending = rawRef.current.filter((r) => r.needsInput && !r.draft);
     if (!pending.length) return undefined;
-    derivationStartedRef.current = project.id;
     runDerivationBatch(pending, project);
     return () => { if (derivationCancelRef.current) derivationCancelRef.current(); };
-  }, [project, runDerivationBatch]);
+  }, [project, rolesLoadedFor, runDerivationBatch]);
+
+  // Dev-only guard against exactly the regression above recurring
+  // silently: for a wizard project with real documents, if no
+  // /api/derive request has gone out within 2s of its roles landing,
+  // something is preventing the kickoff effect from ever running - a
+  // console.error, not a UI change, since this is a "check the console"
+  // invariant, not something a practitioner needs to see.
+  useEffect(() => {
+    if (!project || project.kind !== 'new' || !project.derivation) return undefined;
+    if (!project.derivation.documents.length) return undefined;
+    if (rolesLoadedFor !== project.id) return undefined;
+    // Nothing pending is a legitimate (if rare) reason no request ever
+    // goes out - an empty wizard project with documents uploaded but zero
+    // roles parsed, say - not the regression this is watching for.
+    if (!rawRef.current.some((r) => r.needsInput && !r.draft)) return undefined;
+    // Reset once, in loadRolesForProject's own .then() - see the comment
+    // there for why this effect must not reset it itself.
+    const timer = setTimeout(() => {
+      if (!derivationRequestIssuedRef.current) {
+        console.error(
+          '[derivation] No /api/derive request was issued within 2s of roles loading for project "' + project.id + '", ' +
+          'which has ' + project.derivation.documents.length + ' document(s) uploaded. The derivation kickoff effect ' +
+          'appears to have never run (or run before roles loaded and found nothing pending, with no later chance to ' +
+          'retry) - check that its dependency array includes rolesLoadedFor and that rolesLoadedFor is set inside ' +
+          'loadRolesForProject\'s .then(), alongside setRaw.'
+        );
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [project, rolesLoadedFor]);
 
   // Only ever reachable from the "drafting failed entirely" hero state:
   // re-reads whichever roles are still needs-input right now (every one of
