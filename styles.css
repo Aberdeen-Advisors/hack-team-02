@@ -424,6 +424,20 @@ a { color: var(--aberdeen-blue); }
 .project-card--new:hover { background: var(--aberdeen-blue-wash); border-color: var(--aberdeen-blue); }
 .pc-new-plus { font-size: 26px; line-height: 1; color: var(--aberdeen-blue); font-weight: 400; }
 
+/* A demo aid, not a second primary action next to "Start new project" -
+   Verdigris border/icon only (never a filled Verdigris background or
+   Verdigris text on white, per the brand's own contrast rule), sized and
+   weighted well below the dashed tile above it. */
+.sample-data-row { display: flex; justify-content: center; margin-top: var(--space-12); }
+.sample-data-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 16px; border-radius: 999px; border: 1px solid var(--verdigris);
+  background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 500;
+  text-decoration: none; cursor: pointer;
+}
+.sample-data-btn:hover { background: var(--flag-wash); }
+.sample-data-ico { color: var(--verdigris); font-size: 14px; line-height: 1; }
+
 /* ---------------------------------------------------------- new-project wizard */
 
 .wizard-page { max-width: 1180px; }
@@ -1665,6 +1679,9 @@ table.data td .incflag {
   background: var(--surface); border-radius: var(--radius); box-shadow: var(--elev-4);
   display: flex; flex-direction: column; overflow: hidden;
 }
+/* A short field list (the sample-data modal) doesn't need the full
+   720px a multi-draft panel does - same shell, wound in a bit. */
+.drafts-panel.compact { max-width: 460px; }
 .drafts-head {
   flex: none; display: flex; align-items: flex-start; gap: var(--space-8);
   background: var(--aberdeen-blue); color: #fff; padding: var(--space-16);
@@ -1682,6 +1699,18 @@ table.data td .incflag {
 .drafts-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-12); margin-bottom: var(--space-8); }
 .drafts-group-head h4 { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink-2); text-transform: uppercase; letter-spacing: .04em; }
 .drafts-group-head .link-btn { font-size: 12.5px; white-space: nowrap; }
+
+/* The sample-data modal's own field list: label left, value right, same
+   quiet label voice the rest of the app uses (.drc-label, .cq-kicker). */
+.sample-data-fields { margin: var(--space-12) 0; }
+.sdf-row {
+  display: flex; justify-content: space-between; gap: var(--space-16);
+  padding: 7px 0; border-bottom: 1px solid var(--hairline);
+}
+.sdf-row:last-child { border-bottom: none; }
+.sdf-row dt { font-size: 12px; color: var(--ink-3); flex: none; }
+.sdf-row dd { margin: 0; font-size: 13px; font-weight: 500; color: var(--ink); text-align: right; }
+.sample-data-note { font-size: 13px; color: var(--ink-2); margin: var(--space-8) 0 0; }
 
 .draft-card { background: var(--surface-sunk); border: 1px solid var(--hairline); border-radius: var(--radius-s); padding: var(--space-12); margin-bottom: var(--space-12); }
 .draft-meta { display: flex; align-items: center; gap: var(--space-8); margin-bottom: 3px; }

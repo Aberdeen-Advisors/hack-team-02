@@ -8799,9 +8799,56 @@ function EntranceMark() {
   );
 }
 
+// The exact values a judge (or anyone) types into the wizard's Basics step
+// to match the sample Calderstone zip - kept as one source of truth so the
+// button's download and the modal's own instructions can never drift apart.
+const SAMPLE_DATA_BASICS_FIELDS = [
+  ['Project name', 'Calderstone Building Products'],
+  ['Industry', 'Building products manufacturing'],
+  ['What’s changing', 'New SAP S/4HANA implementation across manufacturing and distribution'],
+  ['Systems', 'SAP S/4HANA'],
+  ['Languages', 'English, Polish, Portuguese, Romanian'],
+  ['Deployment approach', 'Single go-live'],
+  ['Go-live date', 'April 6, 2027'],
+];
+
+/* Same overlay shell DraftsPanel already uses (fixed backdrop, centered
+   white card, Aberdeen Blue header with a close X, Escape/backdrop-click
+   to dismiss) - not a second modal system built for one screen. */
+function SampleDataModal({ onClose }) {
+  const panelRef = useRef(null);
+  useEffect(() => { requestAnimationFrame(() => panelRef.current && panelRef.current.focus()); }, []);
+  return (
+    <div className="drafts-overlay no-print" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="drafts-panel compact" role="dialog" aria-modal="true" aria-label="Try it with sample data"
+           ref={panelRef} tabIndex={-1} onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}>
+        <div className="drafts-head">
+          <h3>Try it with sample data</h3>
+          <button type="button" className="drafts-close" onClick={onClose} aria-label="Close">×</button>
+        </div>
+        <div className="drafts-body">
+          <p className="hint" style={{ marginTop: 0 }}>
+            Your download has started. On the Basics step of "Start new project," enter:
+          </p>
+          <dl className="sample-data-fields">
+            {SAMPLE_DATA_BASICS_FIELDS.map(([label, value]) => (
+              <div className="sdf-row" key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="sample-data-note">Then upload all 5 files from the zip on the next step.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProjectPicker({ projects, onSelect, onStartNew }) {
   const pageRef = useRef(null);
   useLandingEntrance(pageRef);
+  const [showSampleData, setShowSampleData] = useState(false);
 
   // The project-open transition matters more than the entrance - it's the
   // moment anyone is actually watching. A floating clone of the clicked
@@ -8860,6 +8907,18 @@ function ProjectPicker({ projects, onSelect, onStartNew }) {
         <span className="pc-name">Start new project</span>
         <span className="pc-desc">Begin with an empty portfolio and score roles live, one at a time.</span>
       </button>
+
+      {/* A real download (no JS zip library needed, the file is prebuilt)
+          plus the modal below in one click - the anchor's own default
+          behavior fires the download; onClick never calls
+          preventDefault, so nothing here blocks it. */}
+      <div className="sample-data-row">
+        <a href="assets/sample-data/calderstone-sample-files.zip" download="calderstone-sample-files.zip"
+           className="sample-data-btn" onClick={() => setShowSampleData(true)}>
+          <span className="sample-data-ico" aria-hidden="true">⤓</span> Try it with sample data
+        </a>
+      </div>
+      {showSampleData && <SampleDataModal onClose={() => setShowSampleData(false)} />}
 
       <p className="footnote">The three worked examples above are entirely synthetic. All figures illustrative.</p>
     </div>
