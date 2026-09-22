@@ -1570,7 +1570,7 @@ function draftFacts(role) {
 }
 
 function draftCountSentence(f) {
-  return `${pluralize(f.removed, 'task')} go away. ${pluralize(f.changed, 'task')} change.`;
+  return `${pluralize(f.removed, 'task')} go away, ${pluralize(f.changed, 'task')} change shape.`;
 }
 
 /* One line, addressed to the manager/employee's own hierarchy question:
@@ -1578,35 +1578,35 @@ function draftCountSentence(f) {
    written per tier, not templated from one string, so the four tiers read
    like four different situations - because they are. */
 const TOWNHALL_OPENING = {
-  Rebuild:  'We are rebuilding how this role works, not adjusting it.',
-  Enable:   'Your tools are changing. Most of your judgment stays with you.',
-  Reassure: 'Little changes in your day-to-day work. The system behind you is changing.',
-  Inform:   'This program does not change your day-to-day work.',
+  Rebuild:  'We are rebuilding how this role works, not adjusting it, and we know that is a lot to take in.',
+  Enable:   'Your tools are changing. Most of the judgment calls in this job still stay with you.',
+  Reassure: 'Not much changes in your day-to-day. The system working behind you is what is changing.',
+  Inform:   'This program does not change your day-to-day work, so treat this as a plain heads-up.',
 };
-const TOWNHALL_CLOSING_CHANGED   = 'Your manager will name what you still decide and what the system now decides.';
-const TOWNHALL_CLOSING_UNCHANGED = 'Training and support are in place before you need them.';
+const TOWNHALL_CLOSING_CHANGED   = 'Your manager will sit down with you and name what you still decide and what the system now decides.';
+const TOWNHALL_CLOSING_UNCHANGED = 'Training and support are in place well before you need them.';
 
 const EMAIL_OPENING = {
-  Rebuild:  'This email covers a real change to how you do this job.',
-  Enable:   'This email covers a change to your tools and some of your tasks.',
-  Reassure: 'This is a short update. Your day-to-day work stays close to what it is now.',
-  Inform:   'This is a short update. It does not change your day-to-day work.',
+  Rebuild:  'This is a real change to how you do this job, and we wanted you to hear the details directly rather than secondhand.',
+  Enable:   'This is a change to your tools and a few of your day-to-day tasks. Here is what to expect.',
+  Reassure: 'This is a short update on a system change happening around you. Your own day-to-day work stays close to what it is now.',
+  Inform:   'This is a short update. It does not change your day-to-day work, so treat this as a heads-up rather than an action item.',
 };
 const EMAIL_CLOSING = {
-  Rebuild:  'Read this now. Your manager will follow up before go-live.',
-  Enable:   'Read this now. Ask your manager if anything is unclear.',
-  Reassure: 'No action is needed from you. Keep this for reference.',
-  Inform:   'No action is needed from you.',
+  Rebuild:  'Take a few minutes to read this now. Your manager will follow up before go-live to walk through it with you.',
+  Enable:   'Take a minute to read this now, and bring any questions to your manager.',
+  Reassure: 'There is nothing you need to do right now. Keep this for reference.',
+  Inform:   'There is nothing you need to do here. This is simply so you know what is coming.',
 };
 
 const MANAGER_OPENING = {
-  Rebuild:  (role) => `Open with this: the ${role.role} role changes substantially under the new system.`,
-  Enable:   (role) => `Open with this: the ${role.role} role keeps its shape, with new tools and fewer manual steps.`,
-  Reassure: (role) => `Open with this: the ${role.role} role sees little day-to-day change. The system behind it is changing.`,
-  Inform:   (role) => `Open with this: the ${role.role} role is not changing. This is a short heads-up only.`,
+  Rebuild:  (role) => `Open with this: the ${role.role} role changes substantially under the new system. Say plainly that this is a big shift for the people doing it.`,
+  Enable:   (role) => `Open with this: the ${role.role} role keeps its shape, with new tools and fewer manual steps to worry about.`,
+  Reassure: (role) => `Open with this: the ${role.role} role sees little day-to-day change. Be clear it is the system behind it changing, not their job.`,
+  Inform:   (role) => `Open with this: the ${role.role} role is not changing. Keep this brief, it is a heads-up, not a briefing.`,
 };
 const MANAGER_CLOSING = {
-  Rebuild:  'Close by naming the date training starts and who to ask with questions.',
+  Rebuild:  'Close by naming the date training starts and who to go to with questions. People will want somewhere to take their concerns.',
   Enable:   'Close by naming the date the new tools go live.',
   Reassure: 'Close by confirming there is nothing for them to do differently yet.',
   Inform:   'Close by confirming there is nothing for them to do.',
@@ -1619,12 +1619,12 @@ const MANAGER_Q_JOB = {
 };
 
 const SHIFT_OPENING = {
-  Rebuild:  'Big change is coming to how you do this job.',
-  Enable:   'Some of your tools are changing.',
-  Reassure: 'Not much changes for you.',
-  Inform:   'Nothing changes for you.',
+  Rebuild:  'A big change is coming to how you do this job, and we want you to hear it from us first.',
+  Enable:   'Some of your tools are changing. Most of what you decide day to day stays the same.',
+  Reassure: 'Not much changes for you here. What is changing is behind the scenes.',
+  Inform:   'Nothing changes for you with this one. Just keeping you in the loop.',
 };
-const SHIFT_CLOSING = 'Ask your supervisor if you are not sure.';
+const SHIFT_CLOSING = 'Ask your supervisor if anything here is not clear.';
 
 const POSTER_HEADLINE = {
   Rebuild:  'Your job is changing.',
@@ -1633,20 +1633,25 @@ const POSTER_HEADLINE = {
   Inform:   'Nothing changes for you.',
 };
 
-/* Five bullets, spoken. Kick-Off, desk-based roles. */
+/* Five bullets, spoken. Kick-Off, desk-based roles. Each bullet is a full
+   sentence a speaker can say aloud as-is, not a label-plus-fragment - the
+   room hears connected thoughts, not a read-out of a form. */
 function draftTownHall(role, goLiveDate) {
   const f = draftFacts(role);
   const d = goLiveDate ? fmtShortDate(dateFromGoLive(goLiveDate, milestoneWeeksFromGoLive(role.tier, 3))) : 'go-live';
   const bullets = [TOWNHALL_OPENING[role.tier]];
-  if (f.before0) bullets.push(`Stops ${d}: ${lowerFirst(f.before0)}.`);
-  if (f.after0) bullets.push(`Starts: ${lowerFirst(f.after0)}.`);
+  if (f.before0) bullets.push(`Until ${d}, here's where things stand: ${lowerFirst(f.before0)}.`);
+  if (f.after0) bullets.push(`From ${d}, here's what changes: ${lowerFirst(f.after0)}.`);
   bullets.push(draftCountSentence(f));
   bullets.push(f.decisionChanged ? TOWNHALL_CLOSING_CHANGED : TOWNHALL_CLOSING_UNCHANGED);
   return bullets;
 }
 
 /* ~150 words. Cutover News (what changes) and Training Awareness (what to
-   expect from training) share this shape, desk-based roles. */
+   expect from training) share this shape, desk-based roles. Reads as a
+   short, considerate email - context, then what changes, then what's
+   asked of the reader, then where to go for more - not a string of
+   clipped facts with no connective tissue between them. */
 function draftEmail(role, milestoneIdx, goLiveDate) {
   const f = draftFacts(role);
   const isCutover = milestoneIdx === 1;
@@ -1656,17 +1661,17 @@ function draftEmail(role, milestoneIdx, goLiveDate) {
     : `Training for the ${role.role} role: what to expect`;
   const lines = [EMAIL_OPENING[role.tier]];
   if (isCutover) {
-    lines.push(`This changes on ${d}.`);
-    if (f.before0) lines.push(`Stops: ${lowerFirst(f.before0)}.`);
-    if (f.after0) lines.push(`Starts: ${lowerFirst(f.after0)}.`);
-    lines.push(`${draftCountSentence(f)} ${pluralize(f.added, 'task')} ${f.added === 1 ? 'is' : 'are'} new.`);
+    lines.push(`Starting ${d}, here is what's different for you.`);
+    if (f.before0) lines.push(`Here's where things stand today: ${lowerFirst(f.before0)}.`);
+    if (f.after0) lines.push(`Here's what changes from ${d}: ${lowerFirst(f.after0)}.`);
+    lines.push(`${draftCountSentence(f)} ${pluralize(f.added, 'task')} ${f.added === 1 ? 'is' : 'are'} new to the role.`);
   } else {
     const design = trainingDesign(role);
     const hrs = Math.round(design.hours * 10) / 10;
-    lines.push(`Your training is ${pluralize(hrs, 'hour')} in total, delivered ${design.primary.method.toLowerCase()}.`);
-    if (f.after0) lines.push(`You will practice this before go-live: ${lowerFirst(f.after0)}.`);
+    lines.push(`To get you ready, there is ${pluralize(hrs, 'hour')} of training built in, delivered ${design.primary.method.toLowerCase()}.`);
+    if (f.after0) lines.push(`You will get hands-on practice with the part that matters most: ${lowerFirst(f.after0)}.`);
   }
-  if (f.decisionChanged) lines.push('Your manager will cover what you still decide and what the system now decides.');
+  if (f.decisionChanged) lines.push('Your manager will walk through, in person, what you still decide and what now sits with the system.');
   lines.push(EMAIL_CLOSING[role.tier]);
   return { subject, body: lines.join(' ') };
 }
@@ -1675,16 +1680,19 @@ function draftEmail(role, milestoneIdx, goLiveDate) {
    for desk-based roles; also attached early, at Kick-Off, for any role
    whose decision-rights score already triggers a manager briefing
    elsewhere in the app (draftFacts' own decisionChanged >= 4 threshold,
-   also used by managerActions). */
+   also used by managerActions). Third person throughout - this is a
+   manager's own prep sheet for talking about someone else's job, not a
+   message addressed to the employee. */
 function draftManagerBriefing(role, goLiveDate, early) {
   const f = draftFacts(role);
+  const d = goLiveDate ? fmtShortDate(dateFromGoLive(goLiveDate, milestoneWeeksFromGoLive(role.tier, 3))) : 'go-live';
   const design = trainingDesign(role);
   const hrs = Math.round(design.hours * 10) / 10;
   const script = early
-    ? [`Early heads-up: the ${role.role} role's decision rights are changing under the new system.`]
+    ? [`Early heads-up: the ${role.role} role's decision rights are changing under the new system, so it is worth raising now even though go-live is still a way off.`]
     : [MANAGER_OPENING[role.tier](role)];
-  if (f.before0) script.push(`Stops: ${lowerFirst(f.before0)}.`);
-  if (f.after0) script.push(`Starts: ${lowerFirst(f.after0)}.`);
+  if (f.before0) script.push(`Here's where things stand today: ${lowerFirst(f.before0)}.`);
+  if (f.after0) script.push(`Here's what changes from ${d}: ${lowerFirst(f.after0)}.`);
   script.push(draftCountSentence(f));
   script.push('Name one decision this role still makes, and one the system now makes instead.');
   script.push(early ? 'Close by telling them more detail comes at go-live.' : MANAGER_CLOSING[role.tier]);
@@ -1701,17 +1709,18 @@ function draftManagerBriefing(role, goLiveDate, early) {
 function draftShiftHuddle(role, goLiveDate) {
   const f = draftFacts(role);
   const d = goLiveDate ? fmtShortDate(dateFromGoLive(goLiveDate, milestoneWeeksFromGoLive(role.tier, 3))) : 'go-live';
-  const lines = [SHIFT_OPENING[role.tier], `This changes on ${d}.`];
-  if (f.before0) lines.push(`Stops: ${lowerFirst(f.before0)}.`);
-  if (f.after0) lines.push(`Starts: ${lowerFirst(f.after0)}.`);
+  const lines = [SHIFT_OPENING[role.tier]];
+  if (f.before0) lines.push(`Right now: ${lowerFirst(f.before0)}.`);
+  if (f.after0) lines.push(`From ${d}: ${lowerFirst(f.after0)}.`);
   lines.push(draftCountSentence(f));
-  lines.push('Training happens before this date.');
+  lines.push('Training happens before that date, so you will be ready.');
   lines.push(SHIFT_CLOSING);
   return lines.join(' ');
 }
 
 /* Under 25 words plus a QR reference. Roles with no desk or email, at
-   Cutover News and Training Awareness. */
+   Cutover News and Training Awareness - deliberately minimal (this is
+   signage read in passing, not a message), left as-is. */
 function draftPosterCopy(role) {
   const f = draftFacts(role);
   return {
@@ -1726,7 +1735,7 @@ function draftDropInNotice(role) {
   const f = draftFacts(role);
   const d = DOSES[role.tier];
   const focus = f.after0 ? lowerFirst(f.after0) : 'the new system';
-  return `Drop-in support is open now. Bring any question about this: ${focus}. No appointment needed. Support runs for ${pluralize(d.hypercareWeeks, 'week')} after go-live.`;
+  return `Drop-in support is open now, no appointment needed. Bring any question you have, especially about this: ${focus}. We will be here for ${pluralize(d.hypercareWeeks, 'week')} after go-live, so there is no rush to have it all figured out on day one.`;
 }
 
 /* Draft KIND per milestone index, matched to how each channel array
@@ -6795,6 +6804,71 @@ function draftCopyBlock(d, text) {
   return `${d.title}${d.roleName ? ': ' + d.roleName : ''}\n${d.channel || '-'} · ${d.audience} · ${d.sendDateLabel}\n\n${text}`;
 }
 
+/* Copies to the clipboard and reports whether it actually worked, rather
+   than swallowing the outcome - the caller (CopyButton) needs to know
+   which one happened, not just that an attempt was made. The
+   execCommand fallback only runs when the modern API itself is missing
+   or rejects (a non-secure context, a permissions policy denying it). */
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (e) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e2) {
+      return false;
+    }
+  }
+}
+
+/* A Copy control that shows whether the click actually worked: the label
+   swaps to "Copied" for ~1.5s (a real timeout, cleared on unmount or a
+   fresh click - never a CSS animation that could drift out of sync with
+   whether the copy itself succeeded) using the same Verdigris-family
+   "confirmed" treatment already used elsewhere (.review-state.assumed,
+   .note.warn, .draft-tag: a tinted border/background, text stays Onyx -
+   Verdigris text on white is banned by the brand's own contrast rule).
+   If the clipboard genuinely refuses (a permissions-restricted or
+   non-secure context), it says "Couldn't copy" instead - never claiming
+   success that didn't happen. `getText` is a function, not a string, so
+   a hand-edited draft's current value is read fresh at click time. */
+function CopyButton({ getText, label, className }) {
+  const [status, setStatus] = useState('idle'); // 'idle' | 'copied' | 'failed'
+  const timerRef = useRef(null);
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+  const onClick = async () => {
+    clearTimeout(timerRef.current);
+    const ok = await copyToClipboard(getText());
+    setStatus(ok ? 'copied' : 'failed');
+    timerRef.current = setTimeout(() => setStatus('idle'), 1500);
+  };
+  const stateClass = status === 'copied' ? ' copied' : status === 'failed' ? ' copy-failed' : '';
+  return (
+    <button type="button" className={(className || 'btn') + stateClass} onClick={onClick}>
+      {status === 'copied' ? 'Copied' : status === 'failed' ? "Couldn't copy" : label}
+    </button>
+  );
+}
+
+// An email draft's own "Subject: ...\n\n" prefix (see buildDraft), split
+// out from its body so the panel can style them as two distinct pieces of
+// the same plain-text draft rather than running the subject in as the
+// textarea's own first line. Draft content itself stays plain text either
+// way - this only changes how it's rendered and edited, never what's
+// stored or copied.
+function splitDraftSubject(text) {
+  const m = /^Subject: (.*)\n\n([\s\S]*)$/.exec(text);
+  return m ? { subject: m[1], body: m[2] } : null;
+}
+
 /* Reachable from a role's row (every milestone for that one role) and from
    a milestone on a tier's timeline (every role's draft for that one
    milestone) - CommunicationView opens this with a different `drafts`
@@ -6807,15 +6881,6 @@ function DraftsPanel({ title, subtitle, drafts, onClose }) {
 
   const valueFor = (d) => (edits[d.id] !== undefined ? edits[d.id] : d.text);
   const setValue = (id, v) => setEdits((e) => ({ ...e, [id]: v }));
-
-  const copy = async (text) => {
-    try { await navigator.clipboard.writeText(text); }
-    catch (e) {
-      const ta = document.createElement('textarea');
-      ta.value = text; document.body.appendChild(ta); ta.select();
-      document.execCommand('copy'); document.body.removeChild(ta);
-    }
-  };
 
   const groups = COMMS_MILESTONES
     .map((m, i) => ({ label: m.name, items: drafts.filter((d) => d.milestoneIdx === i) }))
@@ -6837,28 +6902,39 @@ function DraftsPanel({ title, subtitle, drafts, onClose }) {
             <div className="drafts-group" key={g.label}>
               <div className="drafts-group-head">
                 <h4>{g.label}</h4>
-                <button type="button" className="link-btn" onClick={() => copy(g.items.map((d) => draftCopyBlock(d, valueFor(d))).join('\n\n---\n\n'))}>
-                  Copy all drafts for this milestone
-                </button>
+                <CopyButton className="link-btn" label="Copy all drafts for this milestone"
+                            getText={() => g.items.map((d) => draftCopyBlock(d, valueFor(d))).join('\n\n---\n\n')} />
               </div>
-              {g.items.map((d) => (
-                <div className="draft-card" key={d.id}>
-                  <div className="draft-meta">
-                    <span className="draft-tag">Draft</span>
-                    <span className="draft-title">{d.title}{d.roleName ? ` · ${d.roleName}` : ''}</span>
+              {g.items.map((d) => {
+                const value = valueFor(d);
+                const split = splitDraftSubject(value);
+                return (
+                  <div className="draft-card" key={d.id}>
+                    <div className="draft-meta">
+                      <span className="draft-tag">Draft</span>
+                      <span className="draft-title">{d.title}{d.roleName ? ` · ${d.roleName}` : ''}</span>
+                    </div>
+                    <div className="draft-meta-2">
+                      <span>{d.channel || '-'}</span><span>·</span>
+                      <span>{d.audience}</span><span>·</span>
+                      <span>{d.sendDateLabel}</span>
+                    </div>
+                    {split && (
+                      <div className="draft-subject">
+                        <span className="draft-subject-label">Subject</span>
+                        <input type="text" className="draft-subject-text" value={split.subject}
+                               onChange={(e) => setValue(d.id, `Subject: ${e.target.value}\n\n${split.body}`)} />
+                      </div>
+                    )}
+                    <textarea className="draft-text" value={split ? split.body : value}
+                              onChange={(e) => setValue(d.id, split ? `Subject: ${split.subject}\n\n${e.target.value}` : e.target.value)}
+                              rows={Math.min(16, Math.max(4, Math.ceil((split ? split.body : value).length / 55)))} />
+                    <div className="btn-row">
+                      <CopyButton label="Copy" getText={() => valueFor(d)} />
+                    </div>
                   </div>
-                  <div className="draft-meta-2">
-                    <span>{d.channel || '-'}</span><span>·</span>
-                    <span>{d.audience}</span><span>·</span>
-                    <span>{d.sendDateLabel}</span>
-                  </div>
-                  <textarea className="draft-text" value={valueFor(d)} onChange={(e) => setValue(d.id, e.target.value)}
-                            rows={Math.min(16, Math.max(4, Math.ceil(valueFor(d).length / 55)))} />
-                  <div className="btn-row">
-                    <button type="button" className="btn" onClick={() => copy(valueFor(d))}>Copy</button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ))}
           {!drafts.length && <p className="hint">No drafts for this selection.</p>}
@@ -9756,6 +9832,7 @@ function applyDerivationResult(role, result) {
       tasksRemoved: result.tasksRemoved || 0,
       tasksChanged: result.tasksChanged || 0,
       tasksNew: result.tasksNew || 0,
+      fteDelta: result.fteDelta ?? 0,
       impact: result.impact || {},
       risk: result.risk || {},
       rationale: result.rationale || {},
@@ -9878,6 +9955,7 @@ function ReviewEditForm({ role, onSave, onCancel }) {
       tasksRemoved: d.tasksRemoved ?? role.tasksRemoved ?? 0,
       tasksChanged: d.tasksChanged ?? role.tasksChanged ?? 0,
       tasksNew: d.tasksNew ?? role.tasksNew ?? 0,
+      fteDelta: d.fteDelta ?? role.fteDelta ?? 0,
       source: d.source || null,
     });
   };
@@ -10430,6 +10508,14 @@ function App() {
         tasksRemoved: v.tasksRemoved ?? r.tasksRemoved,
         tasksChanged: v.tasksChanged ?? r.tasksChanged,
         tasksNew: v.tasksNew ?? r.tasksNew,
+        // v.fteDelta is always the per-person estimate (from the draft, or
+        // from ReviewEditForm's own pass-through of it) - scaled to a
+        // role-level total here, once, at the one place a draft's fields
+        // actually become the role's real ones. Never re-read r.fteDelta
+        // as a fallback: after a first accept it would already be a
+        // role-level (headcount-scaled) number, and falling back to it
+        // here would multiply it by headcount a second time.
+        fteDelta: (v.fteDelta ?? 0) * r.headcount,
         impact: v.impact || r.impact,
         risk: v.risk || r.risk,
         constraints: v.constraints || r.constraints,
@@ -10454,6 +10540,10 @@ function App() {
         ...r, needsInput: false, draft: null,
         summary: v.summary || r.summary, before: v.before || r.before, after: v.after || r.after,
         tasksRemoved: v.tasksRemoved ?? r.tasksRemoved, tasksChanged: v.tasksChanged ?? r.tasksChanged, tasksNew: v.tasksNew ?? r.tasksNew,
+        // Same scaling as applyAccept above, for the same reason - v is
+        // always r.draft here (bulk-accept never takes an edited patch),
+        // so v.fteDelta is always the per-person estimate.
+        fteDelta: (v.fteDelta ?? 0) * r.headcount,
         impact: v.impact || r.impact, risk: v.risk || r.risk, constraints: v.constraints || r.constraints,
         sourceRefs: v.source ? [v.source] : r.sourceRefs,
       };
@@ -10519,20 +10609,30 @@ function App() {
             <div className="tb-actions">
               {/* Only ever true for a wizard-created project mid- or
                   post-derivation - never the three examples, which have no
-                  needsInput roles and no derivationProgress to begin with. */}
-              {project.kind === 'new' && (derivationProgress || reviewRoles.length > 0) && (
-                <span className="weight-alert">
-                  <span className="weight-alert-text">
-                    {derivationProgress && derivationProgress.active
-                      ? `Drafting… ${derivationProgress.done}/${derivationProgress.total}`
-                      : (() => {
-                          const { drafted, assumed, needsInput } = splitReviewStates(reviewRoles);
-                          return `${drafted.length} drafted, ${assumed.length} assumed, ${needsInput.length} need input`;
-                        })()}
+                  needsInput roles and no derivationProgress to begin with.
+                  The actionable number only - how many still need a look -
+                  not the full three-way split, which already has its own
+                  tiles on the Review screen. Renders nothing once neither
+                  count is above zero, whatever derivationProgress happens
+                  to still hold from an earlier, now fully-reviewed batch. */}
+              {project.kind === 'new' && (() => {
+                const active = derivationProgress && derivationProgress.active;
+                let pillText = '';
+                if (active) {
+                  pillText = `Drafting… ${derivationProgress.done}/${derivationProgress.total}`;
+                } else {
+                  const { assumed, needsInput } = splitReviewStates(reviewRoles);
+                  if (needsInput.length > 0) pillText = `${pluralize(needsInput.length, 'role')} need review`;
+                  else if (assumed.length > 0) pillText = `${pluralize(assumed.length, 'assumption')} to confirm`;
+                }
+                if (!pillText) return null;
+                return (
+                  <span className="weight-alert">
+                    <span className="weight-alert-text">{pillText}</span>
+                    <button type="button" className="link-btn" onClick={() => switchTab('review')}>Review roles</button>
                   </span>
-                  <button type="button" className="link-btn" onClick={() => switchTab('review')}>Review</button>
-                </span>
-              )}
+                );
+              })()}
               {!weightsAreDefault(weights) && (
                 <span className="weight-alert">
                   Custom weighting active

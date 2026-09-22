@@ -229,21 +229,20 @@ a { color: var(--aberdeen-blue); }
    the row's own height is (driven by the logo/title next to it) instead
    of needing to be re-tuned by hand if either one changes size again. */
 .tb-divider { width: 1px; align-self: stretch; background: var(--hairline-strong); flex: none; }
-/* Left-aligned against the divider, not centered: the pill and the count
-   are a fixed-size group (neither one shrinks - see .project-tag and
-   .topbar .sub), so whatever room .tb-context has left over after them is
-   real slack, not content, and it has to go somewhere. Center would split
-   that slack into two gaps (one on each side of the group); left-aligned
-   puts all of it in one place - the gap between the count and "All
-   projects" - which is also the one spot on the bar with nothing else
-   that could use it. No min-width: 0 / overflow: hidden here any more:
-   both were quietly re-enabling exactly the shrink-and-clip behavior the
-   fix below removes from .project-tag itself, which is what made the
-   previous attempt at this not actually change anything. */
+/* Left-aligned against the divider, not centered: the pill is a fixed-size
+   element (.project-tag never shrinks above the breakpoint below), so
+   whatever room .tb-context has left over after it is real slack, not
+   content, and it has to go somewhere. Center would split that slack into
+   two gaps (one on each side of the group); left-aligned puts all of it in
+   one place - the gap between the count and "All projects". The count
+   itself (.topbar .sub) is no longer part of that fixed group: it's the
+   one thing here allowed to shrink and ellipsis, so a long enough
+   drafting-status pill in .tb-actions never has to clip or push "All
+   projects" off the edge of the screen - this line gives way first. */
 .tb-context {
   display: flex; align-items: center; gap: 14px; flex-wrap: nowrap;
   padding-left: 16px; margin-left: 2px; border-left: 1px solid var(--hairline-strong);
-  flex: 1 1 auto;
+  flex: 1 1 auto; min-width: 0;
 }
 /* flex: 0 1 auto + min-width: 0, not flex: none: this group can hold a
    drafting-status pill whose text length depends on the project (role
@@ -291,12 +290,15 @@ a { color: var(--aberdeen-blue); }
   }
 }
 /* Same weight as the pill beside it, not a quieter afterthought - the two
-   are one group (what project, how big), so they carry matching emphasis.
-   flex: none: this one stays fully visible always, even as the pill next
-   to it gives up space first. */
+   are one group (what project, how big). Unlike the project pill, this one
+   is allowed to shrink and ellipsis: it's the one thing in the header with
+   both a variable length (role/people/incomplete counts) and nothing a
+   reader loses much by not seeing in full at a narrow width, so it's what
+   gives way before a long drafting-status pill in .tb-actions ever has to
+   clip or push "All projects" off the edge of the screen. */
 .topbar .sub {
   font-size: 13px; font-weight: 500; color: var(--ink-2); font-variant-numeric: tabular-nums;
-  white-space: nowrap; flex: none;
+  white-space: nowrap; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* Persistent, visible from every tab, whenever weights differ from
@@ -1005,6 +1007,15 @@ select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-
 .btn:disabled { opacity: .55; cursor: default; }
 .btn-row { display: flex; gap: var(--space-8); flex-wrap: wrap; align-items: center; }
 
+/* Real copy feedback (see CopyButton): the same Verdigris-family
+   "confirmed" treatment as .review-state.assumed/.note.warn/.draft-tag -
+   tinted border and background, text stays Onyx, never Verdigris text on
+   white. A failed copy stays visually plain (just the label changes) so
+   it never reads as a second kind of success. */
+.btn.copied { border-color: var(--flag-line); background: var(--flag-wash); color: var(--flag); }
+.btn.copy-failed { color: var(--flag); }
+.link-btn.copied, .link-btn.copy-failed { color: var(--flag); text-decoration: none; }
+
 /* ---------------------------------------------------------------- heat map */
 
 /* No card, no border, no background here on purpose: the plot is the
@@ -1687,6 +1698,18 @@ table.data td .incflag {
   background: var(--surface); resize: vertical; margin-bottom: var(--space-8);
 }
 .draft-text:focus-visible { outline: 2px solid var(--verdigris); outline-offset: 1px; }
+/* An email draft's "Subject:" line, split out at render time (see
+   splitDraftSubject) into its own labeled row instead of running in as
+   the textarea's own first line - same label voice as .drc-label, the
+   subject itself a touch heavier than the body text below it, with its
+   own thin rule marking where the body starts. */
+.draft-subject { margin-bottom: var(--space-8); padding-bottom: var(--space-8); border-bottom: 1px solid var(--hairline-strong); }
+.draft-subject-label { display: block; font-size: 10.5px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--caption); margin-bottom: 2px; }
+.draft-subject-text {
+  display: block; width: 100%; font: inherit; font-weight: 600; font-size: 13.5px; color: var(--ink);
+  border: none; padding: 0; background: none; border-radius: 2px;
+}
+.draft-subject-text:focus-visible { outline: 2px solid var(--verdigris); outline-offset: 2px; }
 
 @media (max-width: 767px) {
   .drafts-overlay { padding: 0; align-items: flex-end; }

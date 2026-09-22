@@ -86,6 +86,7 @@ const OUTPUT_SCHEMA = {
     tasksRemoved: { type: 'number' },
     tasksChanged: { type: 'number' },
     tasksNew: { type: 'number' },
+    fteDelta: { type: 'number', description: 'Signed decimal, roughly -1.0 to 1.0: the estimated change in full-time-equivalent workload for ONE typical person in this role, not the whole headcount. 0 if state is needsInput.' },
     impact: {
       type: 'object',
       description: 'The anchor band (1-5, whole number) each impact sub-factor matches. All 0 if state is needsInput.',
@@ -113,7 +114,7 @@ const OUTPUT_SCHEMA = {
     sourceQuote: { type: 'string', description: 'ONLY for state drafted: a short quote (under 200 characters) from that file supporting this. Empty string for assumed or needsInput.' },
     assumptionBasis: { type: 'string', description: 'ONLY for state assumed: one or two sentences naming the general knowledge (the role title, the named systems) and any related-role, related-function or same-site evidence the draft rests on. Empty string for drafted or needsInput.' },
   },
-  required: ['state', 'before', 'after', 'tasksRemoved', 'tasksChanged', 'tasksNew', 'impact', 'risk', 'rationale', 'constraints', 'summary', 'sourceFileName', 'sourceQuote', 'assumptionBasis'],
+  required: ['state', 'before', 'after', 'tasksRemoved', 'tasksChanged', 'tasksNew', 'fteDelta', 'impact', 'risk', 'rationale', 'constraints', 'summary', 'sourceFileName', 'sourceQuote', 'assumptionBasis'],
   additionalProperties: false,
 };
 
@@ -150,20 +151,24 @@ const SYSTEM_PROMPT = [
   '1. List the before and after tasks (real, from the documents, if drafted; a plausible before/after for this kind of',
   '   role and change, if assumed). Count how many disappear (removed), how many change shape (changed) and how many',
   '   are genuinely new.',
-  '2. For each of the six sub-factors, pick the ONE anchor band (a whole number, 1 to 5) from the supplied ladder that',
+  '2. Estimate fteDelta: how much of ONE typical person\'s full-time workload in this role this change frees up',
+  '   (negative) or adds (positive), roughly -1.0 to 1.0. Base it on the same before/after evidence as the task',
+  '   counts above, not a separate guess. This is a per-person estimate, never the whole role\'s headcount multiplied',
+  '   in - leave that arithmetic to the caller.',
+  '3. For each of the six sub-factors, pick the ONE anchor band (a whole number, 1 to 5) from the supplied ladder that',
   '   best matches the evidence (drafted) or the typical case for this kind of role and change (assumed). Do not',
   '   interpolate between bands and do not default to the middle out of caution. decisionRights is specifically about',
   '   approval or override authority moving from the person to the system or to another role. localReadiness is',
   '   scored 5 = LEAST ready (most gap), 1 = most ready.',
-  '3. For each sub-factor, write one short sentence naming the band you picked. If drafted, quote or closely',
+  '4. For each sub-factor, write one short sentence naming the band you picked. If drafted, quote or closely',
   '   paraphrase the specific evidence for it. If assumed, say plainly that it is a typical assumption for this kind',
   '   of role, not a documented fact.',
-  '4. List constraints affecting delivery for this role (for example: works on the floor, no desk or email, shift',
+  '5. List constraints affecting delivery for this role (for example: works on the floor, no desk or email, shift',
   '   coverage, a named regulatory or compliance requirement): from the documents if drafted, or only the ones',
   '   generally true of this kind of role if assumed.',
-  '5. Write one paragraph, plain business English, addressed to a change-management practitioner, summarizing what',
+  '6. Write one paragraph, plain business English, addressed to a change-management practitioner, summarizing what',
   '   changes and why it matters for this role.',
-  '6. If drafted, name the one file and a short supporting quote (under 200 characters, verbatim from that file) you',
+  '7. If drafted, name the one file and a short supporting quote (under 200 characters, verbatim from that file) you',
   '   relied on most; leave sourceFileName and sourceQuote empty. If assumed, leave both of those empty and instead',
   '   fill assumptionBasis with what the draft rests on.',
   '',
@@ -229,11 +234,20 @@ function clampBand(v) {
   return Math.min(5, Math.max(0, n));
 }
 
+// A hallucinated outlier here would distort the portfolio-wide FTE total
+// this feeds into (see index.html's fteNet, a raw sum across every role),
+// not just one role's own display - clamp defensively, same as clampBand,
+// regardless of what the schema already asks the model to stay within.
+function clampFteDelta(v) {
+  const n = typeof v === 'number' && isFinite(v) ? v : 0;
+  return Math.round(Math.min(1, Math.max(-1, n)) * 10) / 10;
+}
+
 function needsInputResult() {
   return {
     state: 'needsInput',
     before: [], after: [],
-    tasksRemoved: 0, tasksChanged: 0, tasksNew: 0,
+    tasksRemoved: 0, tasksChanged: 0, tasksNew: 0, fteDelta: 0,
     impact: { taskShare: 0, frequencyVolume: 0, errorConsequence: 0 },
     risk: { decisionRights: 0, capabilityDelta: 0, localReadiness: 0 },
     rationale: SUB_FACTOR_KEYS.reduce((o, k) => { o[k] = ''; return o; }, {}),
@@ -296,6 +310,7 @@ async function callAnthropic(payload, apiKey) {
       tasksRemoved: Math.max(0, Math.round(Number(parsed.tasksRemoved) || 0)),
       tasksChanged: Math.max(0, Math.round(Number(parsed.tasksChanged) || 0)),
       tasksNew: Math.max(0, Math.round(Number(parsed.tasksNew) || 0)),
+      fteDelta: clampFteDelta(parsed.fteDelta),
       impact: {
         taskShare: clampBand(parsed.impact && parsed.impact.taskShare),
         frequencyVolume: clampBand(parsed.impact && parsed.impact.frequencyVolume),
