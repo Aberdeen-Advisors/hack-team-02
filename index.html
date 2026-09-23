@@ -903,13 +903,19 @@ function trimTrailingFiller(s) {
   return words.join(' ');
 }
 
-/* One after-task -> one teachable module name, always a verb phrase, never
-   the input string verbatim. Three passes, in order: an active verb this
-   app recognizes (most after-tasks); failing that, a passive construction
-   ("<subject> is <participle>", or a subject already led by a gerund
-   noun - "Sequencing constrained by system rules" keeps that lead and
-   states the constraint); failing that, a plain noun phrase framed as
-   something to work with, or without. */
+/* One after-task -> one teachable module name. Two passes: an active verb
+   this app recognizes near the front of the sentence (most after-tasks,
+   turned into a gerund-led phrase - "Reviews invoices..." becomes
+   "Reviewing invoices..."); failing that, the after-task's own words, used
+   exactly as written rather than reshaped. Every after-task is already a
+   complete, grammatical description of the after-state ("Supplier terms
+   read from validated master data"), so falling back to it verbatim is
+   always grammatical - unlike guessing at a passive clause's subject/verb
+   boundary, which can't reliably tell an adjectival participle modifying
+   the following noun ("validated master data") apart from a genuine
+   passive main verb, and used to produce dangling, glued-together
+   fragments when it guessed wrong ("Working from the validated supplier
+   terms read from"). */
 function toModuleName(task) {
   let s = task.trim().replace(/\.$/, '');
   s = stripContrastClause(s);
@@ -925,40 +931,7 @@ function toModuleName(task) {
     return tidyPhrase(capitalizeWord(g) + (rest ? ' ' + lowerFirstWord(rest) : ''));
   }
 
-  const passive = passiveSplit(words);
-  if (passive) {
-    const { subject, participle, object } = passive;
-    if (/ing$/i.test(subject)) {
-      return tidyPhrase(object ? `${subject} within ${lowerFirstWord(object)}` : `${subject}, ${participle.toLowerCase()}`);
-    }
-    return tidyPhrase(`Working from the ${participle.toLowerCase()} ${lowerFirstWord(subject)}`);
-  }
-
-  return tidyPhrase(`Working with ${lowerFirstWord(s)}`);
-}
-
-/* Finds the FIRST word that reads as a passive participle (optionally
-   after is/are) and stops there, rather than a single backtracking regex -
-   which, given no valid trailing object, would keep expanding its subject
-   capture across a whole coordinated pair ("Spares reserved and issued
-   against the order" read "reserved" as part of the SUBJECT so it could
-   reach "issued" instead, producing "the issued spares reserved and").
-   Taking the first participle and dropping anything the sentence
-   coordinates onto it after is a deliberate simplification, not a bug -
-   the module still names the task's core state accurately. */
-function passiveSplit(words) {
-  for (let i = 1; i < words.length; i++) {
-    const isAux = /^(?:is|are)$/i.test(words[i]);
-    const pIdx = isAux ? i + 1 : i;
-    const pWord = (words[pIdx] || '').replace(/[.,;]$/, '');
-    if (!/^[a-z-]+(?:ed|en)$/i.test(pWord)) continue;
-    const subject = words.slice(0, i).join(' ');
-    const after = words.slice(pIdx + 1);
-    const object = /^(?:by|through|against|within|from|with)$/i.test(after[0] || '')
-      ? after.slice(1).join(' ') : null;
-    return { subject, participle: pWord, object };
-  }
-  return null;
+  return tidyPhrase(trimTrailingFiller(s));
 }
 
 /* Judgment, exceptions and new decision-making cost more session time than
@@ -6226,13 +6199,19 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate }) {
                 {p.modules && (
                   <div className="pkg-detail">
                     <ol className="pkg-modules">
-                      {p.modules.map((m, mi) => (
-                        <li key={mi}>
-                          <span className="num">{mi + 1}.</span>
-                          <span>{m.text}</span>
-                          <span className="hrs">{pluralize(m.hours, 'hr')}</span>
-                        </li>
-                      ))}
+                      {p.modules.map((m, mi) => {
+                        const cites = refsForTask(role, m.source);
+                        return (
+                          <li key={mi}>
+                            <span className="num">{mi + 1}.</span>
+                            <span>{m.text}</span>
+                            <span className="hrs">{pluralize(m.hours, 'hr')}</span>
+                            {cites.map((ref, ri) => (
+                              <span className="pkg-cite" key={ri}><b>{ref.fileName}</b>: “{ref.snippet}”</span>
+                            ))}
+                          </li>
+                        );
+                      })}
                     </ol>
                   </div>
                 )}
@@ -6250,16 +6229,6 @@ function OnePager({ role, onBack, backLabel, citeDeck, goLiveDate }) {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-          {(role.sourceRefs || []).length > 0 && (
-            <div style={{ marginTop: 'var(--space-16)' }}>
-              <h5 className="op-kicker">Mentioned in the uploaded documents</h5>
-              <ul className="source-ref-list">
-                {role.sourceRefs.map((ref, i) => (
-                  <li key={i}><b>{ref.fileName}</b>: “{ref.snippet}”</li>
-                ))}
-              </ul>
             </div>
           )}
         </div>
@@ -8814,6 +8783,44 @@ function mentionScan(roleNames, uploads) {
     return refs;
   });
   return { docCount: docs.length, refsByIndex };
+}
+
+// Common words excluded from the citation-matching overlap below, on top
+// of the plain length cut (under 4 letters). Long enough to pass that cut
+// but still too generic to count as evidence a snippet is actually about
+// one specific task, not just nearby prose.
+const CITATION_STOPWORDS = new Set([
+  'that', 'this', 'with', 'from', 'into', 'through', 'against', 'within',
+  'rather', 'than', 'instead', 'their', 'they', 'were', 'been', 'have',
+  'only', 'also', 'once', 'still', 'other',
+]);
+function citationWords(s) {
+  return (s.toLowerCase().match(/[a-z][a-z-]{3,}/g) || []).filter((w) => !CITATION_STOPWORDS.has(w));
+}
+
+/* Which of a role's document mentions (see mentionScan) actually support
+   ONE specific after-task, not just anywhere the role's name happens to
+   come up. mentionScan's snippet is a role-NAME proximity match, not a
+   task-content match, so most of a role's own refs don't describe any
+   particular curriculum step at all - attaching all of them under every
+   step (or under the plan as a whole) would overstate what the document
+   actually said about that step. A snippet only counts as support for a
+   task when at least two of that task's own distinctive words actually
+   turn up in it: one shared word is coincidence (nearly every after-task
+   mentions "system"), two is real overlap. A task with fewer than two
+   citable words of its own (short, mostly stopwords) can never acquire a
+   citation this way, which is the correct, honest answer for it, not a
+   gap to fill by borrowing one from elsewhere in the plan. */
+function refsForTask(role, task) {
+  const refs = role.sourceRefs || [];
+  if (!refs.length || !task) return [];
+  const words = citationWords(task);
+  if (!words.length) return [];
+  return refs.filter((ref) => {
+    const hay = ref.snippet.toLowerCase();
+    const hits = words.filter((w) => hay.includes(w));
+    return hits.length >= Math.min(2, words.length);
+  });
 }
 
 /* The real Aberdeen A-mark, inlined (not redrawn) from assets/brand/icon-
