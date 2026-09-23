@@ -7425,6 +7425,12 @@ const ASK_STOPWORDS = new Set([
   'people', 'person', 'work', 'works', 'worker', 'workers', 'staff', 'team', 'teams',
   'group', 'groups', 'need', 'needs', 'needed', 'affect', 'affects', 'affected', 'impacted',
   'get', 'gets', 'got', 'like', 'just', 'really', 'actually', 'here', 'there', 'out', 'for',
+  // "data" on its own is generic enough to show up in an ordinary provenance
+  // question ("is this role's data from our documents") that has nothing to
+  // do with any specific role - without this, that single shared word was
+  // enough to make Thornwood's "Master Data Steward" outrank the actual
+  // role already in play and hijack a pronoun follow-up meant for it.
+  'data',
 ]);
 
 /* Crude but sufficient singularization for matching "nurses" -> "nurse",
@@ -7468,6 +7474,27 @@ function findRoleMatches(q, roles) {
   if (!scored.length) return [];
   const maxOverlap = Math.max(...scored.map((x) => x.overlap));
   return scored.filter((x) => x.overlap === maxOverlap).map((x) => x.r);
+}
+
+/* "Compare A and B" needs BOTH named roles, but findRoleMatches' own
+   highest-overlap-wins rule (right above) is tuned for finding the one
+   role a question is about, not two at once - naming a short role
+   ("Plant Controller", 2 words) alongside a longer one ("Field Sales
+   Representative", 3 words) in the same sentence lets the longer name's
+   own higher word overlap silently outrank and drop the shorter one,
+   returning only one match for what was actually two names. Splitting on
+   the comparison word itself and matching each half separately sidesteps
+   that entirely: each half only ever competes against role names within
+   its own clause. Falls back to whichever roles the whole question
+   matches if splitting doesn't cleanly resolve to two distinct roles. */
+function resolveCompareRoles(q, allRoles) {
+  const parts = q.split(/\b(?:and|vs\.?|versus)\b/i).map((s) => s.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    const a = findRoleMatches(parts[0], allRoles);
+    const b = findRoleMatches(parts[parts.length - 1], allRoles);
+    if (a.length === 1 && b.length === 1 && a[0].id !== b[0].id) return [a[0], b[0]];
+  }
+  return findRoleMatches(q, allRoles);
 }
 
 /* Tier-name entity: a literal Rebuild/Enable/Reassure/Inform mention. */
@@ -7569,15 +7596,39 @@ const GLOSSARY = [
     text: () => "A sandbox, or practice environment, is a safe copy of the new system where people can actually try the new way of working before go-live, without touching real data." },
   { id: 'hypercare', re: /hypercare|support after go-?live/i,
     text: () => "Support after go-live (sometimes called hypercare) is extra, closer support, a trained colleague or peer champion nearby, easier access to help, that continues for a set number of weeks after go-live before things settle into normal, ongoing support." },
-  { id: 'site-archetype', re: /site archetypes?|site types?\b/i,
-    text: (ctx) => `A site archetype, or site type, is the kind of location a role works from${ctx.project.siteArchetypeBase.length > 1 ? ` - ${ctx.project.siteArchetypeBase.join(', ')} at ${ctx.project.name}` : ` (every role at ${ctx.project.name} is ${ctx.project.siteArchetypeBase[0]})`}. A role can span more than one when its people actually work across more than one kind of site.` },
+  { id: 'site-archetype', re: /site archetypes?|site types?\b|named site\b/i,
+    text: (ctx) => `A site archetype, or site type, is the kind of location a role works from, not a specific named site - ${ctx.project.siteArchetypeBase.length > 1 ? `${ctx.project.name} has ${ctx.project.siteArchetypeBase.join(', ')}` : `every role at ${ctx.project.name} is ${ctx.project.siteArchetypeBase[0]}`}. A role can span more than one type when its people actually work across more than one kind of site. A project built from your own documents can also carry each role's actual site NAME alongside its type, when the source data has one; the three example projects here only ever carry the type.` },
   { id: 'draft-confidence', re: /from your documents|our starting assumption|needs input\b|draft confidence|assumed vs\.? drafted/i,
     text: () => "When this tool builds a project from your own uploaded documents, every role starts in one of three states: drafted straight from something the documents actually said, an assumption made from general knowledge because the documents didn't say enough, or needing your input because nothing in the documents said anything useful at all. Only the first counts as real evidence, the other two are flagged so nobody mistakes a guess for a fact." },
 ];
-function detectGlossaryEntity(q) {
-  return GLOSSARY.find((g) => g.re.test(q)) || null;
+// Every glossary term the question actually names, not just the first -
+// "what's the difference between decision rights and capability delta"
+// names two, and the honest way to answer a difference between two plain
+// definitions is to state both, not invent a third, comparative sentence
+// that isn't grounded in either one's own source text.
+function detectGlossaryMatches(q) {
+  return GLOSSARY.filter((g) => g.re.test(q));
 }
-function askGlossaryTerm(ctx, entity) {
+function askGlossaryTerm(ctx, matches) {
+  return { text: matches.map((m) => m.text(ctx)), chips: ['which-matter', 'how-scored'] };
+}
+
+/* Genuinely outside this tool's own data and design - declined cleanly and
+   briefly, never guessed at, per the same "never fabricate" standard every
+   other number in this app already holds itself to. Checked only once
+   nothing else (a role, tier, site, tab, metric or glossary term) already
+   answered the question, so a real, in-scope question is never wrongly
+   declined just because it also happens to use one of these words. */
+const DECLINE_TOPICS = [
+  { id: 'cost-dollars', re: /\bdollars?\b|\bpric(e|es|ed|ing)\b|\bcost(s|ing)?\b|\bbudget (figure|number|estimate)\b|\broi\b|return on investment/i,
+    text: (ctx) => "This tool deliberately puts no dollar figure on any of this - there's no cost model, rate card or ROI calculation anywhere in it, only the effort-share percentage on Stakeholder Impact, which is a relative weighting across roles, not a budget. A real cost estimate would come from your own rate cards and delivery plan, not from this assessment." },
+  { id: 'hr-legal', re: /\bfire (anyone|someone|people|staff|employees|them|him|her)\b|\blayoffs?\b|\blay ?offs?\b|\bterminat(e|ion|ing)\b|\bredundan(t|cy|cies)\b|\bsue\b|\blawsuit\b|\blegal (risk|liability|advice)\b|\bdiscriminat\w*\b/i,
+    text: (ctx) => "That's a people-management or legal decision for your own HR and legal teams, not something this tool assesses. It only scores how much a role's work changes and how ready people are for that change, never employment or compliance decisions." },
+];
+function detectDeclineEntity(q) {
+  return DECLINE_TOPICS.find((d) => d.re.test(q)) || null;
+}
+function askDecline(ctx, entity) {
   return { text: [entity.text(ctx)], chips: ['which-matter', 'how-scored'] };
 }
 
@@ -7591,7 +7642,8 @@ function detectEntities(q, ctx, allRoles) {
     site: detectSiteEntity(q, ctx.scored, ctx.project),
     tab: detectTabEntity(q),
     metric: detectMetricEntity(q),
-    glossary: detectGlossaryEntity(q),
+    glossary: detectGlossaryMatches(q),
+    decline: detectDeclineEntity(q),
   };
 }
 
@@ -7773,6 +7825,275 @@ function askAboutRoleMatches(matches) {
   };
 }
 
+// Pronoun/anaphora a follow-up question uses to mean "the role we were just
+// talking about" - deliberately narrow (not a bare "it", which shows up in
+// far too many unrelated sentences to safely treat as a role reference).
+const ASK_ROLE_PRONOUN = /\btheir\b|\bthem\b|\bthis role\b|\bthat role\b/i;
+/* A DELIBERATE role name, not a coincidental one: these detail intents'
+   own trigger vocabulary ("support", "training", "data", "module") can be
+   a real word inside an unrelated role's own title ("IT / Systems
+   Support", "Master Data Steward") - findRoleMatches' plain one-word
+   overlap is tuned for finding the role a bare mention is about, not for
+   telling that apart from this kind of coincidence. Requiring 2+ shared
+   words (or the literal full name) is the bar a real mention clears and a
+   stray shared word doesn't. */
+function strongRoleMatches(q, roles) {
+  const needleFull = q.trim().toLowerCase();
+  if (needleFull.length >= 3) {
+    const exact = roles.filter((r) => r.role.toLowerCase() === needleFull);
+    if (exact.length) return exact;
+  }
+  const qWords = new Set(meaningfulWords(q));
+  if (!qWords.size) return [];
+  const scored = roles
+    .map((r) => ({ r, overlap: new Set(meaningfulWords(r.role).filter((w) => qWords.has(w))).size }))
+    .filter((x) => x.overlap >= 2);
+  if (!scored.length) return [];
+  const maxOverlap = Math.max(...scored.map((x) => x.overlap));
+  return scored.filter((x) => x.overlap === maxOverlap).map((x) => x.r);
+}
+/* The role a follow-up question is actually about. Pronoun language
+   ("their", "this role") is a deliberate, unambiguous signal that the
+   question means the role already in play, so it wins first, UNLESS the
+   question also carries a genuinely strong name match (2+ words, or an
+   exact full name) - the rare case of actually naming a different role in
+   the same breath ("does Field Sales Representative get their own
+   champion"). Failing pronoun language entirely, an ordinary single-role
+   match still resolves a bare, unambiguous mention with no pronoun at
+   all ("tell me about the scheduler's training"). No match either way
+   stays role-less rather than guessing. */
+function resolveRoleForDetail(ctx, q, entities) {
+  const allRoles = [...ctx.scored, ...ctx.incomplete];
+  if (ASK_ROLE_PRONOUN.test(q) && ctx.lastRole) {
+    const strong = strongRoleMatches(q, allRoles);
+    if (strong.length === 1) return strong[0];
+    return ctx.lastRole;
+  }
+  if (entities.roleMatches.length === 1) return entities.roleMatches[0];
+  return null;
+}
+function askWhichRole() {
+  return { text: ['Which role do you mean?'], chips: ['which-matter'] };
+}
+
+/* One specific curriculum module (or the whole numbered list, if no number
+   was named) - reads packageFor(role), the exact same call TrainingView and
+   the one-pager's own package list render from, so this can never disagree
+   with what's on screen. */
+function roleTrainingModule(role, ctx, n) {
+  if (role.tier !== 'Rebuild' && role.tier !== 'Enable') {
+    return {
+      text: [`${role.role} is ${role.tier}, so there's no module-based curriculum for it - ${TIER_PLAIN[role.tier].support}`],
+      roleLinks: [role],
+      chips: [{ label: `What does ${role.tier} mean?`, question: `What does ${role.tier} mean?` }, 'which-matter'],
+    };
+  }
+  const trainingItem = packageFor(role).find((p) => p.modules);
+  const modules = trainingItem && trainingItem.modules;
+  if (!modules || !modules.length) {
+    return { text: [`${role.role} doesn't have enough after-tasks recorded yet to break its training into modules.`], roleLinks: [role], chips: ['which-matter'] };
+  }
+  if (!n || n < 1 || n > modules.length) {
+    return {
+      text: [
+        `${role.role}'s training has ${pluralize(modules.length, 'module')}:`,
+        ...modules.map((m, i) => `${i + 1}. ${m.text} (${pluralize(m.hours, 'hr')})`),
+      ],
+      roleLinks: [role],
+      chips: ['which-matter', 'how-scored'],
+    };
+  }
+  const m = modules[n - 1];
+  return {
+    text: [
+      `Module ${n} of ${role.role}'s training: ${m.text} (${pluralize(m.hours, 'hr')}).`,
+      `It's built directly from this after-task: "${m.source}".`,
+    ],
+    roleLinks: [role],
+    chips: ['which-matter', 'how-scored'],
+  };
+}
+
+/* The specific generated communication a role gets - reads draftsForRole,
+   the exact same generator the Communication tab's own drafts panel calls,
+   never a description of what a draft might say. Tries to match whatever
+   the question named (a milestone, "manager") before defaulting to the
+   earliest one. */
+function roleCommunicationDetail(role, ctx, q) {
+  const drafts = draftsForRole(role, ctx.project.goLiveDate);
+  if (!drafts.length) return { text: [`No message drafts are generated for ${role.role}.`], roleLinks: [role], chips: ['which-matter'] };
+  const milestoneHit = COMMS_MILESTONES.find((m) => new RegExp(m.name.replace(/[- ]/g, '.?'), 'i').test(q));
+  let target = null;
+  if (/manager/i.test(q)) target = drafts.find((d) => d.kind === 'managerBriefing');
+  if (!target && milestoneHit) target = drafts.find((d) => d.milestoneLabel === milestoneHit.name);
+  if (!target) target = drafts[0];
+  const preview = target.text.length > 320 ? target.text.slice(0, 320) + '…' : target.text;
+  const remaining = drafts.length - 1;
+  return {
+    text: [
+      `${role.role}'s ${target.milestoneLabel} communication (${target.channel}, sent ${target.sendDateLabel}): ${target.title}.`,
+      preview,
+      remaining > 0 ? `${pluralize(remaining, 'more message')} across the other milestones for this role, on the Communication tab.` : '',
+    ].filter(Boolean),
+    roleLinks: [role],
+    chips: ['which-matter', 'how-scored'],
+  };
+}
+
+/* Real, role-specific support duration - DOSES[tier].hypercareWeeks plus
+   the actual calendar date it ends on, when a go-live date is set (same
+   dateFromGoLive the Communication timeline itself uses), not a portfolio-
+   wide answer like askGoLive/askHowLong give when no one role was named. */
+function roleSupportDuration(role, ctx) {
+  const d = DOSES[role.tier];
+  const weeks = d.hypercareWeeks;
+  const endDate = ctx.project.goLiveDate ? dateFromGoLive(ctx.project.goLiveDate, weeks) : null;
+  return {
+    text: [
+      `${role.role} (${role.tier}) gets ${pluralize(weeks, 'week')} of extra support after go-live${endDate ? `, ending around ${fmtShortDate(endDate)}` : ''}.`,
+      `After that it steps down to normal, ongoing support, same as every other role, just a shorter or longer runway depending on tier.`,
+    ],
+    roleLinks: [role],
+    chips: ['which-matter', 'how-scored'],
+  };
+}
+
+/* Why THIS role landed where it did - the actual sub-factor values and the
+   anchor band each one hit, the same anchorFor() lookup AxisBreakdown and
+   the weight-tuner sliders read from, not a restatement of the generic
+   axis definitions ASK_METRIC_EXPLAIN gives when no role is in play. */
+function roleScoreExplain(role, ctx) {
+  if (!role.complete) {
+    return {
+      text: [`${role.role} hasn't been scored yet - it's missing ${role.missing.join(', ')}, so there's nothing to explain until that's filled in.`],
+      roleLinks: [role],
+      chips: ['which-matter', 'how-scored'],
+    };
+  }
+  const citeDeck = !!ctx.project.hasDeckReproduction;
+  const bandLine = (factors, values) => factors.map((f) => {
+    const hit = anchorFor(f.key, values[f.key], citeDeck);
+    return `${f.label} ${values[f.key].toFixed(1)}${hit ? ` (${hit.text})` : ''}`;
+  }).join('; ');
+  return {
+    text: [
+      `${role.role} is ${role.tier}: impact ${role.scores.impact.toFixed(1)} and risk ${role.scores.risk.toFixed(1)} out of 5, against a ${THRESHOLD.toFixed(1)} threshold on both, inclusive.`,
+      `Impact comes from: ${bandLine(IMPACT_FACTORS, role.impact)}.`,
+      `Risk comes from: ${bandLine(RISK_FACTORS, role.risk)}.`,
+    ],
+    roleLinks: [role],
+    chips: [{ label: `What does ${role.tier} mean?`, question: `What does ${role.tier} mean?` }, 'how-scored'],
+  };
+}
+
+/* Whether this role's before/after came from real document evidence, a
+   general-knowledge assumption, or is still missing input - reads the
+   exact same role.draft/role.needsInput fields ReviewRow and
+   reviewStateLabel render from, so it can never disagree with the Review
+   screen. The three static example projects never carry role.draft or
+   role.needsInput at all - that's a real, honest answer in itself
+   (illustrative data, not derived from anyone's documents), not a gap to
+   paper over with the wizard-only language. */
+function roleProvenance(role, ctx) {
+  if (!role.complete) {
+    return {
+      text: [`${role.role} needs input: ${role.missing.join(', ')} ${role.missing.length === 1 ? "wasn't" : "weren't"} in what was uploaded or entered for it, so nothing is guessed to fill that gap.`],
+      roleLinks: [role],
+      chips: ['which-matter', 'how-scored'],
+    };
+  }
+  if (!role.draft && !role.needsInput) {
+    return {
+      text: [`${role.role} is one of this tool's own example roles - illustrative, synthetic data built to show how the tool works, not drafted from real uploaded documents at all.`],
+      roleLinks: [role],
+      chips: ['which-matter'],
+    };
+  }
+  if (role.draft && role.draft.kind === 'assumed') {
+    return {
+      text: [`${role.role}'s before/after is an assumption: drawn from general knowledge of this kind of role, not from your uploaded documents, because the documents didn't say enough about it. It's flagged for review, not treated as fact.`],
+      roleLinks: [role],
+      chips: ['which-matter'],
+    };
+  }
+  if (role.draft) {
+    const src = role.draft.source;
+    return {
+      text: [
+        `${role.role} was drafted from your own uploaded documents, real evidence, not an assumption.`,
+        src ? `${src.fileName}: "${src.snippet}"` : `No specific quote is attached to it, but it came from your documents, not general knowledge.`,
+      ],
+      roleLinks: [role],
+      chips: ['which-matter'],
+    };
+  }
+  return { text: [`${role.role} still needs review before it's part of the scored portfolio.`], roleLinks: [role], chips: ['which-matter'] };
+}
+
+/* A real side-by-side, not "pick one" - only fires when the question named
+   exactly two roles and used comparison language (see the compare-roles
+   intent below); askAboutRoleMatches still owns the ambiguous 3+ case and
+   the plain "which one did you mean" case. */
+function compareRoles(a, b) {
+  const line = (r) => (r.complete
+    ? `${r.role}: ${r.tier}, impact ${r.scores.impact.toFixed(1)}, risk ${r.scores.risk.toFixed(1)}, ${r.siteArchetype}, ${pluralize(r.headcount, 'person', 'people')}.`
+    : `${r.role}: not yet scored, missing ${r.missing.join(', ')}.`);
+  const notes = [];
+  if (a.complete && b.complete) {
+    notes.push(a.tier === b.tier
+      ? `Both are ${a.tier}, so they get the same kind of support plan, just scaled to headcount.`
+      : `${a.role} is ${a.tier} and ${b.role} is ${b.tier}, so they get different support plans - see what each tier means for the difference.`);
+  }
+  return { text: [line(a), line(b), ...notes], roleLinks: [a, b], chips: ['which-matter', 'how-scored'] };
+}
+
+/* Mechanism, not a fabricated number: this system never recomputes a "what
+   if" scenario server-side, so the honest answer is how the live sliders
+   actually work, plus an invitation to just try it, not a guess at which
+   roles would move. */
+function askWeightHypothetical() {
+  return {
+    text: [
+      `Each sub-factor's weight sets how much it counts toward its own axis - raise one and it pulls harder on impact or risk, since all the weights on that axis always re-normalize to add up to the same total.`,
+      `That can move a role's score across the ${THRESHOLD.toFixed(1)} threshold and change its tier, which is exactly why the sliders on Stakeholder Impact are live: drag one and every role's score, tier and the heat map recompute immediately, nothing is precomputed for a fixed weighting.`,
+      `There's a reset control if you want back to the default afterward.`,
+    ],
+    chips: ['how-scored', 'which-matter'],
+  };
+}
+
+function askCanDisagreeWithScore() {
+  return {
+    text: [
+      `Yes. The six sub-factor sliders on Stakeholder Impact are editable for every role - if a number looks wrong, you move it and the score, tier and heat map update immediately.`,
+      `Each slider is anchored to five band descriptions, not a bare number, so disagreeing means picking the band that actually matches the role, not just nudging it by feel.`,
+      `In a live engagement, this is exactly where a practitioner overrides a documents-derived or AI-suggested first pass with their own judgment.`,
+    ],
+    chips: ['how-scored', 'which-matter'],
+  };
+}
+
+function askHowAIScores() {
+  return {
+    text: [
+      `For the three example projects shown here, nothing is AI-generated: every score comes straight from the six sub-factor sliders on Stakeholder Impact, each anchored to a fixed band description, and the formula that turns them into impact, risk and tier is entirely deterministic (see "How were these scores calculated?").`,
+      `When you start a new project from your own documents, there's one place AI helps: a first-pass suggestion for those same six sliders, built from whatever your documents say about a role. It's always labeled AI-suggested and editable before it's added, and the scoring formula itself never changes, whether the numbers came from AI or a person.`,
+    ],
+    chips: ['how-scored', 'which-matter'],
+  };
+}
+
+function askDifferentIndustry() {
+  const examples = PROJECTS.filter((p) => p.kind === 'example').map((p) => `${p.name} (${p.industry})`).join(', ');
+  return {
+    text: [
+      `Yes. Nothing in the scoring formula, the four tiers, or the training/communication/adoption plans is specific to any one industry or ERP - what changes per project is just the data: the roles, their site types, and the weighting judgment call.`,
+      `This same engine already ships three different industries: ${examples}.`,
+    ],
+    chips: ['how-scored', 'which-matter'],
+  };
+}
+
 function askAboutSite({ project, scored }, site) {
   const roles = scored.filter((r) => archetypeParts(r.siteArchetype).includes(site)).sort(bySeverity);
   if (!roles.length) return { text: [`No role at ${project.name} is scoped to ${site}.`], chips: ['which-matter'] };
@@ -7835,7 +8156,13 @@ function askTierOverview({ project, scored }) {
 }
 
 function askWhyTier(ctx, q, entities) {
-  if (entities.roleMatches.length === 1) return askAboutRole(entities.roleMatches[0]);
+  // "Why is THIS role high risk/in this tier" wants the actual sub-factor
+  // breakdown that drove it, not the generic per-role summary card - the
+  // exact bug this function used to have (askAboutRole regardless of what
+  // was actually asked). "their"/"this role" still resolves to whichever
+  // role the conversation was already about (see resolveRoleForDetail).
+  const role = resolveRoleForDetail(ctx, q, entities);
+  if (role) return roleScoreExplain(role, ctx);
   if (entities.roleMatches.length > 1 && entities.roleMatches.length <= 6) return askAboutRoleMatches(entities.roleMatches);
   if (entities.tier) return askWhatTierMeans(ctx, q, entities);
   return askTierOverview(ctx);
@@ -7925,8 +8252,19 @@ function askDataSource({ project }) {
   };
 }
 
-function askHowManyAffected({ project, scored }) {
+function askHowManyAffected({ project, scored }, q, entities) {
   const agg = aggregate(scored);
+  // "How many people are in Rebuild" names a tier - answer that tier
+  // specifically rather than the whole portfolio's breakdown, same
+  // scoping precedent askTrainingCost already sets for its own entities.
+  if (entities && entities.tier) {
+    const b = agg.byTier[entities.tier];
+    if (!b.roles) return { text: [`No role at ${project.name} is ${entities.tier}.`], chips: ['which-matter'] };
+    return {
+      text: [`${entities.tier}: ${b.people.toLocaleString()} people across ${pluralize(b.roles, 'role')} at ${project.name}, ${pct(b.popShare)} of the total headcount.`],
+      chips: ['which-matter', 'how-scored'],
+    };
+  }
   return {
     text: [
       `${agg.totalPeople.toLocaleString()} people across ${pluralize(agg.totalRoles, 'role')} at ${project.name}.`,
@@ -8004,8 +8342,67 @@ function askFallback(ctx, q, entities) {
    is just this question's own `chip` text, run the same way typing it
    would be). */
 const ASK_QUESTIONS = [
+  // The following role-detail intents are checked ahead of every generic
+  // intent below (including why-tier/how-scored/go-live, whose own broad
+  // regexes would otherwise win first and answer with a portfolio-wide or
+  // generic-metric restatement instead of the one specific thing that was
+  // actually asked about a role already in play). Each resolves its role
+  // via resolveRoleForDetail: a name in the question itself, or "their"/
+  // "this role" referring back to whichever role the conversation was
+  // already about (ctx.lastRole, see AskAssistant).
+  { id: 'training-module-detail', chip: "What's in module 1 of their training?",
+    keywords: /\bmodule\s*#?\s*\d+\b/i,
+    run: (ctx, q, entities) => {
+      const role = resolveRoleForDetail(ctx, q, entities);
+      if (!role) return askWhichRole();
+      const m = q.match(/module\s*#?\s*(\d+)/i);
+      return roleTrainingModule(role, ctx, m ? parseInt(m[1], 10) : null);
+    } },
+  { id: 'communication-detail', chip: 'What communication do we send them?',
+    keywords: /\b(communication|comms?|message|email|draft)s?\b.*(send|sent|get|receive|say|read)|(send|sent|receive).*\b(communication|comms?|message|email)s?\b|email to (their|the|his|her) manager/i,
+    run: (ctx, q, entities) => {
+      const role = resolveRoleForDetail(ctx, q, entities);
+      if (!role) return askWhichRole();
+      return roleCommunicationDetail(role, ctx, q);
+    } },
+  { id: 'support-duration-detail', chip: "When's their go-live support end?",
+    keywords: /\b(support|hypercare)\b.*(end|ends|stop|stops|finish|finishes|last|lasts|duration)|how long.*(support|hypercare)|go-?live support/i,
+    run: (ctx, q, entities) => {
+      const role = resolveRoleForDetail(ctx, q, entities);
+      if (!role) return askWhichRole();
+      return roleSupportDuration(role, ctx);
+    } },
+  { id: 'role-provenance', chip: 'Is this role from our documents or assumed?',
+    keywords: /\b(document|documents)\b.*(assum|from)|\bassumption\b|\bassumed\b|why.*need(s)? input/i,
+    run: (ctx, q, entities) => {
+      const role = resolveRoleForDetail(ctx, q, entities);
+      if (!role) return askWhichRole();
+      return roleProvenance(role, ctx);
+    } },
+  { id: 'compare-roles', chip: 'Compare two roles',
+    keywords: /\bcompare\b|\bversus\b|\bvs\.?\b/i,
+    run: (ctx, q, entities) => {
+      const allRoles = [...ctx.scored, ...ctx.incomplete];
+      const matches = resolveCompareRoles(q, allRoles);
+      if (matches.length === 2) return compareRoles(matches[0], matches[1]);
+      if (matches.length > 2 && matches.length <= 6) return askAboutRoleMatches(matches);
+      if (matches.length === 1) return askAboutRole(matches[0]);
+      return askFallback(ctx, q, entities);
+    } },
+  { id: 'weight-hypothetical', chip: 'What happens if I raise a weight?',
+    keywords: /what (happens|would happen) if.*(weight|raise|increase|lower|decrease)|if (i|we) (raise|increase|lower|decrease).*weight/i,
+    run: askWeightHypothetical },
+  { id: 'disagree-score', chip: 'Can I disagree with this score?',
+    keywords: /\bdisagree\b|\boverrid(e|ing)\b.*(score|this)|can (i|we) (change|edit|adjust|override) (this|the|a) score/i,
+    run: askCanDisagreeWithScore },
+  { id: 'ai-how', chip: 'How does the AI figure out impact?',
+    keywords: /\bai\b.*(figure|score|calculat|determine|decide|work)|how does (the )?ai/i,
+    run: askHowAIScores },
+  { id: 'different-industry', chip: 'Would this work for a different industry?',
+    keywords: /different (industr(y|ies)|erp|system|company)|other (industr(y|ies)|erp)|work for (a )?different/i,
+    run: askDifferentIndustry },
   { id: 'why-tier', chip: 'Why is this role in this tier?',
-    keywords: /why (is|does|are).*(tier|rebuild|enable|reassure|inform|scored|sorted|grouped|land)/i,
+    keywords: /why (is|does|are|did|would).*(tier|rebuild|enable|reassure|inform|scored|sorted|grouped|land|score|risk|impact|risky)|what('s| is) driving (the|this) (score|risk|impact)/i,
     run: askWhyTier },
   { id: 'which-matter', chip: 'Which roles actually matter?',
     keywords: /matter|which roles?|most important|highest impact|top roles|worth (focusing|prioriti)|worst affected|most affected|hit hardest|most impacted/i,
@@ -8082,13 +8479,18 @@ function answerQuestion(raw, ctx) {
   // A glossary hit wins ahead of any role/tier/site/tab/metric match: "what
   // is a peer champion" is about the tool's own vocabulary, not about any
   // one role's data, even on the off chance a role name happened to overlap.
-  if (entities.glossary) return askGlossaryTerm(ctx, entities.glossary);
+  if (entities.glossary.length) return askGlossaryTerm(ctx, entities.glossary);
   if (entities.roleMatches.length === 1) return askAboutRole(entities.roleMatches[0]);
   if (entities.roleMatches.length > 1 && entities.roleMatches.length <= 6) return askAboutRoleMatches(entities.roleMatches);
   if (entities.tier) return askWhatTierMeans(ctx, q, entities);
   if (entities.site) return askAboutSite(ctx, entities.site);
   if (entities.tab) return askAboutTab(ctx, entities.tab);
   if (entities.metric) return askAboutMetric(ctx, q, entities);
+  // Checked only this late: a real, in-scope match anywhere above always
+  // wins over a decline, so this never wrongly declines a question that
+  // happens to share a word with cost or HR/legal topics but is actually
+  // answerable from something already covered.
+  if (entities.decline) return askDecline(ctx, entities.decline);
 
   return askFallback(ctx, q, entities);
 }
@@ -8117,6 +8519,11 @@ function AskAssistant({ project, tab, scored, incomplete, weights, onOpenRole })
   const msgRefs = useRef([]);
   const wasOpenRef = useRef(false);
   const prevProjectId = useRef(project.id);
+  // The role a "their"/"this role" follow-up resolves to - the LAST role an
+  // answer was unambiguously about (see ask()), never set on an answer that
+  // named 2+ roles (a compare, or an ambiguous "pick one"), where there's no
+  // single referent for a pronoun to mean.
+  const lastRoleRef = useRef(null);
 
   // A stale answer from the last project must never linger into this one -
   // reset the whole conversation, not just close the panel, the moment the
@@ -8127,6 +8534,7 @@ function AskAssistant({ project, tab, scored, incomplete, weights, onOpenRole })
       setMessages([]);
       setOpeningLine(null);
       setOpen(false);
+      lastRoleRef.current = null;
     }
   }, [project.id]);
 
@@ -8170,7 +8578,14 @@ function AskAssistant({ project, tab, scored, incomplete, weights, onOpenRole })
   const ask = useCallback((raw) => {
     const q = String(raw || '').trim();
     if (!q) return;
-    const answer = answerQuestion(q, ctx);
+    // lastRoleRef is read fresh here, not through the memoized ctx above -
+    // a ref mutation doesn't invalidate a useMemo, so building ctx once at
+    // render time would keep handing every call the SAME lastRole it saw
+    // on first open, never the one from the exchange right before it.
+    const answer = answerQuestion(q, { ...ctx, lastRole: lastRoleRef.current });
+    if (answer && answer.roleLinks && answer.roleLinks.length === 1) {
+      lastRoleRef.current = answer.roleLinks[0];
+    }
     setMessages((m) => [
       ...m,
       { from: 'user', text: q },
