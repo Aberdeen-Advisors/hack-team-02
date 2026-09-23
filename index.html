@@ -10177,13 +10177,13 @@ function ReviewView({ roles, onAccept, onReject, onSaveEdit, onBulkAccept }) {
         <>
           <div className="grid cols-3" style={{ marginBottom: 'var(--space-16)' }}>
             {/* This tile carries the one obvious action on this screen -
-                a single button a practitioner presses once, never fired
-                on its own - so it gets its own layout instead of the
-                plain Tile every other cell here uses: the metric, then
-                Accept all (solid, primary) with a quieter "Review
-                individually" link underneath for anyone who'd rather go
-                role by role. Assumed and needs-input roles keep no bulk
-                path at all, on purpose - see splitReviewStates/onBulkAccept. */}
+                a single button a practitioner presses once - so it gets
+                its own layout instead of the plain Tile every other cell
+                here uses. No separate "review individually" control on
+                any tile: the individual rows are already right below,
+                already the direct way to review one role at a time.
+                Assumed and needs-input roles keep no bulk path at all, on
+                purpose - see splitReviewStates/onBulkAccept. */}
             <div className="tile">
               <div className="label">From your documents</div>
               <div className="value"><CountUpText value={drafted.length} /></div>
@@ -10193,7 +10193,6 @@ function ReviewView({ roles, onAccept, onReject, onSaveEdit, onBulkAccept }) {
                   <button type="button" className="btn primary" onClick={onBulkAccept}>
                     Accept all {pluralize(drafted.length, 'role')}
                   </button>
-                  <a href="#review-draft-list" className="link-btn">Review individually</a>
                 </div>
               )}
             </div>
@@ -10203,7 +10202,7 @@ function ReviewView({ roles, onAccept, onReject, onSaveEdit, onBulkAccept }) {
                   meta={`${pct(needsInputHeadcount / totalHeadcount)} of headcount`} />
           </div>
 
-          <div className="draft-list" id="review-draft-list">
+          <div className="draft-list">
             {ordered.map((role) => (
               <ReviewRow key={role.id} role={role} onAccept={onAccept} onReject={onReject} onSaveEdit={onSaveEdit} />
             ))}
