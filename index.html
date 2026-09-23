@@ -5919,15 +5919,16 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
             // `scored`/`incomplete`, so it fills in on its own as each role
             // resolves, no separate wiring needed here).
             <div className="hero-headline">
-              <h2 className="hero-sentence">Drafting {pluralize(drafting.total, 'role')} from your documents</h2>
+              {/* No role count here - the big counter right below is the
+                  one place that number lives (see #2 in the cleanup this
+                  answers: the topbar pill and this headline both used to
+                  repeat the same "32" the counter already states). */}
+              <h2 className="hero-sentence">Drafting from your documents</h2>
               <div className="drafting-progress">
                 <span className="drafting-count">{drafting.done} of {drafting.total}</span>
                 <div className="drafting-bar">
                   <div className="drafting-bar-fill" style={{ width: `${Math.round((drafting.done / Math.max(1, drafting.total)) * 100)}%` }} />
                 </div>
-                {formatDerivationEta(drafting.avgMs, drafting.done, drafting.total) && (
-                  <span className="drafting-eta">{formatDerivationEta(drafting.avgMs, drafting.done, drafting.total)}</span>
-                )}
               </div>
               <div className="hero-rule" aria-hidden="true" />
             </div>
@@ -9932,19 +9933,6 @@ function summarizeDerivationFailure(reasons) {
   return `The drafting service could not produce a result for any role (${top}).`;
 }
 
-// "~2 minutes remaining" / "~40 seconds remaining" - projected from how
-// long the roles that have already resolved actually took (averaged
-// across all of them, not just the last one), against how many rounds of
-// DERIVATION_CONCURRENCY-at-a-time calls are left to run. Never a fixed
-// guess and never reads the per-call timeout as if it were typical.
-function formatDerivationEta(avgMs, done, total) {
-  if (avgMs == null || done >= total) return null;
-  const rounds = Math.ceil((total - done) / DERIVATION_CONCURRENCY);
-  const totalSec = Math.round((rounds * avgMs) / 1000);
-  if (totalSec < 5) return null;
-  return totalSec < 60 ? `~${pluralize(totalSec, 'second')} remaining` : `~${pluralize(Math.round(totalSec / 60), 'minute')} remaining`;
-}
-
 // Merges an /api/derive result into a role record as a pending `draft` -
 // never into impact/risk/before/after themselves. A needsInput result (or
 // any shape that isn't a real draft or assumption) leaves the role exactly
@@ -10427,21 +10415,25 @@ function App() {
   // ETA; `failReason` is only set alongside `failed`.
   const [derivationProgress, setDerivationProgress] = useState(null);
 
-  // A brief, dismissible toast the moment a real drafting batch settles
-  // (active:true -> false) with roles still needing a look - never the
-  // "no documents" instant settle (that never sets active:true at all),
-  // and never fired again on every later progress tick, only this one
-  // transition. Auto-collapses into the existing small topbar pill
-  // (unaffected, still there either way) after ~10s or an explicit
-  // dismiss, so the two are never both sitting there indefinitely.
+  // A brief, dismissible toast the moment a real drafting batch finishes -
+  // fired directly, imperatively, from inside runDerivationBatch's own
+  // completion callback below (search "setShowDraftBanner(true)"), never
+  // inferred after the fact from watching derivationProgress transition in
+  // a separate effect. That's a deliberate choice, not a style preference:
+  // an effect watching for active:true -> false has to guess, from state
+  // alone, which render is "the" transition, and got this exact feature
+  // built once already without ever actually firing in the browser - the
+  // same class of timing bug that hit the original derivation kickoff
+  // effect (see the NEW PROJECT WIZARD / rolesLoadedFor comments above).
+  // Firing at the one true source of the event removes the guessing
+  // entirely. Never fired for the "no documents" instant settle (that
+  // path never calls it) or for a batch that failed entirely (that has
+  // its own dedicated hero + Retry treatment already; a second toast
+  // saying the same thing would just be noise). Auto-collapses into the
+  // existing small topbar pill (unaffected, still there either way, and
+  // itself already reads live off reviewRoles - see its own render below)
+  // after ~10s or an explicit dismiss.
   const [showDraftBanner, setShowDraftBanner] = useState(false);
-  const wasDraftingActiveRef = useRef(false);
-  useEffect(() => {
-    const activeNow = !!(derivationProgress && derivationProgress.active);
-    const wasActive = wasDraftingActiveRef.current;
-    wasDraftingActiveRef.current = activeNow;
-    if (wasActive && !activeNow && reviewRoles.length > 0) setShowDraftBanner(true);
-  }, [derivationProgress, reviewRoles.length]);
   useEffect(() => {
     if (!showDraftBanner) return undefined;
     const t = setTimeout(() => setShowDraftBanner(false), 10000);
@@ -10497,6 +10489,13 @@ function App() {
         ...p, active: false, failed: !resolvedAny,
         failReason: !resolvedAny ? summarizeDerivationFailure(failReasons) : null,
       } : p));
+      // The one true moment a real batch finishes - see the long comment
+      // on showDraftBanner's own declaration for why this is fired here,
+      // directly, rather than inferred later from a state transition.
+      // Every role `pending` held is still needsInput right now (nothing
+      // here ever accepts anything), so there is always at least one role
+      // for the banner to talk about whenever resolvedAny is true.
+      if (resolvedAny) setShowDraftBanner(true);
     });
   }, []);
 
@@ -10789,7 +10788,12 @@ function App() {
                 const active = derivationProgress && derivationProgress.active;
                 let pillText = '';
                 if (active) {
-                  pillText = `Drafting… ${derivationProgress.done}/${derivationProgress.total}`;
+                  // No count here on purpose - the hero's own big counter
+                  // and progress bar are the one place that number lives;
+                  // this pill is just "something is happening," for
+                  // whenever the hero itself is scrolled away or on
+                  // another tab.
+                  pillText = 'Drafting…';
                 } else {
                   const { assumed, needsInput } = splitReviewStates(reviewRoles);
                   if (needsInput.length > 0) pillText = `${pluralize(needsInput.length, 'role')} need review`;
@@ -10838,21 +10842,30 @@ function App() {
           the same news. */}
       {showDraftBanner && (() => {
         const { drafted, assumed, needsInput } = splitReviewStates(reviewRoles);
+        const total = drafted.length + assumed.length + needsInput.length;
+        if (!total) return null; // nothing pending any more - already fully accepted, say nothing
+        const allClean = assumed.length === 0 && needsInput.length === 0;
         return (
           <div className="draft-complete-banner no-print">
             <span className="dcb-text">
-              Drafting complete: {pluralize(drafted.length, 'role')} from your documents,{' '}
-              {pluralize(assumed.length, 'assumption')}, {pluralize(needsInput.length, 'role')} need input.
+              {allClean
+                ? `All ${pluralize(drafted.length, 'role')} drafted from your documents.`
+                : `${drafted.length} of ${total} drafted from your documents, ${pluralize(assumed.length, 'assumption')}, ${pluralize(needsInput.length, 'role')} need input.`}
             </span>
             <div className="dcb-actions">
               {drafted.length > 0 && (
                 <button type="button" className="btn primary"
                         onClick={() => { bulkAcceptDrafts(); setShowDraftBanner(false); }}>
-                  Accept all from documents
+                  {allClean ? `Accept all ${pluralize(drafted.length, 'role')}` : `Accept all ${drafted.length} from documents`}
                 </button>
               )}
+              {/* Only ever meaningful when something would still be left
+                  after Accept all (the mixed case) - in the clean case
+                  there is nothing left to review, so this is the same
+                  "Review individually" escape hatch to the row list
+                  itself, never a second Accept path. */}
               <button type="button" className="btn" onClick={() => { switchTab('review'); setShowDraftBanner(false); }}>
-                Review
+                {allClean ? 'Review individually' : 'Review'}
               </button>
               <button type="button" className="dcb-close" onClick={() => setShowDraftBanner(false)} aria-label="Dismiss">×</button>
             </div>

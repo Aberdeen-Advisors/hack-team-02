@@ -873,9 +873,6 @@ a { color: var(--aberdeen-blue); }
 }
 .drafting-bar { flex: 1; height: 6px; border-radius: 999px; background: var(--surface-sunk); border: 1px solid var(--hairline); overflow: hidden; }
 .drafting-bar-fill { height: 100%; background: var(--aberdeen-blue); border-radius: 999px; transition: width .3s ease; }
-/* Projected, not exact - "~" carries that on its own without a paragraph
-   explaining how the estimate is made (see formatDerivationEta). */
-.drafting-eta { flex: none; font-size: 13px; color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* The two lines that can sit under the hero sentence once drafting is no
    longer running: a plain explanatory line (drafting failed entirely) and
