@@ -7532,6 +7532,55 @@ function detectMetricEntity(q) {
   return ASK_METRICS.find((m) => m.re.test(q)) || null;
 }
 
+/* Tool vocabulary: terms this app itself introduces (a tier name, a
+   sub-factor, "peer champion", "how-to guide", the three draft-confidence
+   states) that a first-time reader wouldn't already know, as distinct from
+   outside general knowledge (the weather, other companies, ERP trivia
+   unrelated to this tool) - the one category askFallback's own decline
+   text must never cover, since it's a question about what THIS tool means,
+   answerable regardless of whether it's also tied to any one role's data.
+   Definitions reuse the exact same source strings the concept's own UI
+   reads from (IMPACT_FACTORS/RISK_FACTORS' own label and hint) wherever
+   one already exists, so there is never a second, independent definition
+   of the same thing that could drift out of step with what's on screen.
+   Tiers and the two whole axes already have their own always-answerable
+   path (askWhatTierMeans, the impact/risk entries in ASK_METRICS above) so
+   they aren't repeated here - this is for everything past that first
+   layer a reader hits once they start asking what those parts are built
+   from. */
+const GLOSSARY = [
+  { id: 'task-share', re: /task share|share of (daily |the )?tasks? chang/i,
+    text: () => `${IMPACT_FACTORS[0].label}: ${IMPACT_FACTORS[0].hint} It's one of the three things impact severity is built from, worth about ${pct(IMPACT_FACTORS[0].weight)} of that score by default.` },
+  { id: 'frequency-volume', re: /frequency (and |\/ )?volume|how often.*(the )?task/i,
+    text: () => `${IMPACT_FACTORS[1].label}: ${IMPACT_FACTORS[1].hint} One of the three things impact severity is built from, worth about ${pct(IMPACT_FACTORS[1].weight)} by default.` },
+  { id: 'error-consequence', re: /error consequence|consequence of error|what happens if.*wrong/i,
+    text: () => `${IMPACT_FACTORS[2].label}: ${IMPACT_FACTORS[2].hint} One of the three things impact severity is built from, worth about ${pct(IMPACT_FACTORS[2].weight)} by default.` },
+  { id: 'decision-rights', re: /decision rights?|change in decision/i,
+    text: () => `${RISK_FACTORS[0].label}: ${RISK_FACTORS[0].hint} One of the three things adoption risk is built from, worth about ${pct(RISK_FACTORS[0].weight)} by default.` },
+  { id: 'capability-delta', re: /capability delta|new skills? needed|skill gap/i,
+    text: () => `${RISK_FACTORS[1].label}: ${RISK_FACTORS[1].hint} One of the three things adoption risk is built from, worth about ${pct(RISK_FACTORS[1].weight)} by default.` },
+  { id: 'local-readiness', re: /local readiness|site readiness/i,
+    text: () => `${RISK_FACTORS[2].label}: ${RISK_FACTORS[2].hint} One of the three things adoption risk is built from, worth about ${pct(RISK_FACTORS[2].weight)} by default.` },
+  { id: 'peer-champion', re: /peer champions?|trained colleagues?|site coach(es)?/i,
+    text: () => "A peer champion (called a trained colleague on the roles needing the most support) is a person already doing the job who gets extra hands-on training so they can help their teammates through the change day to day, on top of whatever formal training everyone gets." },
+  { id: 'how-to-guide', re: /how-?to guides?|job aids?/i,
+    text: () => "A how-to guide (also called a job aid) is a short, printed or on-screen reference for one specific task, meant to be looked up at the point of work, not read start to finish the way a training course is." },
+  { id: 'sandbox', re: /\bsandbox(es)?\b|practice environment/i,
+    text: () => "A sandbox, or practice environment, is a safe copy of the new system where people can actually try the new way of working before go-live, without touching real data." },
+  { id: 'hypercare', re: /hypercare|support after go-?live/i,
+    text: () => "Support after go-live (sometimes called hypercare) is extra, closer support, a trained colleague or peer champion nearby, easier access to help, that continues for a set number of weeks after go-live before things settle into normal, ongoing support." },
+  { id: 'site-archetype', re: /site archetypes?|site types?\b/i,
+    text: (ctx) => `A site archetype, or site type, is the kind of location a role works from${ctx.project.siteArchetypeBase.length > 1 ? ` - ${ctx.project.siteArchetypeBase.join(', ')} at ${ctx.project.name}` : ` (every role at ${ctx.project.name} is ${ctx.project.siteArchetypeBase[0]})`}. A role can span more than one when its people actually work across more than one kind of site.` },
+  { id: 'draft-confidence', re: /from your documents|our starting assumption|needs input\b|draft confidence|assumed vs\.? drafted/i,
+    text: () => "When this tool builds a project from your own uploaded documents, every role starts in one of three states: drafted straight from something the documents actually said, an assumption made from general knowledge because the documents didn't say enough, or needing your input because nothing in the documents said anything useful at all. Only the first counts as real evidence, the other two are flagged so nobody mistakes a guess for a fact." },
+];
+function detectGlossaryEntity(q) {
+  return GLOSSARY.find((g) => g.re.test(q)) || null;
+}
+function askGlossaryTerm(ctx, entity) {
+  return { text: [entity.text(ctx)], chips: ['which-matter', 'how-scored'] };
+}
+
 /* Every entity type detected once per question, so every intent below
    works from the same read of "what is this question actually about"
    instead of re-parsing the raw string itself. */
@@ -7542,6 +7591,7 @@ function detectEntities(q, ctx, allRoles) {
     site: detectSiteEntity(q, ctx.scored, ctx.project),
     tab: detectTabEntity(q),
     metric: detectMetricEntity(q),
+    glossary: detectGlossaryEntity(q),
   };
 }
 
@@ -7938,7 +7988,11 @@ function askFallback(ctx, q, entities) {
     return withNote(askAboutMetric(ctx, q, entities), `Not sure exactly what you're asking, but here's what ${entities.metric.label} means.`);
   }
   const orient = askWhatIsThisTool(ctx);
-  return { text: [`Not sure exactly what you're asking - this only answers from ${ctx.project.name}'s own data, not general knowledge.`, ...orient.text], chips: ASK_ROOT_CHIPS };
+  // The same generic follow-up pair almost every other answer ends on, not
+  // the panel's own empty-state chip row (see ASK_ROOT_CHIPS) - that row is
+  // a first-open affordance and must not resurface once a real question,
+  // even an unrecognized one, has actually been asked.
+  return { text: [`Not sure exactly what you're asking - this only answers from ${ctx.project.name}'s own data, not general knowledge.`, ...orient.text], chips: ['which-matter', 'how-scored'] };
 }
 
 /* Every intent this assistant recognizes, most-specific first so a broad
@@ -8025,6 +8079,10 @@ function answerQuestion(raw, ctx) {
   const hit = ASK_QUESTIONS.find((qq) => qq.keywords.test(q));
   if (hit) return hit.run(ctx, q, entities);
 
+  // A glossary hit wins ahead of any role/tier/site/tab/metric match: "what
+  // is a peer champion" is about the tool's own vocabulary, not about any
+  // one role's data, even on the off chance a role name happened to overlap.
+  if (entities.glossary) return askGlossaryTerm(ctx, entities.glossary);
   if (entities.roleMatches.length === 1) return askAboutRole(entities.roleMatches[0]);
   if (entities.roleMatches.length > 1 && entities.roleMatches.length <= 6) return askAboutRoleMatches(entities.roleMatches);
   if (entities.tier) return askWhatTierMeans(ctx, q, entities);
@@ -8056,6 +8114,7 @@ function AskAssistant({ project, tab, scored, incomplete, weights, onOpenRole })
   const buttonRef = useRef(null);
   const panelRef = useRef(null);
   const transcriptRef = useRef(null);
+  const msgRefs = useRef([]);
   const wasOpenRef = useRef(false);
   const prevProjectId = useRef(project.id);
 
@@ -8080,8 +8139,20 @@ function AskAssistant({ project, tab, scored, incomplete, weights, onOpenRole })
     wasOpenRef.current = open;
   }, [open]);
 
+  // Scrolls to the START of the newest question, not the bottom of
+  // whatever its answer happens to end on - so the whole new Q&A pair
+  // (or as much of it as fits) is what comes into view, rather than the
+  // panel jumping straight past it to wherever scrollHeight lands.
   useEffect(() => {
-    if (transcriptRef.current) transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
+    if (!transcriptRef.current) return;
+    if (!messages.length) { transcriptRef.current.scrollTop = 0; return; }
+    let lastUserIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].from === 'user') { lastUserIdx = i; break; }
+    }
+    const target = lastUserIdx >= 0 ? msgRefs.current[lastUserIdx] : null;
+    if (target) target.scrollIntoView({ block: 'start', behavior: 'auto' });
+    else transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
   }, [messages, open]);
 
   const ctx = useMemo(() => ({ project, scored, incomplete, weights }), [project, scored, incomplete, weights]);
@@ -8105,7 +8176,7 @@ function AskAssistant({ project, tab, scored, incomplete, weights, onOpenRole })
       { from: 'user', text: q },
       answer
         ? { from: 'bot', ...answer }
-        : { from: 'bot', text: ["I'm not confident I understood that. Try one of these:"], chips: ASK_ROOT_CHIPS },
+        : { from: 'bot', text: ["I'm not confident I understood that. Try one of these:"], chips: ['which-matter', 'how-scored'] },
     ]);
     setInput('');
   }, [ctx]);
@@ -8152,7 +8223,7 @@ function AskAssistant({ project, tab, scored, incomplete, weights, onOpenRole })
           <div className="ask-body" ref={transcriptRef}>
             {openingLine && <div className="ask-msg bot"><p>{openingLine}</p></div>}
             {messages.map((m, i) => (
-              <div key={i} className={'ask-msg ' + m.from}>
+              <div key={i} ref={(el) => (msgRefs.current[i] = el)} className={'ask-msg ' + m.from}>
                 {m.from === 'user' ? <p>{m.text}</p> : (m.text || []).map((t, j) => <p key={j}>{t}</p>)}
                 {m.from === 'bot' && m.roleLinks && m.roleLinks.length > 0 && (
                   <ul className="ask-role-links">
