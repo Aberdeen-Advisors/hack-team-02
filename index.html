@@ -2061,7 +2061,9 @@ function archetypeMatches(value, filter) {
 function matchesRoleSearch(role, search) {
   const q = String(search || '').trim().toLowerCase();
   if (!q) return true;
-  return role.role.toLowerCase().includes(q) || String(role.siteArchetype || '').toLowerCase().includes(q);
+  return role.role.toLowerCase().includes(q)
+    || String(role.siteArchetype || '').toLowerCase().includes(q)
+    || String(role.siteName || '').toLowerCase().includes(q);
 }
 
 /* A real, concrete example of a combined site scope, pulled from the active
@@ -5003,11 +5005,12 @@ function csvField(v) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 function rolesToCSV(roles) {
-  const header = ['Role', 'Site type', 'Site count', 'Headcount', 'On the floor', 'Net-new', 'Impact severity', 'Adoption risk', 'Tier'];
+  const header = ['Role', 'Site type', 'Site name', 'Site count', 'Headcount', 'On the floor', 'Net-new', 'Impact severity', 'Adoption risk', 'Tier'];
   const lines = [header.map(csvField).join(',')];
   roles.forEach((r) => {
+    const siteArchetype = r.siteArchetype === '(unspecified)' ? '' : r.siteArchetype;
     lines.push([
-      r.role, r.siteArchetype, r.siteCount, r.headcount, r.deskless ? 'Yes' : 'No', r.isNewRole ? 'Yes' : 'No',
+      r.role, siteArchetype, r.siteName || '', r.siteCount, r.headcount, r.deskless ? 'Yes' : 'No', r.isNewRole ? 'Yes' : 'No',
       r.scores.impact.toFixed(1), r.scores.risk.toFixed(1), r.tier,
     ].map(csvField).join(','));
   });
@@ -5524,9 +5527,20 @@ function columnsFor(comboExample) {
     { key: 'role', label: 'Role',
       render: (r) => <span className="rolename">{r.role}</span> },
     { key: 'siteArchetype', label: 'Sites', title: comboExample
-        ? `The site type (or combination) this row covers, e.g. "${comboExample}"`
-        : 'The site type this row covers. Every role in this project sits at a single site type; none span more than one.',
-      render: (r) => <>{r.siteArchetype}{r.deskless ? ' · on the floor' : ''}</> },
+        ? `The site this row covers - a specific location where one is on record, otherwise the site type, e.g. "${comboExample}"`
+        : 'The site this row covers - a specific location where one is on record, otherwise the site type.',
+      // siteName (a wizard-read spreadsheet's own named location) wins
+      // when it exists; siteArchetype is the fallback every project
+      // (including the three examples, which never set siteName at all)
+      // already had. The '(unspecified)' sentinel - only ever set when a
+      // wizard project's sheet had neither a site type nor a site name
+      // column at all - is deliberately never shown per row here; that
+      // finding gets one summary line above the table instead (see
+      // PortfolioView), not repeated on every row.
+      render: (r) => {
+        const siteLabel = r.siteName || (r.siteArchetype === '(unspecified)' ? '' : r.siteArchetype);
+        return [siteLabel, r.deskless ? 'on the floor' : ''].filter(Boolean).join(' · ');
+      } },
     { key: 'headcount', label: 'People', n: true, width: 100,
       render: (r) => (r.headcount || 0).toLocaleString() },
     { key: 'siteCount', label: 'Site count', n: true, width: 116,
@@ -5839,6 +5853,16 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
   const searched = useMemo(() => filtered.filter((r) => matchesRoleSearch(r, search)), [filtered, search]);
   const searchedIncomplete = useMemo(() => filteredIncomplete.filter((r) => matchesRoleSearch(r, search)), [filteredIncomplete, search]);
 
+  // '(unspecified)' is only ever set by the wizard, and only when a
+  // spreadsheet had neither a site type nor a site name column at all -
+  // one known limitation for the whole project, not 32 separate ones. Said
+  // here, once, instead of repeated as every row's own "Sites" cell (see
+  // columnsFor, which deliberately renders that sentinel as blank per row).
+  const noSiteDataAtAll = useMemo(() => {
+    const combined = [...scored, ...incomplete];
+    return combined.length > 0 && combined.every((r) => r.siteArchetype === '(unspecified)' && !r.siteName);
+  }, [scored, incomplete]);
+
   const agg = useMemo(() => aggregate(filtered), [filtered]);
   const sentence = useMemo(() => headlineFinding(agg), [agg]);
 
@@ -5994,6 +6018,11 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
             Export to CSV
           </button>
         </div>
+        {noSiteDataAtAll && (
+          <p className="sub" style={{ margin: 0, padding: '10px var(--space-16) 0' }}>
+            No site-level detail in this project’s data.
+          </p>
+        )}
         <RoleTable roles={searched} incomplete={searchedIncomplete} selectedId={selectedId} onSelect={onSelect} comboExample={comboExample}
                    search={search} onClearSearch={() => setSearch('')} />
       </div>
@@ -8306,19 +8335,30 @@ function parseCSV(text) {
    field is kept, not just the first, since a column mapping's own
    confidence is a straight read of how many candidates that leaves it
    with - see detectColumnCandidates. */
+// Site is two independent concepts, never one either/or field: a category
+// ("Site Type": HQ, Plant, Distribution Center) and a specific named
+// location ("Sites": Ashby Plant, Rothmere Plant). A header naming the
+// category is checked first and exclusively - "Site Type" contains "site"
+// too, but must never also be offered as a candidate for the name column,
+// or the two would go right back to being treated as one ambiguous field.
 const COLUMN_FIELD_KEYWORDS = {
   role: ['role', 'job', 'position', 'title'],
-  site: ['site', 'location', 'facility', 'plant'],
+  siteArchetype: ['type', 'archetype', 'category'],
+  siteName: ['site', 'location', 'facility', 'plant'],
   headcount: ['headcount', 'fte', 'employee', 'people', 'count'],
 };
 function detectColumnCandidates(headerRow) {
-  const candidates = { role: [], site: [], headcount: [] };
+  const candidates = { role: [], siteArchetype: [], siteName: [], headcount: [] };
   (headerRow || []).forEach((cell, i) => {
     const norm = String(cell || '').trim().toLowerCase();
     if (!norm) return;
-    Object.keys(COLUMN_FIELD_KEYWORDS).forEach((field) => {
-      if (COLUMN_FIELD_KEYWORDS[field].some((kw) => norm.indexOf(kw) !== -1)) candidates[field].push(i);
-    });
+    if (COLUMN_FIELD_KEYWORDS.role.some((kw) => norm.indexOf(kw) !== -1)) candidates.role.push(i);
+    if (COLUMN_FIELD_KEYWORDS.headcount.some((kw) => norm.indexOf(kw) !== -1)) candidates.headcount.push(i);
+    if (COLUMN_FIELD_KEYWORDS.siteArchetype.some((kw) => norm.indexOf(kw) !== -1)) {
+      candidates.siteArchetype.push(i);
+    } else if (COLUMN_FIELD_KEYWORDS.siteName.some((kw) => norm.indexOf(kw) !== -1)) {
+      candidates.siteName.push(i);
+    }
   });
   return candidates;
 }
@@ -8698,7 +8738,7 @@ async function parseRolesSpreadsheet(file) {
    accordingly, never this function silently guessing between them. */
 function autoResolveColumns(headerRow) {
   const candidates = detectColumnCandidates(headerRow);
-  const map = { role: null, site: null, headcount: null };
+  const map = { role: null, siteArchetype: null, siteName: null, headcount: null };
   Object.keys(candidates).forEach((field) => {
     if (candidates[field].length === 1) map[field] = candidates[field][0];
   });
@@ -8708,13 +8748,16 @@ function autoResolveColumns(headerRow) {
 /* Turns the raw 2-D array (header row plus data rows) into role records
    using whatever column mapping is currently in effect - the guess above,
    or whatever the person fixed it to. A row with no role name is dropped;
-   site/headcount are kept as whatever text was in that cell, unparsed. */
+   site type/name/headcount are kept as whatever text was in that cell,
+   unparsed, each independently empty if that concept has no mapped
+   column at all (never forced to share one column between them). */
 function rolesFromMappedRows(rows, columnMap) {
   if (!rows || rows.length < 2 || columnMap.role == null) return [];
   return rows.slice(1)
     .map((r) => ({
       role: String((r || [])[columnMap.role] || '').trim(),
-      site: columnMap.site != null ? String((r || [])[columnMap.site] || '').trim() : '',
+      siteArchetype: columnMap.siteArchetype != null ? String((r || [])[columnMap.siteArchetype] || '').trim() : '',
+      siteName: columnMap.siteName != null ? String((r || [])[columnMap.siteName] || '').trim() : '',
       headcount: columnMap.headcount != null ? String((r || [])[columnMap.headcount] || '').trim() : '',
     }))
     .filter((r) => r.role);
@@ -9371,7 +9414,14 @@ function ColumnQuestionCard({ prompt, options, flagged, onPick }) {
 }
 
 
-const COLUMN_FIELD_LABELS = { role: 'Role name column', site: 'Site column', headcount: 'Headcount column' };
+const COLUMN_FIELD_LABELS = {
+  role: 'Role name column', siteArchetype: 'Site type column', siteName: 'Site name column', headcount: 'Headcount column',
+};
+// The short phrase naming each field in the mapping sentence ("using X for
+// site type and Y for headcount") - deliberately not the same string as
+// COLUMN_FIELD_LABELS above, which is a form-field label ("Site type
+// column"), not prose.
+const COLUMN_FIELD_PHRASE = { role: 'role', siteArchetype: 'site type', siteName: 'site name', headcount: 'headcount' };
 
 /* Step 3: a summary of what the tool understood, not a form left to fill
    in. Every column mapping resolves on its own (silently when there's one
@@ -9385,43 +9435,55 @@ function ReviewStep({ basics, parsedRoles, roleColumnMap, roleHeaderRow, roleRow
   const [showOverride, setShowOverride] = useState(false);
 
   const totalHeadcount = parsedRoles.reduce((s, r) => s + (Math.max(0, parseInt(r.headcount, 10)) || 0), 0);
-  const siteCountFound = new Set(parsedRoles.map((r) => r.site.trim()).filter(Boolean)).size;
-  const siteCount = siteCountFound > 0 ? siteCountFound : 1;
-  const siteDefaulted = siteCountFound === 0;
 
   const candidates = useMemo(() => detectColumnCandidates(roleHeaderRow || []), [roleHeaderRow]);
   const fieldStatus = useCallback((field) => {
     if (roleColumnMap[field] != null) return 'resolved';
     const n = (candidates[field] || []).length;
-    if (n === 0) return field === 'site' ? 'defaulted' : 'none';
+    if (n === 0) return (field === 'siteArchetype' || field === 'siteName') ? 'defaulted' : 'none';
     return 'ambiguous';
   }, [roleColumnMap, candidates]);
   const roleStatus = fieldStatus('role');
   const headcountStatus = fieldStatus('headcount');
-  const siteStatus = fieldStatus('site');
+  const siteArchetypeStatus = fieldStatus('siteArchetype');
+  const siteNameStatus = fieldStatus('siteName');
+  // Sites found: whichever of the two site concepts actually has a
+  // resolved column wins - siteName (specific locations) when it exists,
+  // since that's the more informative count, falling back to siteArchetype
+  // (categories) when only that one does. Neither resolved (both silently
+  // defaulted, or one/both still an unanswered question) reads as 0 here;
+  // the tile below turns that into "1 site" or "waiting", never a bare 0.
+  const siteCountField = siteNameStatus === 'resolved' ? 'siteName' : (siteArchetypeStatus === 'resolved' ? 'siteArchetype' : null);
+  const siteCountFound = siteCountField ? new Set(parsedRoles.map((r) => r[siteCountField].trim()).filter(Boolean)).size : 0;
+  const siteCount = siteCountFound > 0 ? siteCountFound : 1;
+  const siteWaiting = siteArchetypeStatus === 'ambiguous' || siteNameStatus === 'ambiguous';
+  const siteDefaulted = siteCountFound === 0 && !siteWaiting;
+
   // Whether this field was ever ambiguous or unmatched - independent of
   // whether it's currently resolved, since candidates never change once
   // the header row is read. A field that needed asking keeps its own line
   // (a card while pending, a quiet confirmation once answered) even after
   // every other field has settled; one that was confidently auto-resolved
-  // never gets a line of its own at all, in either state. Site's "defaulted"
-  // status (no site column, silently treated as one site - see the Sites
-  // tile) is not this: it never asks, so it's excluded here on purpose.
+  // never gets a line of its own at all, in either state. A site field's
+  // "defaulted" status (no matching column, silently treated as absent -
+  // see the Sites tile) is not this: it never asks, so it's excluded here
+  // on purpose.
   const neededQuestion = (field) => {
     const n = (candidates[field] || []).length;
-    return field === 'site' ? n > 1 : n !== 1;
+    return (field === 'siteArchetype' || field === 'siteName') ? n > 1 : n !== 1;
   };
 
+  const COLUMN_FIELD_PROMPT = {
+    role: (status) => (status === 'none' ? "Couldn't find a likely role column. Which one names the role?" : 'Which column has the role name?'),
+    siteArchetype: () => 'Which column has the site type?',
+    siteName: () => 'Which column has the site name?',
+    headcount: (status) => (status === 'none' ? "Couldn't find a likely headcount column. Which one has headcount?" : 'Which column has headcount?'),
+  };
   const questionFor = (field) => {
     const status = fieldStatus(field);
     const optionIdx = status === 'ambiguous' ? candidates[field] : (roleHeaderRow || []).map((_, i) => i);
     const options = optionIdx.map((i) => ({ index: i, header: roleHeaderRow[i] || `Column ${i + 1}`, samples: sampleColumnValues(roleRows, i, 3) }));
-    const prompts = {
-      role: status === 'none' ? "Couldn't find a likely role column. Which one names the role?" : 'Which column has the role name?',
-      site: 'Which column has the site?',
-      headcount: status === 'none' ? "Couldn't find a likely headcount column. Which one has headcount?" : 'Which column has headcount?',
-    };
-    return { prompt: prompts[field], options, flagged: status === 'none' };
+    return { prompt: COLUMN_FIELD_PROMPT[field](status), options, flagged: status === 'none' };
   };
 
   const files = useMemo(() => collectFileStatuses(uploads), [uploads]);
@@ -9446,13 +9508,13 @@ function ReviewStep({ basics, parsedRoles, roleColumnMap, roleHeaderRow, roleRow
   // Only a field that actually needed asking, and is now resolved, gets a
   // clause here - a confidently auto-resolved field stays silent, same
   // rule the question cards themselves already follow. This is the one
-  // place any of the three column choices are confirmed in prose; there
-  // used to be a second, smaller line doing the same job per field, but
-  // its only action (reopen that one question) was strictly weaker than
-  // "Change these" below, which already edits all three at once.
-  const resolvedColumnClauses = ['role', 'site', 'headcount']
+  // place any column choice is confirmed in prose; there used to be a
+  // second, smaller line doing the same job per field, but its only
+  // action (reopen that one question) was strictly weaker than "Change
+  // these" below, which already edits every field at once.
+  const resolvedColumnClauses = ['role', 'siteArchetype', 'siteName', 'headcount']
     .filter((field) => neededQuestion(field) && fieldStatus(field) === 'resolved')
-    .map((field) => `${roleHeaderRow[roleColumnMap[field]] || `Column ${roleColumnMap[field] + 1}`} for ${field}`);
+    .map((field) => `${roleHeaderRow[roleColumnMap[field]] || `Column ${roleColumnMap[field] + 1}`} for ${COLUMN_FIELD_PHRASE[field]}`);
   const mappingSentence = `Read ${pluralize(parsedRoles.length, 'role')} and ${pluralize(totalHeadcount, 'person', 'people')} from your spreadsheet`
     + (resolvedColumnClauses.length ? `, using ${joinWithAnd(resolvedColumnClauses)}` : '') + '.';
 
@@ -9473,15 +9535,15 @@ function ReviewStep({ basics, parsedRoles, roleColumnMap, roleHeaderRow, roleRow
               waiting={headcountStatus !== 'resolved'}
               emptyNote={headcountStatus !== 'resolved' ? 'Waiting on the question below' : undefined} />
         <Tile label="Sites found" value={siteCount} countTo={siteCount}
-              waiting={siteStatus === 'ambiguous'}
-              emptyNote={siteStatus === 'ambiguous' ? 'Waiting on the question below' : undefined}
-              meta={siteStatus !== 'ambiguous' && siteDefaulted ? 'No site breakdown provided' : undefined} />
+              waiting={siteWaiting}
+              emptyNote={siteWaiting ? 'Waiting on the question below' : undefined}
+              meta={!siteWaiting && siteDefaulted ? 'No site breakdown provided' : undefined} />
       </div>
 
       {roleHeaderRow && (
         <div style={{ marginBottom: 'var(--space-16)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-8)' }}>
-            {['role', 'site', 'headcount'].map((field) => {
+            {['role', 'siteArchetype', 'siteName', 'headcount'].map((field) => {
               if (!neededQuestion(field) || fieldStatus(field) === 'resolved') return null;
               const q = questionFor(field);
               return <ColumnQuestionCard key={field} prompt={q.prompt} options={q.options} flagged={q.flagged}
@@ -9504,7 +9566,7 @@ function ReviewStep({ basics, parsedRoles, roleColumnMap, roleHeaderRow, roleRow
         <div className="card" style={{ marginBottom: 'var(--space-16)' }}>
           <div className="card-body">
             <div className="form-grid">
-              {['role', 'site', 'headcount'].map((key) => (
+              {['role', 'siteArchetype', 'siteName', 'headcount'].map((key) => (
                 <div className="field" key={key}>
                   <label htmlFor={`np-col-${key}`}>{COLUMN_FIELD_LABELS[key]}</label>
                   <select id={`np-col-${key}`} value={roleColumnMap[key] == null ? '' : roleColumnMap[key]}
@@ -9611,7 +9673,7 @@ function NewProjectWizard({ onFinish, onCancel }) {
   const [step, setStep] = useState('basics'); // 'basics' | 'uploads' | 'review'
   const [basics, setBasics] = useState(BLANK_BASICS);
   const [uploads, setUploads] = useState(() => Object.fromEntries(UPLOAD_SLOTS.map((s) => [s.key, s.multi ? [] : null])));
-  const [roleColumnMap, setRoleColumnMap] = useState({ role: null, site: null, headcount: null });
+  const [roleColumnMap, setRoleColumnMap] = useState({ role: null, siteArchetype: null, siteName: null, headcount: null });
 
   const setUpload = useCallback((key, value) => {
     setUploads((u) => ({ ...u, [key]: value }));
@@ -9671,13 +9733,29 @@ function NewProjectWizard({ onFinish, onCancel }) {
     // into the real project, not just the wizard session.
     const mentions = mentionScan(parsedRoles.map((r) => r.role), uploads);
     const roles = parsedRoles.map((r, i) => {
-      const site = r.site.trim();
-      const deskless = DESKLESS_SITE_KEYWORDS.some((t) => site.toLowerCase().includes(t.toLowerCase()));
+      const rawArchetype = r.siteArchetype.trim();
+      const rawName = r.siteName.trim();
+      // Each concept prefers its own column; when only one of the two
+      // exists, both display contexts read from that one (no behavior
+      // change for a sheet with a single site column, same as before this
+      // fix). Only when NEITHER exists at all does siteArchetype fall back
+      // to the '(unspecified)' sentinel it always used to - the heat map
+      // filter and scoreRole/archetypeMatches need a real, always-present
+      // string to bucket on. siteName stays genuinely empty in that case
+      // on purpose: the table's own render (see columnsFor) treats that
+      // sentinel as "nothing to show" rather than repeating it per row,
+      // and PortfolioView's own summary line is what says so once, not
+      // every row of the table.
+      const siteArchetype = rawArchetype || rawName || '(unspecified)';
+      const siteName = rawName || rawArchetype || '';
+      const combinedSiteText = `${rawArchetype} ${rawName}`.toLowerCase();
+      const deskless = DESKLESS_SITE_KEYWORDS.some((t) => combinedSiteText.includes(t.toLowerCase()));
       const headcount = Math.max(1, parseInt(r.headcount, 10) || 1);
       return {
         id: 'wizard-' + slugify(r.role) + '-' + i + '-' + Date.now().toString(36),
         role: r.role,
-        siteArchetype: site || '(unspecified)',
+        siteArchetype,
+        siteName,
         siteCount: 1,
         headcount,
         deskless,
@@ -10069,11 +10147,11 @@ function ReviewEditForm({ role, onSave, onCancel }) {
 
 /* The review screen itself: every role still needing a decision, needs-
    input ones first (per spec, so the gaps get attention before the easy
-   accepts), a two-tile summary of drafted vs. needs-input by both role
-   count and headcount share, and a bulk accept for every drafted role at
-   once. Not one of ALL_TABS (same precedent as AddRoleView's 'add' tab):
-   reachable only via the topbar's own pending-review pill, and only ever
-   relevant for a project that came through the wizard. */
+   accepts), a three-tile summary by both role count and headcount share,
+   and bulk accept for every drafted (never assumed) role at once. Not one
+   of ALL_TABS (same precedent as AddRoleView's 'add' tab): reachable only
+   via the topbar's own pending-review pill, and only ever relevant for a
+   project that came through the wizard. */
 // The three review states, split out of one role list - shared by the
 // review screen's own tiles/ordering and the topbar's pending-review pill,
 // so the two never drift into counting this differently.
@@ -10109,21 +10187,34 @@ function ReviewView({ roles, onAccept, onReject, onSaveEdit, onBulkAccept }) {
       ) : (
         <>
           <div className="grid cols-3" style={{ marginBottom: 'var(--space-16)' }}>
-            <Tile label="From your documents" value={drafted.length} countTo={drafted.length}
-                  meta={`${pct(draftedHeadcount / totalHeadcount)} of headcount`} />
+            {/* This tile carries the one obvious action on this screen -
+                a single button a practitioner presses once, never fired
+                on its own - so it gets its own layout instead of the
+                plain Tile every other cell here uses: the metric, then
+                Accept all (solid, primary) with a quieter "Review
+                individually" link underneath for anyone who'd rather go
+                role by role. Assumed and needs-input roles keep no bulk
+                path at all, on purpose - see splitReviewStates/onBulkAccept. */}
+            <div className="tile">
+              <div className="label">From your documents</div>
+              <div className="value"><CountUpText value={drafted.length} /></div>
+              <div className="meta">{pct(draftedHeadcount / totalHeadcount)} of headcount</div>
+              {drafted.length > 0 && (
+                <div className="tile-action-row">
+                  <button type="button" className="btn primary" onClick={onBulkAccept}>
+                    Accept all {pluralize(drafted.length, 'role')}
+                  </button>
+                  <a href="#review-draft-list" className="link-btn">Review individually</a>
+                </div>
+              )}
+            </div>
             <Tile label="Our starting assumption" value={assumed.length} countTo={assumed.length}
                   meta={`${pct(assumedHeadcount / totalHeadcount)} of headcount`} />
             <Tile label="Needs input" value={needsInput.length} countTo={needsInput.length}
                   meta={`${pct(needsInputHeadcount / totalHeadcount)} of headcount`} />
           </div>
 
-          {drafted.length > 0 && (
-            <div className="btn-row" style={{ marginBottom: 'var(--space-12)' }}>
-              <button type="button" className="btn primary" onClick={onBulkAccept}>Accept all {pluralize(drafted.length, 'role')} from your documents</button>
-            </div>
-          )}
-
-          <div className="draft-list">
+          <div className="draft-list" id="review-draft-list">
             {ordered.map((role) => (
               <ReviewRow key={role.id} role={role} onAccept={onAccept} onReject={onReject} onSaveEdit={onSaveEdit} />
             ))}
@@ -10335,6 +10426,27 @@ function App() {
   // average of how long a resolved call actually took, for the hero's own
   // ETA; `failReason` is only set alongside `failed`.
   const [derivationProgress, setDerivationProgress] = useState(null);
+
+  // A brief, dismissible toast the moment a real drafting batch settles
+  // (active:true -> false) with roles still needing a look - never the
+  // "no documents" instant settle (that never sets active:true at all),
+  // and never fired again on every later progress tick, only this one
+  // transition. Auto-collapses into the existing small topbar pill
+  // (unaffected, still there either way) after ~10s or an explicit
+  // dismiss, so the two are never both sitting there indefinitely.
+  const [showDraftBanner, setShowDraftBanner] = useState(false);
+  const wasDraftingActiveRef = useRef(false);
+  useEffect(() => {
+    const activeNow = !!(derivationProgress && derivationProgress.active);
+    const wasActive = wasDraftingActiveRef.current;
+    wasDraftingActiveRef.current = activeNow;
+    if (wasActive && !activeNow && reviewRoles.length > 0) setShowDraftBanner(true);
+  }, [derivationProgress, reviewRoles.length]);
+  useEffect(() => {
+    if (!showDraftBanner) return undefined;
+    const t = setTimeout(() => setShowDraftBanner(false), 10000);
+    return () => clearTimeout(t);
+  }, [showDraftBanner]);
 
   const runDerivationBatch = useCallback((pending, proj) => {
     if (derivationCancelRef.current) derivationCancelRef.current();
@@ -10662,7 +10774,6 @@ function App() {
               </span>
               <span className="sub">
                 {pluralize(all.length, 'role')} · {pluralize(all.reduce((s, r) => s + (r.headcount || 0), 0), 'person', 'people')}
-                {incomplete.length ? ` · ${pluralize(incomplete.length, 'incomplete role')}` : ''}
               </span>
             </div>
             <div className="tb-actions">
@@ -10717,6 +10828,37 @@ function App() {
           </nav>
         </div>
       </header>
+
+      {/* The toast half of the drafting-complete pair (see showDraftBanner
+          above) - directly under the topbar, full width, on top of
+          whatever tab is currently open (drafting can finish while the
+          practitioner is looking at Training, not just Stakeholder
+          Impact). The small persistent pill in the topbar itself is
+          unaffected either way; this is the loud, time-limited version of
+          the same news. */}
+      {showDraftBanner && (() => {
+        const { drafted, assumed, needsInput } = splitReviewStates(reviewRoles);
+        return (
+          <div className="draft-complete-banner no-print">
+            <span className="dcb-text">
+              Drafting complete: {pluralize(drafted.length, 'role')} from your documents,{' '}
+              {pluralize(assumed.length, 'assumption')}, {pluralize(needsInput.length, 'role')} need input.
+            </span>
+            <div className="dcb-actions">
+              {drafted.length > 0 && (
+                <button type="button" className="btn primary"
+                        onClick={() => { bulkAcceptDrafts(); setShowDraftBanner(false); }}>
+                  Accept all from documents
+                </button>
+              )}
+              <button type="button" className="btn" onClick={() => { switchTab('review'); setShowDraftBanner(false); }}>
+                Review
+              </button>
+              <button type="button" className="dcb-close" onClick={() => setShowDraftBanner(false)} aria-label="Dismiss">×</button>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="only-print" style={{ marginBottom: 'var(--space-12)' }}>
         <div style={{ fontSize: 10, letterSpacing: '.13em', textTransform: 'uppercase', color: 'var(--ink-2)' }}>Aberdeen Advisors</div>

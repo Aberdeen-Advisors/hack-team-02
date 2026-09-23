@@ -333,6 +333,27 @@ a { color: var(--aberdeen-blue); }
    copy elsewhere. Not a tier hue: Verdigris is its own color, not a wash
    of any of the four. */
 .weight-flash.route-notice { background: var(--flag-wash); color: var(--flag); font-weight: 500; }
+/* The louder, time-limited half of the drafting-complete pair (see
+   showDraftBanner in App()) - full width, directly under the topbar, on
+   top of whatever tab happens to be open. Settles away on its own after
+   ~10s or a dismiss; the small persistent pill already in the topbar is
+   the quiet, permanent version of the same news and needs no change here. */
+.draft-complete-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-16);
+  flex-wrap: wrap; background: var(--aberdeen-blue-wash); border-bottom: 1px solid var(--aberdeen-blue-line);
+  padding: 10px 28px; animation: weight-flash-in .25s ease-out;
+}
+.dcb-text { font-size: 13.5px; color: var(--ink); font-weight: 500; }
+.dcb-actions { display: flex; align-items: center; gap: var(--space-8); flex: none; }
+.dcb-close {
+  appearance: none; border: none; background: none; cursor: pointer; color: var(--ink-3);
+  font-size: 18px; line-height: 1; padding: 2px 7px; border-radius: 4px;
+}
+.dcb-close:hover { background: var(--aberdeen-blue-line); color: var(--ink); }
+@media (max-width: 767px) {
+  .draft-complete-banner { padding: 10px var(--space-16); }
+}
+
 @keyframes weight-flash-in {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
@@ -718,6 +739,12 @@ a { color: var(--aberdeen-blue); }
    that answer (.column-question-card), so the two visibly read as one
    waiting pair, not two unrelated pieces of UI. */
 .tile.tile-waiting { border-left: 3px solid var(--verdigris); }
+/* The Review screen's "From your documents" tile, with the one obvious
+   action on this page attached directly to it - Accept all (solid,
+   primary) then a quieter secondary link, not a button floating below
+   three unrelated tiles where it reads as optional. */
+.tile-action-row { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: var(--space-12); }
+.tile-action-row .btn.primary { width: 100%; text-align: center; }
 /* A structural zero (e.g. no deskless roles in this population): a dash
    reads as a deliberate finding, a bold 0 reads as a KPI regressing. */
 .tile .value.dash { color: var(--ink-3); font-weight: 400; }
