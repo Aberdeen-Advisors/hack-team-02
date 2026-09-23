@@ -10718,6 +10718,12 @@ function App() {
     return <ProjectPicker projects={PROJECTS} onSelect={enterProject} onStartNew={() => setWizardActive(true)} />;
   }
 
+  // Same normalization PortfolioView keeps for its own hero copy: a plain
+  // object shape the banner below can read active/failed off of, whether or
+  // not derivation has ever run for this project (the three example
+  // projects never set derivationProgress at all).
+  const drafting = derivationProgress || { active: false, failed: false, noDocuments: false, total: 0, done: 0 };
+
   return (
     <div className="app">
       <header className={'topbar no-print' + (scrolled ? ' scrolled' : '')}>
@@ -10870,7 +10876,43 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+// Class component, not a hook: getDerivedStateFromError/componentDidCatch
+// have no functional-component equivalent. Catches a render crash anywhere
+// in App (an undefined variable, a null dereference) and shows a plain
+// fallback instead of the blank white screen React otherwise leaves behind,
+// so a broken build is visible immediately rather than silent. The full
+// error still goes to the console via componentDidCatch, for a developer
+// reading devtools; the on-screen text stays short and non-technical for
+// whoever else might be looking at this screen.
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error('App crashed:', error, info.componentStack);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="app-crash">
+          <h1>Something went wrong</h1>
+          <p className="sub">
+            The app hit an error and could not finish rendering this screen. Reloading may fix it; if it keeps happening, this is a real bug to report.
+          </p>
+          <p className="app-crash-detail">{String(this.state.error && this.state.error.message || this.state.error)}</p>
+          <button type="button" className="btn primary" onClick={() => window.location.reload()}>Reload</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<ErrorBoundary><App /></ErrorBoundary>);
 // React 18's initial mount commits synchronously here (no Suspense/
 // transition is in play), so the real app's first correct DOM is already
 // in place by this line - removing the boot splash now is a plain cut
