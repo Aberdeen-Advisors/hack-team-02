@@ -5807,7 +5807,7 @@ function devAssertDashboardLayout(cardsRef, chartColRef) {
 
 function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWeight, onResetWeights, weightDeltas,
                           siteArchetypeBase, siteArchetypeCombos, comboExample,
-                          sa, setSa, projectName, derivationProgress, onOpenReview, onRetryDerivation }) {
+                          sa, setSa, projectName, derivationProgress, onRetryDerivation }) {
   const chartColRef = useRef(null);
   const cardsRef = useRef(null);
 
@@ -5870,9 +5870,11 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
   // through three states - null (no derivation ever ran, or not a wizard
   // project at all) reads identically to "not drafting, nothing failed".
   const drafting = derivationProgress || { active: false, failed: false, noDocuments: false, total: 0, done: 0 };
-  // Site-scoped, same as filteredIncomplete itself: a role still needing
-  // input by hand, narrowed to whatever site type is currently filtered.
-  const filteredReviewRoles = useMemo(() => filteredIncomplete.filter((r) => r.needsInput), [filteredIncomplete]);
+  // The OTHER kind of incomplete - never a wizard-derived needsInput
+  // role, which has its own message now (the persistent drafting-review
+  // banner under the topbar, see App()) and must not also trigger this
+  // generic line, or the same gap would be reported twice at once.
+  const filteredOtherIncomplete = useMemo(() => filteredIncomplete.filter((r) => !r.needsInput), [filteredIncomplete]);
 
   const siteFilterControl = siteScopeOptionCount > 1 && (
     <select id="f-sa" className="card-head-select no-print" aria-label="Filter by site type"
@@ -5955,18 +5957,17 @@ function PortfolioView({ scored, incomplete, selectedId, onSelect, weights, onWe
             </div>
           )}
 
-          {!drafting.active && !drafting.failed && !drafting.noDocuments && (
-            filteredReviewRoles.length > 0 ? (
-              <p className="sub hero-note">
-                {pluralize(filteredReviewRoles.length, 'role')} need input.{' '}
-                <button type="button" className="link-btn" onClick={onOpenReview}>Review</button>
-              </p>
-            ) : filteredIncomplete.length > 0 ? (
-              <p className="sub hero-note">
-                {pluralize(filteredIncomplete.length, 'role')} incomplete, not scored or tiered.
-                <i className="info-ico" tabIndex={0} title={NOTE.incomplete} aria-label={`Why incomplete: ${NOTE.incomplete}`}>ⓘ</i>
-              </p>
-            ) : null
+          {/* A wizard-derived role still needing input has its own
+              message now - the persistent drafting-review banner under
+              the topbar (see App()), the one place that count lives, so
+              it's never duplicated here with its own copy to keep in
+              sync. This line is only ever the OTHER kind of incomplete
+              (a live-added role with no needsInput flag at all). */}
+          {!drafting.active && !drafting.failed && !drafting.noDocuments && filteredOtherIncomplete.length > 0 && (
+            <p className="sub hero-note">
+              {pluralize(filteredOtherIncomplete.length, 'role')} incomplete, not scored or tiered.
+              <i className="info-ico" tabIndex={0} title={NOTE.incomplete} aria-label={`Why incomplete: ${NOTE.incomplete}`}>ⓘ</i>
+            </p>
           )}
         </div>
 
@@ -10196,7 +10197,7 @@ function ReviewView({ roles, onAccept, onReject, onSaveEdit, onBulkAccept }) {
                 </div>
               )}
             </div>
-            <Tile label="Our starting assumption" value={assumed.length} countTo={assumed.length}
+            <Tile label="Assumptions" value={assumed.length} countTo={assumed.length}
                   meta={`${pct(assumedHeadcount / totalHeadcount)} of headcount`} />
             <Tile label="Needs input" value={needsInput.length} countTo={needsInput.length}
                   meta={`${pct(needsInputHeadcount / totalHeadcount)} of headcount`} />
@@ -10415,31 +10416,6 @@ function App() {
   // ETA; `failReason` is only set alongside `failed`.
   const [derivationProgress, setDerivationProgress] = useState(null);
 
-  // A brief, dismissible toast the moment a real drafting batch finishes -
-  // fired directly, imperatively, from inside runDerivationBatch's own
-  // completion callback below (search "setShowDraftBanner(true)"), never
-  // inferred after the fact from watching derivationProgress transition in
-  // a separate effect. That's a deliberate choice, not a style preference:
-  // an effect watching for active:true -> false has to guess, from state
-  // alone, which render is "the" transition, and got this exact feature
-  // built once already without ever actually firing in the browser - the
-  // same class of timing bug that hit the original derivation kickoff
-  // effect (see the NEW PROJECT WIZARD / rolesLoadedFor comments above).
-  // Firing at the one true source of the event removes the guessing
-  // entirely. Never fired for the "no documents" instant settle (that
-  // path never calls it) or for a batch that failed entirely (that has
-  // its own dedicated hero + Retry treatment already; a second toast
-  // saying the same thing would just be noise). Auto-collapses into the
-  // existing small topbar pill (unaffected, still there either way, and
-  // itself already reads live off reviewRoles - see its own render below)
-  // after ~10s or an explicit dismiss.
-  const [showDraftBanner, setShowDraftBanner] = useState(false);
-  useEffect(() => {
-    if (!showDraftBanner) return undefined;
-    const t = setTimeout(() => setShowDraftBanner(false), 10000);
-    return () => clearTimeout(t);
-  }, [showDraftBanner]);
-
   const runDerivationBatch = useCallback((pending, proj) => {
     if (derivationCancelRef.current) derivationCancelRef.current();
 
@@ -10489,13 +10465,6 @@ function App() {
         ...p, active: false, failed: !resolvedAny,
         failReason: !resolvedAny ? summarizeDerivationFailure(failReasons) : null,
       } : p));
-      // The one true moment a real batch finishes - see the long comment
-      // on showDraftBanner's own declaration for why this is fired here,
-      // directly, rather than inferred later from a state transition.
-      // Every role `pending` held is still needsInput right now (nothing
-      // here ever accepts anything), so there is always at least one role
-      // for the banner to talk about whenever resolvedAny is true.
-      if (resolvedAny) setShowDraftBanner(true);
     });
   }, []);
 
@@ -10776,37 +10745,11 @@ function App() {
               </span>
             </div>
             <div className="tb-actions">
-              {/* Only ever true for a wizard-created project mid- or
-                  post-derivation - never the three examples, which have no
-                  needsInput roles and no derivationProgress to begin with.
-                  The actionable number only - how many still need a look -
-                  not the full three-way split, which already has its own
-                  tiles on the Review screen. Renders nothing once neither
-                  count is above zero, whatever derivationProgress happens
-                  to still hold from an earlier, now fully-reviewed batch. */}
-              {project.kind === 'new' && (() => {
-                const active = derivationProgress && derivationProgress.active;
-                let pillText = '';
-                if (active) {
-                  // No count here on purpose - the hero's own big counter
-                  // and progress bar are the one place that number lives;
-                  // this pill is just "something is happening," for
-                  // whenever the hero itself is scrolled away or on
-                  // another tab.
-                  pillText = 'Drafting…';
-                } else {
-                  const { assumed, needsInput } = splitReviewStates(reviewRoles);
-                  if (needsInput.length > 0) pillText = `${pluralize(needsInput.length, 'role')} need review`;
-                  else if (assumed.length > 0) pillText = `${pluralize(assumed.length, 'assumption')} to confirm`;
-                }
-                if (!pillText) return null;
-                return (
-                  <span className="weight-alert">
-                    <span className="weight-alert-text">{pillText}</span>
-                    <button type="button" className="link-btn" onClick={() => switchTab('review')}>Review roles</button>
-                  </span>
-                );
-              })()}
+              {/* No drafting/review indicator here any more - the
+                  persistent full-width banner under the topbar (see
+                  showDraftBanner below) is now the one surface for this,
+                  on whichever tab is open, so there is nothing left for a
+                  topbar pill to say that isn't already said there. */}
               {!weightsAreDefault(weights) && (
                 <span className="weight-alert">
                   Custom weighting active
@@ -10833,17 +10776,19 @@ function App() {
         </div>
       </header>
 
-      {/* The toast half of the drafting-complete pair (see showDraftBanner
-          above) - directly under the topbar, full width, on top of
-          whatever tab is currently open (drafting can finish while the
-          practitioner is looking at Training, not just Stakeholder
-          Impact). The small persistent pill in the topbar itself is
-          unaffected either way; this is the loud, time-limited version of
-          the same news. */}
-      {showDraftBanner && (() => {
+      {/* The one drafting-review surface in the whole app now - directly
+          under the topbar, full width, on top of whatever tab is
+          currently open (drafting can finish while the practitioner is
+          looking at Training, not just Stakeholder Impact). No dismiss,
+          no timer: purely a function of live state, computed fresh every
+          render. It is showing because there is real pending work
+          (drafted-but-not-yet-accepted, assumed, or needs-input), or it
+          is gone because there isn't - never a third state where it's
+          been dismissed but the work is still there. */}
+      {!drafting.active && !drafting.failed && (() => {
         const { drafted, assumed, needsInput } = splitReviewStates(reviewRoles);
         const total = drafted.length + assumed.length + needsInput.length;
-        if (!total) return null; // nothing pending any more - already fully accepted, say nothing
+        if (!total) return null;
         const allClean = assumed.length === 0 && needsInput.length === 0;
         return (
           <div className="draft-complete-banner no-print">
@@ -10854,8 +10799,7 @@ function App() {
             </span>
             <div className="dcb-actions">
               {drafted.length > 0 && (
-                <button type="button" className="btn primary"
-                        onClick={() => { bulkAcceptDrafts(); setShowDraftBanner(false); }}>
+                <button type="button" className="btn primary" onClick={bulkAcceptDrafts}>
                   {allClean ? `Accept all ${pluralize(drafted.length, 'role')}` : `Accept all ${drafted.length} from documents`}
                 </button>
               )}
@@ -10864,10 +10808,9 @@ function App() {
                   there is nothing left to review, so this is the same
                   "Review individually" escape hatch to the row list
                   itself, never a second Accept path. */}
-              <button type="button" className="btn" onClick={() => { switchTab('review'); setShowDraftBanner(false); }}>
+              <button type="button" className="btn" onClick={() => switchTab('review')}>
                 {allClean ? 'Review individually' : 'Review'}
               </button>
-              <button type="button" className="dcb-close" onClick={() => setShowDraftBanner(false)} aria-label="Dismiss">×</button>
             </div>
           </div>
         );
@@ -10888,7 +10831,7 @@ function App() {
                          comboExample={comboExample}
                          sa={filters.sa} setSa={setFilterSa} projectName={project.name}
                          derivationProgress={project.kind === 'new' ? derivationProgress : null}
-                         onOpenReview={() => switchTab('review')} onRetryDerivation={retryDerivation} />
+                         onRetryDerivation={retryDerivation} />
         )}
         {tab === 'redesign' && (
           <RedesignView all={all} selectedId={selectedId} onSelect={openRole} weights={weights} onResetWeights={resetWeights}

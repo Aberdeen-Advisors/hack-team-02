@@ -244,14 +244,14 @@ a { color: var(--aberdeen-blue); }
   padding-left: 16px; margin-left: 2px; border-left: 1px solid var(--hairline-strong);
   flex: 1 1 auto; min-width: 0;
 }
-/* flex: 0 1 auto + min-width: 0, not flex: none: this group can hold a
-   drafting-status pill whose text length depends on the project (role
-   counts, a failure reason), and .topbar-row is nowrap with nothing else
-   free to give up width. Without the ability to shrink here, a long
-   enough pill pushed "All projects" (the one thing in this bar that must
-   always stay fully visible and clickable) off the right edge of the
-   screen entirely. The button itself stays flex: none below so it's never
-   what gives way; .weight-alert-text is what actually shrinks/truncates. */
+/* flex: 0 1 auto + min-width: 0, not flex: none: this group can hold the
+   custom-weighting pill, whose own max-width and shrink rules (see
+   .weight-alert below) need somewhere to actually give up width, and
+   .topbar-row is nowrap with nothing else free to do that. Without the
+   ability to shrink here, a wide enough pill pushed "All projects" (the
+   one thing in this bar that must always stay fully visible and
+   clickable) off the right edge of the screen entirely. The button itself
+   stays flex: none below so it's never what gives way. */
 .tb-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: 0 1 auto; min-width: 0; justify-content: flex-end; }
 .tb-actions > .btn { flex: none; }
 /* The brand mark, scaled to actually read as a mark, not an artifact next
@@ -312,10 +312,6 @@ a { color: var(--aberdeen-blue); }
   border-radius: 999px; padding: 3px 6px 3px 11px;
   flex: 0 1 auto; min-width: 0; max-width: 340px;
 }
-/* The one part of this pill allowed to give way - ellipsis over a second
-   pill, or a failure reason, rather than pushing "All projects" (or this
-   pill's own Review/Reset button) out past the edge of the screen. */
-.weight-alert-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .weight-alert .link-btn { color: var(--aberdeen-blue); font-weight: 600; flex: none; }
 .weight-alert .link-btn:hover { color: var(--ink); }
 
@@ -333,11 +329,12 @@ a { color: var(--aberdeen-blue); }
    copy elsewhere. Not a tier hue: Verdigris is its own color, not a wash
    of any of the four. */
 .weight-flash.route-notice { background: var(--flag-wash); color: var(--flag); font-weight: 500; }
-/* The louder, time-limited half of the drafting-complete pair (see
-   showDraftBanner in App()) - full width, directly under the topbar, on
-   top of whatever tab happens to be open. Settles away on its own after
-   ~10s or a dismiss; the small persistent pill already in the topbar is
-   the quiet, permanent version of the same news and needs no change here. */
+/* The one drafting-review surface in the app - full width, directly under
+   the topbar, on top of whatever tab happens to be open. No dismiss, no
+   timer: purely a function of live state (see its render in App()), so it
+   shows exactly as long as there's real pending work and disappears on
+   its own the moment there isn't - never a separate "dismissed" state
+   that could drift out of sync with what's actually still pending. */
 .draft-complete-banner {
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-16);
   flex-wrap: wrap; background: var(--aberdeen-blue-wash); border-bottom: 1px solid var(--aberdeen-blue-line);
@@ -345,11 +342,6 @@ a { color: var(--aberdeen-blue); }
 }
 .dcb-text { font-size: 13.5px; color: var(--ink); font-weight: 500; }
 .dcb-actions { display: flex; align-items: center; gap: var(--space-8); flex: none; }
-.dcb-close {
-  appearance: none; border: none; background: none; cursor: pointer; color: var(--ink-3);
-  font-size: 18px; line-height: 1; padding: 2px 7px; border-radius: 4px;
-}
-.dcb-close:hover { background: var(--aberdeen-blue-line); color: var(--ink); }
 @media (max-width: 767px) {
   .draft-complete-banner { padding: 10px var(--space-16); }
 }
